@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>iClinic Reports - Norzagaray College</title>
+    <script src="https://cdn.tailwindcss.com"></script>    <!-- Suppress Tailwind CDN Warning -->
+    <script>
+        // Suppress Tailwind CDN production warning
+        const originalWarn = console.warn;
+        console.warn = function(...args) {
+            if (args[0] && typeof args[0] === 'string' && args[0].includes('cdn.tailwindcss.com')) {
+                return; // Suppress Tailwind CDN warning
+            }
+            originalWarn.apply(console, args);
+        };
+    </script>
+
+    <script src="/assets/js/libs/chart.min.js"></script>
+    <script defer src="/assets/js/libs/alpine.min.js"></script>
+    <link href="/assets/css/libs/inter-font.css" rel="stylesheet">
+    
+    <style>
+        * { font-family: 'Inter', sans-serif; }
+        @media print {
+            .no-print { display: none !important; }
+            body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+            .page-break { page-break-after: always; }
+        }
+        .official-header {
+            border: 3px solid #0056b3;
+            background: linear-gradient(to bottom, #ffffff 0%, #f8f9fa 100%);
+        }
+        .header-line {
+            height: 2px;
+            background: linear-gradient(to right, #0056b3, #FDB813, #0056b3);
+        }
+    </style>
+
+    
+    <!-- Mobile Responsive Styles -->
+    <style id="mobile-responsive-styles">
+        /* Mobile-first responsive utilities */
+        @media (max-width: 640px) {
+            /* Extra small devices */
+            .xs\:text-xs { font-size: 0.75rem; }
+            .xs\:text-sm { font-size: 0.875rem; }
+            .xs\:p-2 { padding: 0.5rem; }
+            .xs\:px-2 { padding-left: 0.5rem; padding-right: 0.5rem; }
+            .xs\:py-2 { padding-top: 0.5rem; padding-bottom: 0.5rem; }
+            .xs\:gap-2 { gap: 0.5rem; }
+            .xs\:grid-cols-1 { grid-template-columns: repeat(1, minmax(0, 1fr)); }
+            .xs\:grid-cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        }
+        
+        /* Touch-friendly targets for mobile */
+        @media (max-width: 768px) {
+            button, a, input, select, textarea {
+                min-height: 44px;
+                min-width: 44px;
+            }
+            
+            /* Ensure modals are mobile-friendly */
+            .modal-content {
+                max-width: calc(100vw - 2rem);
+                margin: 1rem;
+            }
+            
+            /* Stack elements on mobile */
+            .mobile-stack {
+                flex-direction: column !important;
+            }
+            
+            /* Hide on mobile */
+            .mobile-hide {
+                display: none !important;
+            }
+            
+            /* Full width on mobile */
+            .mobile-full {
+                width: 100% !important;
+            }
+        }
+        
+        /* Tablet optimization */
+        @media (min-width: 641px) and (max-width: 1024px) {
+            .tablet-hide {
+                display: none !important;
+            }
+        }
+        
+        /* Responsive tables */
+        @media (max-width: 768px) {
+            table {
+                display: block;
+                overflow-x: auto;
+                white-space: nowrap;
+                -webkit-overflow-scrolling: touch;
+            }
+            
+            .responsive-table {
+                min-width: 600px;
+            }
+        }
+        
+        /* Responsive grid adjustments */
+        @media (max-width: 640px) {
+            .grid-cols-2, .grid-cols-3, .grid-cols-4 {
+                grid-template-columns: repeat(1, minmax(0, 1fr)) !important;
+            }
+            
+            .sm\:grid-cols-2 {
+                grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+            }
+        }
+        
+        /* Responsive padding and margins */
+        @media (max-width: 640px) {
+            .p-6 { padding: 1rem !important; }
+            .p-8 { padding: 1.5rem !important; }
+            .px-6 { padding-left: 1rem !important; padding-right: 1rem !important; }
+            .py-6 { padding-top: 1rem !important; padding-bottom: 1rem !important; }
+        }
+    </style>
+
+    
+    <style>
+        /* Custom scrollbar for tables */
+        .scrollbar-thin::-webkit-scrollbar {
+            height: 6px;
+        }
+        
+        .scrollbar-thin::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 3px;
+        }
+        
+        .scrollbar-thin::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 3px;
+        }
+        
+        .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+        
+        /* Responsive font sizes */
+        @media (max-width: 640px) {
+            h1 { font-size: 1.5rem !important; }
+            h2 { font-size: 1.25rem !important; }
+            h3 { font-size: 1.125rem !important; }
+        }
+        
+        /* Mobile-optimized spacing */
+        @media (max-width: 640px) {
+            .gap-6 { gap: 1rem !important; }
+            .gap-8 { gap: 1.5rem !important; }
+            .space-y-6 > * + * { margin-top: 1rem !important; }
+        }
+    </style>
+</head>
+<body class="bg-white" x-data="printReportsModule()" x-init="init()">
+    
+    <!-- Print Button -->
+    <div class="no-print fixed top-4 right-4 z-50 flex gap-2">
+        <button @click="window.print()" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-semibold shadow-lg">
+            Print Report
+        </button>
+        <button @click="window.history.back()" class="bg-gray-600 hover:bg-gray-700 text-white px-6 py-3 rounded-lg font-semibold shadow-lg">
+            Back
+        </button>
+    </div>
+    
+    <!-- Main Report Container -->
+    <div class="max-w-[210mm] mx-auto bg-white p-8">
+        
+        <!-- Official Header -->
+        <div class="official-header rounded-lg p-6 mb-6">
+            <div class="flex items-start justify-between gap-6">
+                <div class="flex-shrink-0">
+                    <img src="{{ url_for('static', filename='img/iclinic-logo.png') }}" alt="Norzagaray College" class="w-24 h-24 object-contain">
+                </div>
+                
+                <div class="flex-1 text-center">
+                    <h1 class="text-xl font-black text-blue-900 mb-1 text-base sm:text-lg md:text-xl">NORZAGARAY COLLEGE</h1>
+                    <p class="text-sm font-semibold text-gray-700 mb-1">Bigte, Norzagaray, Bulacan</p>
+                    <p class="text-xs text-gray-600 mb-2">www.norzagaraycollege.edu.ph</p>
+                    <p class="text-xs text-gray-600 mb-3">email: norzagaraycollege@gmail.com</p>
+                    <div class="header-line mb-3"></div>
+                    <h2 class="text-2xl font-black text-blue-900 mb-1 text-lg sm:text-xl md:text-2xl text-base sm:text-lg md:text-xl">CLINIC HEALTH SERVICES</h2>
+                    <h3 class="text-lg font-bold text-gray-800">STATISTICAL REPORT</h3>
+                    <p class="text-sm text-gray-600 mt-2">Academic Year <span x-text="reportPeriod"></span></p>
+                </div>
+                
+                <div class="flex-shrink-0">
+                    <img src="{{ url_for('static', filename='img/iclinic-logo.png') }}" alt="Norzagaray College" class="w-24 h-24 object-contain">
+                </div>
+            </div>
+        </div>
+        
+        <!-- Report Info -->
+        <div class="flex justify-between items-center mb-6 text-sm text-gray-600">
+            <div><strong>Report Generated:</strong> <span x-text="currentDate"></span></div>
+            <div><strong>Generated By:</strong> Clinic Administrator</div>
+        </div>
+        
+        <!-- Executive Summary -->
+        <div class="mb-8">
+            <h3 class="text-xl font-bold text-blue-900 mb-4 pb-2 border-b-2 border-blue-900 text-base sm:text-lg md:text-xl">EXECUTIVE SUMMARY</h3>
+            
+            <div class="grid grid-cols-4 gap-4 mb-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
+                <div class="bg-gradient-to-br from-blue-50 to-blue-100 border-2 border-blue-300 rounded-lg p-4 text-center">
+                    <div class="text-3xl font-black text-blue-900 text-xl sm:text-2xl md:text-3xl text-lg sm:text-xl md:text-2xl text-base sm:text-lg md:text-xl" x-text="summaryData.totalPatients">0</div>
+                    <div class="text-sm font-semibold text-blue-700 mt-1">Total Patients</div>
+                </div>
+                <div class="bg-gradient-to-br from-green-50 to-green-100 border-2 border-green-300 rounded-lg p-4 text-center">
+                    <div class="text-3xl font-black text-green-900 text-xl sm:text-2xl md:text-3xl text-lg sm:text-xl md:text-2xl text-base sm:text-lg md:text-xl" x-text="summaryData.totalVisits">0</div>
+                    <div class="text-sm font-semibold text-green-700 mt-1">Total Visits</div>
+                </div>
+                <div class="bg-gradient-to-br from-purple-50 to-purple-100 border-2 border-purple-300 rounded-lg p-4 text-center">
+                    <div class="text-3xl font-black text-purple-900 text-xl sm:text-2xl md:text-3xl text-lg sm:text-xl md:text-2xl text-base sm:text-lg md:text-xl" x-text="summaryData.totalConsultations">0</div>
+                    <div class="text-sm font-semibold text-purple-700 mt-1">Consultations</div>
+                </div>
+                <div class="bg-gradient-to-br from-orange-50 to-orange-100 border-2 border-orange-300 rounded-lg p-4 text-center">
+                    <div class="text-3xl font-black text-orange-900 text-xl sm:text-2xl md:text-3xl text-lg sm:text-xl md:text-2xl text-base sm:text-lg md:text-xl" x-text="summaryData.medicineStock">0</div>
+                    <div class="text-sm font-semibold text-orange-700 mt-1">Medicine Items</div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Charts Section -->
+        <div class="mb-8">
+            <h3 class="text-xl font-bold text-blue-900 mb-4 pb-2 border-b-2 border-blue-900 text-base sm:text-lg md:text-xl">PATIENT DEMOGRAPHICS</h3>
+            <div class="grid grid-cols-2 gap-6 grid-cols-1 sm:grid-cols-2">
+                <div class="bg-white border-2 border-gray-200 rounded-lg p-4">
+                    <h4 class="text-lg font-bold text-gray-800 mb-3 text-center">Gender Distribution</h4>
+                    <div class="h-64"><canvas id="genderChart"></canvas></div>
+                </div>
+                <div class="bg-white border-2 border-gray-200 rounded-lg p-4">
+                    <h4 class="text-lg font-bold text-gray-800 mb-3 text-center">Patient Types</h4>
+                    <div class="h-64"><canvas id="patientTypeChart"></canvas></div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Monthly Visits -->
+        <div class="mb-8">
+            <h3 class="text-xl font-bold text-blue-900 mb-4 pb-2 border-b-2 border-blue-900 text-base sm:text-lg md:text-xl">MONTHLY VISITS TREND</h3>
+            <div class="bg-white border-2 border-gray-200 rounded-lg p-6 sm:p-6 p-4">
+                <div class="h-80"><canvas id="monthlyVisitsChart"></canvas></div>
+            </div>
+        </div>
+        
+        <!-- Signatures -->
+        <div class="mt-12 pt-8 border-t-2 border-gray-300">
+            <div class="grid grid-cols-3 gap-8 text-center grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+                <div>
+                    <div class="border-b-2 border-black pb-1 mb-2 mx-8"></div>
+                    <p class="font-bold text-sm">Clinic Nurse</p>
+                    <p class="text-xs text-gray-600">Prepared By</p>
+                </div>
+                <div>
+                    <div class="border-b-2 border-black pb-1 mb-2 mx-8"></div>
+                    <p class="font-bold text-sm">School Physician</p>
+                    <p class="text-xs text-gray-600">Reviewed By</p>
+                </div>
+                <div>
+                    <div class="border-b-2 border-black pb-1 mb-2 mx-8"></div>
+                    <p class="font-bold text-sm">School President</p>
+                    <p class="text-xs text-gray-600">Approved By</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        function printReportsModule() {
+            return {
+                summaryData: { totalPatients: 0, totalVisits: 0, totalConsultations: 0, medicineStock: 0 },
+                demographics: { male: 0, female: 0, students: 0, teaching: 0, nonTeaching: 0, visitors: 0 },
+                currentDate: '', reportPeriod: '2024-2025',
+                
+                async init() {
+                    const now = new Date();
+                    this.currentDate = now.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+                    await this.loadAllData();
+                    setTimeout(() => this.initializeAllCharts(), 500);
+                },
+                
+                async loadAllData() {
+                    try {
+                        const patientsRes = await fetch('/api/patients');
+                        const patientsData = await patientsRes.json();
+                        if (patientsData.patients) {
+                            this.summaryData.totalPatients = patientsData.patients.length;
+                            this.demographics.male = patientsData.patients.filter(p => p.gender?.toLowerCase() === 'male').length;
+                            this.demographics.female = patientsData.patients.filter(p => p.gender?.toLowerCase() === 'female').length;
+                            this.demographics.students = patientsData.patients.filter(p => p.role === 'Student').length;
+                            this.demographics.teaching = patientsData.patients.filter(p => p.role === 'Teaching Staff').length;
+                            this.demographics.nonTeaching = patientsData.patients.filter(p => p.role === 'Non-Teaching Staff').length;
+                            this.demographics.visitors = patientsData.patients.filter(p => p.role === 'Visitor').length;
+                        }
+                        
+                        const visitsRes = await fetch('/api/visits');
+                        const visitsData = await visitsRes.json();
+                        this.summaryData.totalVisits = visitsData.visits?.length || 0;
+                        
+                        const consultRes = await fetch('/api/consultations');
+                        const consultData = await consultRes.json();
+                        this.summaryData.totalConsultations = consultData.consultations?.length || 0;
+                        
+                        const medRes = await fetch('/api/medicine');
+                        const medData = await medRes.json();
+                        this.summaryData.medicineStock = medData.medicines?.length || 0;
+                    } catch (error) {
+                        console.error('Error loading data:', error);
+                    }
+                },
+                
+                initializeAllCharts() {
+                    this.initGenderChart();
+                    this.initPatientTypeChart();
+                    this.initMonthlyVisitsChart();
+                },
+                
+                initGenderChart() {
+                    const ctx = document.getElementById('genderChart');
+                    if (!ctx) return;
+                    new Chart(ctx, {
+                        type: 'doughnut',
+                        data: {
+                            labels: ['Male', 'Female'],
+                            datasets: [{ data: [this.demographics.male, this.demographics.female], backgroundColor: ['#3b82f6', '#ec4899'] }]
+                        },
+                        options: { responsive: true, maintainAspectRatio: false }
+                    });
+                },
+                
+                initPatientTypeChart() {
+                    const ctx = document.getElementById('patientTypeChart');
+                    if (!ctx) return;
+                    new Chart(ctx, {
+                        type: 'pie',
+                        data: {
+                            labels: ['Students', 'Teaching', 'Non-Teaching', 'Visitors'],
+                            datasets: [{ 
+                                data: [this.demographics.students, this.demographics.teaching, this.demographics.nonTeaching, this.demographics.visitors],
+                                backgroundColor: ['#3b82f6', '#10b981', '#8b5cf6', '#f59e0b']
+                            }]
+                        },
+                        options: { responsive: true, maintainAspectRatio: false }
+                    });
+                },
+                
+                initMonthlyVisitsChart() {
+                    const ctx = document.getElementById('monthlyVisitsChart');
+                    if (!ctx) return;
+                    new Chart(ctx, {
+                        type: 'line',
+                        data: {
+                            labels: ['Aug', 'Sep', 'Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul'],
+                            datasets: [{
+                                label: 'Clinic Visits',
+                                data: [45, 52, 38, 65, 48, 72, 58, 63, 55, 48, 35, 28],
+                                borderColor: '#3b82f6',
+                                backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                                tension: 0.4,
+                                fill: true
+                            }]
+                        },
+                        options: { responsive: true, maintainAspectRatio: false }
+                    });
+                }
+            }
+        }
+    </script>
+</body>
+</html>

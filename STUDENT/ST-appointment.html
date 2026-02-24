@@ -1,0 +1,2111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Appointments - iClinic Healthcare Portal</title>
+    
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" href="../assets/img/iclinic-logo.png">
+    <link rel="apple-touch-icon" href="../assets/img/iclinic-logo.png">
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>    <!-- Suppress Tailwind CDN Warning -->
+    <script>
+        // Suppress Tailwind CDN production warning
+        const originalWarn = console.warn;
+        console.warn = function(...args) {
+            if (args[0] && typeof args[0] === 'string' && args[0].includes('cdn.tailwindcss.com')) {
+                return; // Suppress Tailwind CDN warning
+            }
+            originalWarn.apply(console, args);
+        };
+    </script>
+<!-- Alpine.js -->
+    <script defer src="/assets/js/libs/alpine.min.js"></script>
+    
+    <!-- Feather Icons -->
+    <script src="/assets/js/libs/feather.min.js"></script>
+    
+    <!-- Chart.js -->
+    <script src="/assets/js/libs/chart.min.js"></script>
+    
+    <!-- AOS Animation -->
+    <link href="/assets/css/libs/aos.css" rel="stylesheet">
+    <script src="/assets/js/libs/aos.js"></script>
+    
+    <!-- Inter Font -->
+    <link href="/assets/css/libs/inter-font.css" rel="stylesheet">
+    
+    <style>
+        * {
+            font-family: 'Inter', sans-serif;
+        }
+        
+        /* Custom scrollbar for better UX */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 8px;
+        }
+        
+        ::-webkit-scrollbar-thumb {
+            background: linear-gradient(180deg, #0056b3, #003d82);
+            border-radius: 8px;
+        }
+        
+        ::-webkit-scrollbar-thumb:hover {
+            background: linear-gradient(180deg, #004494, #002d61);
+        }
+        
+        /* Dark mode scrollbar */
+        .dark ::-webkit-scrollbar-track {
+            background: #374151;
+        }
+        
+        .dark ::-webkit-scrollbar-thumb {
+            background: linear-gradient(180deg, #60a5fa, #3b82f6);
+        }
+        
+        /* Glassmorphism */
+        .glass {
+            background: rgba(255, 255, 255, 0.98);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.06);
+        }
+        
+        .dark .glass {
+            background: rgba(20, 35, 55, 0.95);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid rgba(55, 65, 81, 0.3);
+        }
+        
+        body.dark {
+            --tw-bg-opacity: 1;
+            background-color: #0f172a;
+        }
+        
+        body {
+            background-color: #ffffff;
+        }
+        
+        /* Sidebar gradient */
+        .gradient-bg-sidebar {
+            background: linear-gradient(135deg, #0056b3 0%, #003d82 100%);
+            position: relative;
+        }
+        
+        .gradient-bg-sidebar::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(45deg, transparent, rgba(253, 184, 19, 0.1), transparent);
+            pointer-events: none;
+        }
+        
+        .dark .gradient-bg-sidebar {
+            background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+        }
+        
+        /* Card hover effects */
+        .stat-card {
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, var(--primary), var(--secondary));
+            transform: translateX(-100%);
+            transition: transform 0.3s ease;
+        }
+        
+        .stat-card:hover::before {
+            transform: translateX(0);
+        }
+        
+        .stat-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 12px 24px rgba(0, 0, 0, 0.1);
+        }
+        
+        /* Section headers */
+        .section-header {
+            position: relative;
+            display: inline-block;
+        }
+        
+        .section-header::after {
+            content: '';
+            position: absolute;
+            bottom: -4px;
+            left: 0;
+            width: 40px;
+            height: 3px;
+            background: linear-gradient(90deg, #0056b3, #FDB813);
+            border-radius: 2px;
+        }
+        
+        /* Quick action cards */
+        .quick-action-card {
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        
+        .quick-action-card:hover {
+            transform: translateY(-6px) scale(1.02);
+        }
+        
+        /* Smooth animations */
+        @keyframes slideInFromTop {
+            from {
+                opacity: 0;
+                transform: translateY(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+            }
+            to {
+                opacity: 1;
+            }
+        }
+        
+        .animate-slide-in {
+            animation: slideInFromTop 0.6s ease-out;
+        }
+        
+        .animate-fade-in {
+            animation: fadeIn 0.8s ease-out;
+        }
+        
+        /* Activity item hover */
+        .activity-item {
+            transition: all 0.2s ease;
+            border-left: 3px solid transparent;
+        }
+        
+        .activity-item:hover {
+            background: linear-gradient(90deg, rgba(0, 86, 179, 0.05) 0%, transparent 100%);
+            border-left-color: #0056b3;
+            padding-left: 12px;
+        }
+        
+        /* Mobile responsive adjustments */
+        @media (max-width: 768px) {
+            .sidebar-collapsed {
+                transform: translateX(-100%);
+                position: fixed;
+                z-index: 50;
+            }
+            
+            .sidebar-collapsed.mobile-open {
+                transform: translateX(0);
+            }
+        }
+        
+        /* Active sidebar item */
+        .sidebar-item-active {
+            background: linear-gradient(90deg, rgba(253, 184, 19, 0.2) 0%, rgba(253, 184, 19, 0.05) 100%);
+            border-left: 4px solid var(--accent);
+            box-shadow: 0 0 20px rgba(253, 184, 19, 0.2);
+        }
+        
+        .dark .sidebar-item-active {
+            background: linear-gradient(90deg, rgba(253, 184, 19, 0.25) 0%, rgba(253, 184, 19, 0.05) 100%);
+            border-left: 4px solid var(--accent);
+            box-shadow: 0 0 25px rgba(253, 184, 19, 0.3);
+        }
+        
+        :root {
+            --primary: #0056b3;
+            --primary-dark: #003d82;
+            --secondary: #FDB813;
+            --accent: #FDB813;
+            --accent-hover: #e5a200;
+            --neutral: #6b7280;
+            --success: #10b981;
+            --danger: #ef4444;
+            --purple: #8b5cf6;
+            --navy-dark: #1e293b;
+            --navy-darker: #0f172a;
+        }
+        
+        .dark .bg-navy-dark {
+            background-color: #2d3748;
+        }
+        
+        .dark .bg-navy-darker {
+            background-color: #1a202c;
+        }
+        
+        /* Alpine.js cloak - hide elements before Alpine loads */
+        [x-cloak] {
+            display: none !important;
+        }
+    </style>
+</head>
+<body class="bg-white transition-colors duration-200" x-data="appointmentsModule()" x-init="init()">
+    
+    <div class="flex h-screen overflow-hidden">
+        <!-- Sidebar -->
+        <aside :class="sidebarCollapsed ? 'w-20' : 'w-64'" 
+               class="fixed left-0 top-0 h-screen gradient-bg-sidebar text-white transition-all duration-300 shadow-2xl z-40"
+               @mouseenter="sidebarHovered = true"
+               @mouseleave="sidebarHovered = false">
+        
+            <!-- Logo -->
+            <div class="relative p-6">
+                <div class="flex items-center gap-3" :class="sidebarCollapsed && !sidebarHovered ? 'justify-center' : ''">
+                    <div class="flex items-center justify-center">
+                        <img src="../assets/img/iclinic-logo.png" alt="Norzagaray College" class="w-14 h-14 object-contain">
+                    </div>
+                    <div x-show="!sidebarCollapsed || sidebarHovered" x-transition>
+                        <h1 class="text-xl font-bold text-white">iClinic</h1>
+                        <p class="text-xs text-yellow-300">Norzagaray College</p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Navigation -->
+            <nav class="relative mt-8 px-4 space-y-3">
+                <!-- Dashboard -->
+                <a href="{{ url_for('student_dashboard') }}"
+                   class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all group hover:bg-white/10">
+                    <div class="flex items-center justify-center" :class="sidebarCollapsed && !sidebarHovered ? 'w-full' : ''">
+                        <i data-feather="home" class="w-5 h-5 group-hover:scale-110 transition-transform"></i>
+                    </div>
+                    <span x-show="!sidebarCollapsed || sidebarHovered" x-transition class="font-medium">Dashboard</span>
+                </a>
+                
+                <!-- Health Records -->
+                <a href="{{ url_for('student_health_records') }}"
+                   class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all group hover:bg-white/10">
+                    <div class="flex items-center justify-center" :class="sidebarCollapsed && !sidebarHovered ? 'w-full' : ''">
+                        <i data-feather="file-text" class="w-5 h-5 group-hover:scale-110 transition-transform"></i>
+                    </div>
+                    <span x-show="!sidebarCollapsed || sidebarHovered" x-transition class="font-medium">Health Records</span>
+                </a>
+                
+                <!-- Appointments -->
+                <a href="{{ url_for('student_appointments') }}"
+                   class="sidebar-item-active flex items-center gap-3 px-4 py-3 rounded-lg transition-all group">
+                    <div class="flex items-center justify-center" :class="sidebarCollapsed && !sidebarHovered ? 'w-full' : ''">
+                        <i data-feather="calendar" class="w-5 h-5 group-hover:scale-110 transition-transform"></i>
+                    </div>
+                    <span x-show="!sidebarCollapsed || sidebarHovered" x-transition class="font-medium">Appointments</span>
+                </a>
+                
+                <!-- Consultation Chat -->
+                <a href="{{ url_for('student_consultation_chat') }}"
+                   class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all group hover:bg-white/10">
+                    <div class="flex items-center justify-center" :class="sidebarCollapsed && !sidebarHovered ? 'w-full' : ''">
+                        <i data-feather="message-circle" class="w-5 h-5 group-hover:scale-110 transition-transform"></i>
+                    </div>
+                    <span x-show="!sidebarCollapsed || sidebarHovered" x-transition class="font-medium">Consultation Chat</span>
+                </a>
+                
+                <!-- Announcements -->
+                <a href="{{ url_for('student_announcements') }}"
+                   class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all group hover:bg-white/10">
+                    <div class="flex items-center justify-center" :class="sidebarCollapsed && !sidebarHovered ? 'w-full' : ''">
+                        <i data-feather="volume-2" class="w-5 h-5 group-hover:scale-110 transition-transform"></i>
+                    </div>
+                    <span x-show="!sidebarCollapsed || sidebarHovered" class="font-medium">Announcements</span>
+                </a>
+
+            </nav>
+        
+        <!-- User Profile -->
+        <div class="absolute bottom-0 w-full p-4 bg-gradient-to-t from-black/20 to-transparent" @click.outside="profileDropdown = false">
+            <div class="relative">
+                <div class="flex items-center gap-2 mb-2">
+                    <button @click="profileDropdown = !profileDropdown" class="flex-1 flex items-center gap-3 hover:bg-white/10 rounded-lg p-2 transition-all group" :class="sidebarCollapsed && !sidebarHovered ? 'justify-center' : ''">
+                        <div class="w-10 h-10 bg-gradient-to-br from-green-400 to-blue-500 rounded-full flex items-center justify-center shadow-lg group-hover:scale-105 transition-transform">
+                            <span class="text-white font-bold">{{ user.first_name[0] if user and user.first_name else 'S' }}{{ user.last_name[0] if user and user.last_name else 'T' }}</span>
+                        </div>
+                        <div x-show="!sidebarCollapsed || sidebarHovered" x-transition class="text-left">
+                            <p class="text-sm font-medium text-white text-left">{{ user.first_name if user and user.first_name else 'Student' }} {{ user.last_name if user and user.last_name else 'User' }}</p>
+                            <p class="text-xs text-green-300 text-left" style="font-size: 10px;">{{ user.position if user and user.position else 'Student' }}</p>
+                        </div>
+                        <!-- Chevron Icon -->
+                        <svg x-show="!sidebarCollapsed || sidebarHovered" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4 text-white/70 flex-shrink-0">
+                            <polyline points="18 15 12 9 6 15"></polyline>
+                        </svg>
+                    </button>
+                </div>
+                
+                <!-- Profile Dropdown -->
+                <div x-show="profileDropdown" x-cloak
+                     x-transition:enter="transition ease-out duration-200"
+                     x-transition:enter-start="opacity-0 transform scale-95"
+                     x-transition:enter-end="opacity-100 transform scale-100"
+                     x-transition:leave="transition ease-in duration-150"
+                     x-transition:leave-start="opacity-100 transform scale-100"
+                     x-transition:leave-end="opacity-0 transform scale-95"
+                     class="absolute bottom-full left-0 mb-2 w-48 bg-white rounded-lg shadow-xl border border-gray-200 py-2 z-50">
+                    
+                    <button @click="showLogoutConfirm = true; profileDropdown = false" class="w-full flex items-center gap-3 px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors">
+                        <i data-feather="log-out" class="w-4 h-4 text-red-600"></i>
+                        <span>Logout</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+        </aside>
+        
+        <!-- Main Content Area -->
+        <div :class="sidebarCollapsed ? 'md:ml-20' : 'md:ml-64'" class="flex-1 flex flex-col transition-all duration-300">
+            
+            <!-- Main Appointments Content -->
+            <main class="flex-1 overflow-y-auto bg-gray-50 p-6">
+                <!-- Enhanced Appointments Header -->
+                <div class="gradient-bg-sidebar text-white shadow-2xl relative overflow-hidden rounded-[2rem] ml-1 mb-6">
+                    <!-- Decorative Elements -->
+                    <div class="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -translate-y-32 translate-x-32"></div>
+                    <div class="absolute bottom-0 left-0 w-48 h-48 bg-yellow-400/10 rounded-full translate-y-24 -translate-x-24"></div>
+                    
+                    <!-- Header Content -->
+                    <div class="relative px-6 py-5">
+                        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                            <!-- Title Section -->
+                            <div class="flex items-center gap-4">
+                                <div class="relative">
+                                    <div class="w-12 h-12 bg-yellow-400 rounded-xl flex items-center justify-center shadow-lg transform rotate-2 hover:rotate-0 transition-transform duration-300">
+                                        <i data-feather="calendar" class="w-6 h-6 text-blue-900"></i>
+                                    </div>
+                                </div>
+                                <div>
+                                    <div class="flex items-center gap-2 mb-1">
+                                        <h1 class="text-2xl sm:text-3xl font-bold text-white">
+                                            My Appointments
+                                        </h1>
+                                    </div>
+                                    <div class="flex items-center gap-2 text-blue-100">
+                                        <i data-feather="activity" class="w-3 h-3"></i>
+                                        <span class="text-sm">View and manage your healthcare appointments</span>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Action Buttons -->
+                            <div class="flex items-center gap-3">
+                                <button class="px-4 py-2 bg-yellow-400 text-blue-900 rounded-lg font-medium hover:bg-yellow-300 transition-colors shadow-lg">
+                                    <i data-feather="plus" class="w-4 h-4 inline mr-2"></i>
+                                    New Appointment
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Main Content Area -->
+                <div>
+                    
+                    <!-- Appointment Statistics -->
+                    <div class="mb-8">
+                        <div class="flex items-center justify-between mb-6">
+                            <h2 class="section-header text-lg font-semibold text-gray-800">Today's Overview</h2>
+                        </div>
+                        
+                        <!-- Statistics Cards -->
+                        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+                            <!-- My Appointments Card -->
+                            <div class="stat-card bg-white rounded-xl shadow-md border border-gray-100 p-6 hover:shadow-xl" data-aos="fade-up" data-aos-delay="100">
+                                <div class="flex items-center justify-between">
+                                    <div class="flex-1">
+                                        <p class="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">My Appointments</p>
+                                        <p class="text-3xl font-bold text-gray-900" x-text="myTotalAppointments">0</p>
+                                        <div class="flex items-center gap-2 mt-3">
+                                            <span class="inline-flex items-center text-xs font-medium text-blue-600 bg-blue-50 px-2 py-1 rounded-full">
+                                                All Time
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <div class="w-14 h-14 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center shadow-lg">
+                                        <i data-feather="calendar" class="w-7 h-7 text-white"></i>
+                                    </div>
+                                </div>
+                            </div>
+                        
+                            <!-- Pending Requests Card -->
+                            <div class="stat-card bg-white rounded-xl shadow-md border border-gray-100 p-6 hover:shadow-xl" data-aos="fade-up" data-aos-delay="200">
+                                <div class="flex items-center justify-between">
+                                    <div class="flex-1">
+                                        <p class="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">Pending Requests</p>
+                                        <p class="text-3xl font-bold text-gray-900" x-text="myPendingRequests">0</p>
+                                        <div class="flex items-center gap-2 mt-3">
+                                            <span class="inline-flex items-center text-xs font-medium text-yellow-700 bg-yellow-50 px-2 py-1 rounded-full">
+                                                Awaiting Review
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <div class="w-14 h-14 bg-gradient-to-br from-yellow-400 to-yellow-500 rounded-xl flex items-center justify-center shadow-lg">
+                                        <i data-feather="clock" class="w-7 h-7 text-white"></i>
+                                    </div>
+                                </div>
+                            </div>
+                        
+                            <!-- Upcoming Appointments Card -->
+                            <div class="stat-card bg-white rounded-xl shadow-md border border-gray-100 p-6 hover:shadow-xl" data-aos="fade-up" data-aos-delay="300">
+                                <div class="flex items-center justify-between">
+                                    <div class="flex-1">
+                                        <p class="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">Upcoming</p>
+                                        <p class="text-3xl font-bold text-gray-900" x-text="myUpcomingAppointments">0</p>
+                                        <div class="flex items-center gap-2 mt-3">
+                                            <span class="inline-flex items-center text-xs font-medium text-green-600 bg-green-50 px-2 py-1 rounded-full">
+                                                Next 7 Days
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <div class="w-14 h-14 bg-gradient-to-br from-green-500 to-green-600 rounded-xl flex items-center justify-center shadow-lg">
+                                        <i data-feather="check-circle" class="w-7 h-7 text-white"></i>
+                                    </div>
+                                </div>
+                            </div>
+                        
+                            <!-- This Month Card -->
+                            <div class="stat-card bg-white rounded-xl shadow-md border border-gray-100 p-6 hover:shadow-xl" data-aos="fade-up" data-aos-delay="400">
+                                <div class="flex items-center justify-between">
+                                    <div class="flex-1">
+                                        <p class="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">This Month</p>
+                                        <p class="text-3xl font-bold text-gray-900" x-text="myThisMonthCount">0</p>
+                                        <div class="flex items-center gap-2 mt-3">
+                                            <span class="inline-flex items-center text-xs font-medium text-purple-600 bg-purple-50 px-2 py-1 rounded-full">
+                                                October 2025
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <div class="w-14 h-14 bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg">
+                                        <i data-feather="trending-up" class="w-7 h-7 text-white"></i>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Calendar and Appointments Section -->
+                    <div class="mb-8">
+                        <h2 class="section-header text-lg font-semibold text-gray-800 mb-6">Calendar & Schedule</h2>
+                        
+                        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                            <!-- Calendar -->
+                            <div class="lg:col-span-1 bg-white rounded-xl shadow-md border border-gray-100 p-6 hover:shadow-lg transition-shadow" data-aos="fade-up" data-aos-delay="500">
+                                <div class="flex items-center justify-between mb-4">
+                                    <h3 class="text-lg font-semibold text-gray-900">Calendar</h3>
+                                    <div class="flex items-center gap-2">
+                                        <button @click="loadClinicEvents()" class="p-1 hover:bg-gray-100 rounded" title="Refresh Events">
+                                            <i data-feather="refresh-cw" class="w-4 h-4 text-gray-600"></i>
+                                        </button>
+                                        <button @click="previousMonth()" class="p-1 hover:bg-gray-100 rounded">
+                                            <i data-feather="chevron-left" class="w-4 h-4 text-gray-600"></i>
+                                        </button>
+                                        <span class="text-sm font-medium text-gray-700 min-w-[120px] text-center" x-text="currentMonthYear"></span>
+                                        <button @click="nextMonth()" class="p-1 hover:bg-gray-100 rounded">
+                                            <i data-feather="chevron-right" class="w-4 h-4 text-gray-600"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                                
+                                <!-- Calendar Grid -->
+                                <div class="calendar-grid">
+                                    <!-- Days of week header -->
+                                    <div class="grid grid-cols-7 gap-1 mb-2">
+                                        <div class="text-xs font-medium text-gray-500 text-center py-2">Sun</div>
+                                        <div class="text-xs font-medium text-gray-500 text-center py-2">Mon</div>
+                                        <div class="text-xs font-medium text-gray-500 text-center py-2">Tue</div>
+                                        <div class="text-xs font-medium text-gray-500 text-center py-2">Wed</div>
+                                        <div class="text-xs font-medium text-gray-500 text-center py-2">Thu</div>
+                                        <div class="text-xs font-medium text-gray-500 text-center py-2">Fri</div>
+                                        <div class="text-xs font-medium text-gray-500 text-center py-2">Sat</div>
+                                    </div>
+                                    
+                                    <!-- Calendar days -->
+                                    <div class="grid grid-cols-7 gap-1">
+                                        <template x-for="day in calendarDays" :key="day.date">
+                                            <div @click="selectDate(day)" 
+                                                 :title="day.isPastDate ? '📅 View past appointments (Cannot book new appointments)' : (day.hasEvent ? `📅 ${day.eventInfo?.title || 'Clinic Event'} - ${formatEventType(day.eventType)}` : '')"
+                                                 class="relative h-10 flex items-center justify-center text-sm cursor-pointer rounded-lg transition-colors"
+                                                 :class="{
+                                                     'text-gray-400': !day.isCurrentMonth,
+                                                     'bg-blue-600 text-white': day.isToday && !day.hasEvent,
+                                                     'bg-blue-100 text-blue-700': day.isSelected && !day.isToday && !day.hasEvent,
+                                                     'hover:bg-gray-100': day.isCurrentMonth && !day.isToday && !day.isSelected && !day.hasEvent,
+                                                     'font-semibold': day.hasAppointments,
+                                                     // Past date styling - lighter gray, still clickable to view
+                                                     'bg-gray-50 text-gray-500 opacity-75': day.isPastDate && day.isCurrentMonth && !day.isSelected,
+                                                     'bg-gray-200 text-gray-600': day.isPastDate && day.isSelected,
+                                                     // Event type backgrounds
+                                                     'bg-red-200 text-red-800': day.hasEvent && day.eventType === 'no_appointments' && !day.isPastDate,
+                                                     'bg-yellow-200 text-yellow-800': day.hasEvent && day.eventType === 'limited_hours' && !day.isPastDate,
+                                                     'bg-purple-200 text-purple-800': day.hasEvent && day.eventType === 'emergency_only' && !day.isPastDate,
+                                                     'bg-blue-200 text-blue-800': day.hasEvent && day.eventType === 'maintenance' && !day.isPastDate,
+                                                     'bg-green-200 text-green-800': day.hasEvent && day.eventType === 'holiday' && !day.isPastDate,
+                                                     // Selected state for event days
+                                                     'ring-2 ring-blue-500': day.isSelected && day.hasEvent && !day.isPastDate,
+                                                     'ring-2 ring-gray-400': day.isSelected && day.isPastDate
+                                                 }">
+                                                <span x-text="day.day"></span>
+                                                <!-- Appointment indicator - ALWAYS show if has appointments -->
+                                                <div x-show="day.hasAppointments" class="absolute bottom-1 left-1/2 transform -translate-x-1/2 w-1 h-1 rounded-full" :class="day.isPastDate ? 'bg-gray-400' : 'bg-red-500'"></div>
+                                                <!-- Event indicator -->
+                                                <div x-show="day.hasEvent && !day.isPastDate" class="absolute top-1 right-1 w-1.5 h-1.5 bg-white rounded-full shadow-sm"></div>
+                                            </div>
+                                        </template>
+                                    </div>
+                                </div>
+                            </div>
+                        
+                            <!-- Appointments List -->
+                            <div class="lg:col-span-2 bg-white rounded-xl shadow-md border border-gray-100 p-6 hover:shadow-lg transition-shadow" data-aos="fade-up" data-aos-delay="600">
+                                <div class="mb-4">
+                                    <div class="flex items-center justify-between mb-2">
+                                        <h3 class="text-lg font-semibold text-gray-900">Appointments</h3>
+                                        <div class="flex items-center gap-2">
+                                            <button @click="openAppointmentModal()" 
+                                                    :disabled="isDateBlocked(selectedDate)"
+                                                    class="px-4 py-2 rounded-lg hover:shadow-lg transition-all duration-200 flex items-center space-x-2"
+                                                    :class="{
+                                                        'bg-blue-600 hover:bg-blue-700 text-white cursor-pointer': !isDateBlocked(selectedDate),
+                                                        'bg-gray-400 text-gray-200 cursor-not-allowed': isDateBlocked(selectedDate)
+                                                    }">
+                                                <i data-feather="plus" class="w-4 h-4"></i>
+                                                <span class="hidden sm:inline" x-text="isDateBlocked(selectedDate) ? 'Cannot Book' : 'Request Appointment'"></span>
+                                                <span class="sm:hidden" x-text="isDateBlocked(selectedDate) ? 'Blocked' : 'Request'"></span>
+                                            </button>
+                                            </div>
+                                    </div>
+                                    
+                                    <!-- Selected Date Display -->
+                                    <div class="flex items-center gap-2 text-sm text-gray-600 mb-4">
+                                        <i data-feather="calendar" class="w-4 h-4 text-blue-500"></i>
+                                        <span class="font-medium">Selected Date:</span>
+                                        <span class="text-blue-600 font-semibold" x-text="formatSelectedDate()"></span>
+                                        <span class="text-gray-400">|</span>
+                                        <span x-text="(filteredAppointments.length + filteredAppointmentRequests.length) + ' appointment(s)'"></span>
+                                        <!-- Event indicator for selected date -->
+                                        <template x-for="day in calendarDays" :key="'event-' + day.date">
+                                            <div x-show="day.date === selectedDate && day.hasEvent" class="flex items-center gap-1 ml-2">
+                                                <div class="w-2 h-2 rounded-full" :class="{
+                                                    'bg-red-500': day.eventType === 'no_appointments',
+                                                    'bg-yellow-500': day.eventType === 'limited_hours',
+                                                    'bg-purple-500': day.eventType === 'emergency_only',
+                                                    'bg-blue-500': day.eventType === 'maintenance',
+                                                    'bg-green-500': day.eventType === 'holiday'
+                                                }"></div>
+                                                <span class="text-xs font-medium" x-text="day.eventInfo?.title"></span>
+                                            </div>
+                                        </template>
+                                    </div>
+                                    
+                                    <!-- Available Time Slots -->
+                                    <div class="mb-4">
+                                        <h4 class="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
+                                            <i data-feather="clock" class="w-4 h-4 text-green-500"></i>
+                                            Available Time Slots
+                                        </h4>
+                                        <div class="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-2">
+                                            <template x-for="timeSlot in availableTimeSlots" :key="timeSlot.time">
+                                                <button @click="selectTimeSlot(timeSlot.time)" 
+                                                        :disabled="!timeSlot.available"
+                                                        class="px-2 py-1 text-xs rounded-md border transition-colors"
+                                                        :class="{
+                                                            'bg-green-100 text-green-700 border-green-300 hover:bg-green-200 cursor-pointer': timeSlot.available,
+                                                            'bg-red-100 text-red-500 border-red-300 cursor-not-allowed': !timeSlot.available,
+                                                            'bg-blue-500 text-white border-blue-500': newAppointment.preferred_time === timeSlot.time
+                                                        }"
+                                                        x-text="timeSlot.display">
+                                                </button>
+                                            </template>
+                                        </div>
+                                        
+                                        <!-- Blocked Date Message -->
+                                        <div x-show="isDateBlocked(selectedDate)" class="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg">
+                                            <div class="flex items-center gap-2 text-red-700">
+                                                <i data-feather="alert-circle" class="w-4 h-4"></i>
+                                                <span class="text-sm font-medium">No appointments available</span>
+                                            </div>
+                                            <p class="text-xs text-red-600 mt-1" x-text="getBlockedReason(selectedDate)"></p>
+                                            <p class="text-xs text-red-500 mt-2">Please select a different date to schedule your appointment.</p>
+                                        </div>
+                                        
+                                        <!-- No Available Slots Message -->
+                                        <div x-show="!isDateBlocked(selectedDate) && availableTimeSlots.filter(slot => slot.available).length === 0" class="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                                            <div class="flex items-center gap-2 text-yellow-700">
+                                                <i data-feather="clock" class="w-4 h-4"></i>
+                                                <span class="text-sm font-medium">All time slots are booked</span>
+                                            </div>
+                                            <p class="text-xs text-yellow-600 mt-1">All available time slots for this date are already taken.</p>
+                                            <p class="text-xs text-yellow-500 mt-2">Please select a different date or time.</p>
+                                        </div>
+                                        
+                                        <!-- Event Information Display -->
+                                        <div x-show="selectedDateHasEvent()" class="mt-3 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                                            <div class="flex items-center gap-2 text-blue-700 mb-2">
+                                                <i data-feather="calendar" class="w-4 h-4"></i>
+                                                <span class="text-sm font-medium">Clinic Event Information</span>
+                                            </div>
+                                            <div class="space-y-2">
+                                                <div>
+                                                    <span class="text-xs font-medium text-blue-600">Event:</span>
+                                                    <span class="text-xs text-blue-800 ml-1" x-text="getSelectedDateEvent()?.title || 'Clinic Event'"></span>
+                                                </div>
+                                                <div x-show="getSelectedDateEvent()?.description">
+                                                    <span class="text-xs font-medium text-blue-600">Description:</span>
+                                                    <span class="text-xs text-blue-800 ml-1" x-text="getSelectedDateEvent()?.description"></span>
+                                                </div>
+                                                <div>
+                                                    <span class="text-xs font-medium text-blue-600">Type:</span>
+                                                    <span class="text-xs text-blue-800 ml-1" x-text="formatEventType(getSelectedDateEvent()?.event_type)"></span>
+                                                </div>
+                                                <!-- Time display logic -->
+                                                <template x-if="getSelectedDateEvent()">
+                                                    <div>
+                                                        <template x-if="getSelectedDateEvent().is_all_day === true">
+                                                            <div>
+                                                                <span class="text-xs font-medium text-blue-600">Duration:</span>
+                                                                <span class="text-xs text-blue-800 ml-1">All Day</span>
+                                                            </div>
+                                                        </template>
+                                                        <template x-if="getSelectedDateEvent().is_all_day === false && getSelectedDateEvent().start_time && getSelectedDateEvent().end_time">
+                                                            <div>
+                                                                <span class="text-xs font-medium text-blue-600">Time:</span>
+                                                                <span class="text-xs text-blue-800 ml-1" x-text="`${getSelectedDateEvent().start_time} - ${getSelectedDateEvent().end_time}`"></span>
+                                                            </div>
+                                                        </template>
+                                                    </div>
+                                                </template>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Appointments List -->
+                                <div class="space-y-3 max-h-96 overflow-y-auto">
+                                    <!-- Confirmed Appointments -->
+                                    <template x-for="appointment in filteredAppointments" :key="'app-' + appointment.id">
+                                        <div class="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:shadow-md transition-shadow">
+                                            <div class="flex items-center gap-4">
+                                                <div class="w-12 h-12 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center">
+                                                    <span class="text-white font-bold text-sm" x-text="appointment.patient.split(' ').map(n => n[0]).join('')"></span>
+                                                </div>
+                                                <div>
+                                                    <h4 class="font-medium text-gray-900" x-text="appointment.patient"></h4>
+                                                    <p class="text-sm text-gray-500" x-text="appointment.time + ' - ' + appointment.type"></p>
+                                                </div>
+                                            </div>
+                                            <div class="flex items-center gap-3">
+                                                <span class="px-2 py-1 text-xs font-medium rounded-full"
+                                                      :class="{
+                                                          'bg-yellow-100 text-yellow-800': appointment.status === 'Pending',
+                                                          'bg-green-100 text-green-800': appointment.status === 'Confirmed',
+                                                          'bg-purple-100 text-purple-800': appointment.status === 'Completed',
+                                                          'bg-red-100 text-red-800': appointment.status === 'Cancelled'
+                                                      }"
+                                                      x-text="appointment.status"></span>
+                                                <!-- Cancel button - only show for Confirmed appointments that are 3+ days away -->
+                                                <button x-show="canCancelAppointment(appointment)" 
+                                                        @click="cancelAppointment(appointment.id)"
+                                                        class="px-3 py-1 text-xs text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition-colors border border-red-200"
+                                                        title="Cancel Appointment (3-day policy)">
+                                                    ❌ Cancel
+                                                </button>
+                                                <!-- Info icon for appointments within 3 days -->
+                                                <span x-show="appointment.status === 'Confirmed' && !canCancelAppointment(appointment)"
+                                                     class="px-3 py-1 text-xs text-gray-500 bg-gray-100 rounded-lg border border-gray-200"
+                                                     title="Cannot cancel - appointment is within 3 days. Contact clinic directly.">
+                                                    ℹ️ No Cancel
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </template>
+                                    
+                                    <!-- Appointment Requests -->
+                                    <template x-for="request in filteredAppointmentRequests" :key="'req-' + request.id">
+                                        <div class="flex items-center justify-between p-4 border border-orange-200 bg-orange-50 rounded-lg hover:shadow-md transition-shadow">
+                                            <div class="flex items-center gap-4">
+                                                <div class="w-12 h-12 bg-gradient-to-br from-orange-400 to-orange-500 rounded-full flex items-center justify-center">
+                                                    <span class="text-white font-bold text-sm" x-text="request.patient_name.split(' ').map(n => n[0]).join('')"></span>
+                                                </div>
+                                                <div>
+                                                    <h4 class="font-medium text-gray-900" x-text="request.patient_name"></h4>
+                                                    <p class="text-sm text-gray-600" x-text="request.preferred_time + ' - ' + request.appointment_type"></p>
+                                                    <p class="text-xs text-orange-600">Requested appointment</p>
+                                                </div>
+                                            </div>
+                                            <div class="flex items-center gap-3">
+                                                <span class="px-2 py-1 text-xs font-medium rounded-full"
+                                                      :class="{
+                                                          'bg-orange-100 text-orange-800': request.status === 'pending',
+                                                          'bg-green-100 text-green-800': request.status === 'approved',
+                                                          'bg-red-100 text-red-800': request.status === 'rejected'
+                                                      }"
+                                                      x-text="request.status.charAt(0).toUpperCase() + request.status.slice(1)"></span>
+                                            </div>
+                                        </div>
+                                    </template>
+                                    
+                                    <!-- Empty state -->
+                                    <div x-show="filteredAppointments.length === 0 && filteredAppointmentRequests.length === 0" class="text-center py-8">
+                                        <i data-feather="calendar" class="w-12 h-12 text-gray-400 mx-auto mb-3"></i>
+                                        <p class="text-gray-500 font-medium">No appointments for this date</p>
+                                        <p class="text-gray-400 text-sm mb-4">Select an available time slot above and click "Request Appointment" to book</p>
+                                        <button @click="openAppointmentModal()" 
+                                                :disabled="isDateBlocked(selectedDate)"
+                                                class="px-4 py-2 rounded-lg text-sm transition-colors"
+                                                :class="{
+                                                    'bg-blue-600 hover:bg-blue-700 text-white cursor-pointer': !isDateBlocked(selectedDate),
+                                                    'bg-gray-400 text-gray-200 cursor-not-allowed': isDateBlocked(selectedDate)
+                                                }"
+                                                x-text="isDateBlocked(selectedDate) ? 'Date Blocked' : 'Request Appointment'">
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </main>
+        </div>
+
+        <!-- Add Appointment Modal -->
+        <div x-show="showAddModal" x-cloak 
+             x-transition:enter="transition ease-out duration-300"
+             x-transition:enter-start="opacity-0"
+             x-transition:enter-end="opacity-100"
+             x-transition:leave="transition ease-in duration-200"
+             x-transition:leave-start="opacity-100"
+             x-transition:leave-end="opacity-0"
+             class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+             @click.self="showAddModal = false">
+            <div class="bg-white rounded-lg shadow-xl w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
+                <div class="p-6">
+                    <div class="flex justify-between items-center mb-6">
+                        <h3 class="text-xl font-semibold text-gray-900">Request New Appointment</h3>
+                        <button @click="showAddModal = false" class="text-gray-400 hover:text-gray-600">
+                            <i data-feather="x" class="w-6 h-6"></i>
+                        </button>
+                    </div>
+                    
+                    <form @submit.prevent="submitAppointmentRequest()" class="space-y-4">
+                        <!-- Student Info (Auto-filled and hidden) -->
+                        <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+                            <div class="flex items-center gap-3">
+                                <div class="w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center">
+                                    <span class="text-white font-bold text-sm">{{ user.first_name[0] if user and user.first_name else 'S' }}{{ user.last_name[0] if user and user.last_name else 'T' }}</span>
+                                </div>
+                                <div>
+                                    <p class="font-medium text-gray-900">{{ user.first_name if user and user.first_name else 'Student' }} {{ user.last_name if user and user.last_name else 'User' }}</p>
+                                    <p class="text-sm text-gray-600">Requesting appointment for <span class="font-medium" x-text="formatSelectedDate()"></span></p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Contact Number *</label>
+                            <input type="text" x-model="newAppointment.patient_contact" placeholder="09123456789" required
+                                   class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Preferred Time *</label>
+                            <select x-model="newAppointment.preferred_time" required
+                                    class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                <option value="">Select Time</option>
+                                <template x-for="timeSlot in availableTimeSlots" :key="timeSlot.time">
+                                    <option :value="timeSlot.time" 
+                                            :disabled="!timeSlot.available"
+                                            :class="{'text-gray-400': !timeSlot.available, 'text-gray-900': timeSlot.available}"
+                                            x-text="timeSlot.available ? timeSlot.display : timeSlot.display + ' (Unavailable)'">
+                                    </option>
+                                </template>
+                            </select>
+                            <p class="text-xs text-gray-500 mt-1">Only available time slots are shown for the selected date</p>
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Appointment Type *</label>
+                            <select x-model="newAppointment.appointment_type" required
+                                    class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                <option value="">Select Type</option>
+                                <option value="General Checkup">General Checkup</option>
+                                <option value="Follow-up Visit">Follow-up Visit</option>
+                                <option value="Medical Consultation">Medical Consultation</option>
+                                <option value="Emergency Checkup">Emergency Checkup</option>
+                                <option value="Vaccination">Vaccination</option>
+                                <option value="Lab Test">Lab Test</option>
+                                <option value="Dental Checkup">Dental Checkup</option>
+                            </select>
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Reason for Visit *</label>
+                            <textarea x-model="newAppointment.reason" rows="3" required
+                                      class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                      placeholder="Please describe your concern or reason for the appointment..."></textarea>
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Additional Notes</label>
+                            <textarea x-model="newAppointment.notes" rows="2"
+                                      class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                      placeholder="Any additional information or special requirements..."></textarea>
+                        </div>
+                        
+                        <div class="flex justify-end space-x-3 pt-4">
+                            <button type="button" @click="showAddModal = false"
+                                    class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">
+                                Cancel
+                            </button>
+                            <button type="submit" :disabled="isSubmitting"
+                                    class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed">
+                                <span x-show="!isSubmitting">Request Appointment</span>
+                                <span x-show="isSubmitting" class="flex items-center gap-2">
+                                    <svg class="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                        <path class="opacity-75" fill="currentColor" d="m4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                    </svg>
+                                    Submitting...
+                                </span>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        function appointmentsModule() {
+            return {
+                // State
+                sidebarCollapsed: false,
+                sidebarHovered: false,
+                mobileMenuOpen: false,
+                userDropdown: false,
+                showSettingsModal: false,
+                showLogoutConfirm: false,
+                notificationDropdown: false,
+                profileDropdown: false,
+                            profileModal: false,
+                settingsModal: false,
+                showAddModal: false,
+                selectedStatus: '',
+                selectedDate: (() => {
+                    const today = new Date();
+                    const year = today.getFullYear();
+                    const month = String(today.getMonth() + 1).padStart(2, '0');
+                    const day = String(today.getDate()).padStart(2, '0');
+                    return `${year}-${month}-${day}`;
+                })(),
+                currentDate: new Date(),
+                isSubmitting: false,
+                loading: false,
+                
+                // Forms
+                newAppointment: {
+                    patient_name: '{{ user.first_name if user and user.first_name else "Student" }} {{ user.last_name if user and user.last_name else "User" }}',
+                    patient_contact: '',
+                    appointment_type: '',
+                    reason: '',
+                    preferred_date: '',
+                    preferred_time: '',
+                    notes: ''
+                },
+                
+                // Appointments data from database
+                appointments: [], // User-specific appointments for display
+                allAppointments: [], // ALL appointments for availability checking
+                appointmentRequests: [],
+                clinicEvents: [],
+                
+                
+                // Computed properties
+                get filteredAppointments() {
+                    const appointments = Array.isArray(this.appointments) ? this.appointments : [];
+                    const filtered = appointments.filter(appointment => {
+                        const matchesStatus = !this.selectedStatus || appointment.status === this.selectedStatus;
+                        const matchesDate = appointment.date === this.selectedDate;
+                        return matchesStatus && matchesDate;
+                    });
+                    // console.log(`📋 Filtered ${filtered.length} appointments for date ${this.selectedDate}`);
+                    return filtered;
+                },
+                
+                get filteredAppointmentRequests() {
+                    const requests = Array.isArray(this.appointmentRequests) ? this.appointmentRequests : [];
+                    return requests.filter(request => {
+                        const requestDate = this.getLocalDateString(new Date(request.preferred_date));
+                        // Only show PENDING requests - approved requests become appointments
+                        return requestDate === this.selectedDate && request.status === 'pending';
+                    });
+                },
+                
+                get myTotalAppointments() {
+                    const appointments = Array.isArray(this.appointments) ? this.appointments : [];
+                    const requests = Array.isArray(this.appointmentRequests) ? this.appointmentRequests : [];
+                    
+                    // Only count pending requests to avoid double counting with approved appointments
+                    const pendingRequests = requests.filter(r => r.status === 'pending');
+                    
+                    // console.log(`📊 My total appointments: ${appointments.length}, pending requests: ${pendingRequests.length}`);
+                    // console.log(`📊 Avoiding double count - approved requests become appointments`);
+                    return appointments.length + pendingRequests.length;
+                },
+                
+                get myPendingRequests() {
+                    const requests = Array.isArray(this.appointmentRequests) ? this.appointmentRequests : [];
+                    const pending = requests.filter(r => r.status === 'pending');
+                    // console.log(`📊 My pending requests: ${pending.length}`);
+                    return pending.length;
+                },
+                
+                get myUpcomingAppointments() {
+                    const today = new Date();
+                    const nextWeek = new Date();
+                    nextWeek.setDate(today.getDate() + 7);
+                    
+                    const todayStr = this.getLocalDateString(today);
+                    const nextWeekStr = this.getLocalDateString(nextWeek);
+                    
+                    const appointments = Array.isArray(this.appointments) ? this.appointments : [];
+                    const upcoming = appointments.filter(a => {
+                        return a.date >= todayStr && a.date <= nextWeekStr && a.status === 'Confirmed';
+                    });
+                    // console.log(`📊 My upcoming appointments (next 7 days): ${upcoming.length}`);
+                    return upcoming.length;
+                },
+                
+                get myThisMonthCount() {
+                    const today = new Date();
+                    const year = today.getFullYear();
+                    const month = today.getMonth() + 1; // 1-based month
+                    const monthStr = `${year}-${month.toString().padStart(2, '0')}`;
+                    
+                    const appointments = Array.isArray(this.appointments) ? this.appointments : [];
+                    const requests = Array.isArray(this.appointmentRequests) ? this.appointmentRequests : [];
+                    
+                    const thisMonthAppts = appointments.filter(a => a.date && a.date.startsWith(monthStr));
+                    
+                    // Only count pending requests to avoid double counting with approved appointments
+                    const thisMonthPendingReqs = requests.filter(r => {
+                        const reqDate = this.getLocalDateString(new Date(r.preferred_date));
+                        return reqDate.startsWith(monthStr) && r.status === 'pending';
+                    });
+                    
+                    const total = thisMonthAppts.length + thisMonthPendingReqs.length;
+                    // console.log(`📊 My this month (${monthStr}): ${thisMonthAppts.length} appointments + ${thisMonthPendingReqs.length} pending requests = ${total} total`);
+                    return total;
+                },
+                
+                get currentMonthYear() {
+                    return this.currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+                },
+                
+                get calendarDays() {
+                    const year = this.currentDate.getFullYear();
+                    const month = this.currentDate.getMonth();
+                    const firstDay = new Date(year, month, 1);
+                    const lastDay = new Date(year, month + 1, 0);
+                    const startDate = new Date(firstDay);
+                    startDate.setDate(startDate.getDate() - firstDay.getDay());
+                    
+                    const days = [];
+                    const today = new Date();
+                    const todayStr = today.getFullYear() + '-' + 
+                                   String(today.getMonth() + 1).padStart(2, '0') + '-' + 
+                                   String(today.getDate()).padStart(2, '0');
+                    
+                    for (let i = 0; i < 42; i++) {
+                        const date = new Date(startDate);
+                        date.setDate(startDate.getDate() + i);
+                        
+                        // Fix timezone issue by manually constructing date string
+                        const dateStr = date.getFullYear() + '-' + 
+                                       String(date.getMonth() + 1).padStart(2, '0') + '-' + 
+                                       String(date.getDate()).padStart(2, '0');
+                        
+                        const appointments = Array.isArray(this.appointments) ? this.appointments : [];
+                        const requests = Array.isArray(this.appointmentRequests) ? this.appointmentRequests : [];
+                        const events = Array.isArray(this.clinicEvents) ? this.clinicEvents : [];
+                        
+                        const hasAppointments = appointments.some(a => a.date === dateStr) || 
+                                              requests.some(r => {
+                                                  const reqDate = new Date(r.preferred_date + 'T00:00:00');
+                                                  const reqDateStr = reqDate.getFullYear() + '-' + 
+                                                                   String(reqDate.getMonth() + 1).padStart(2, '0') + '-' + 
+                                                                   String(reqDate.getDate()).padStart(2, '0');
+                                                  return reqDateStr === dateStr;
+                                              });
+                        
+                        // Check for clinic events on this date
+                        const dayEvents = events.filter(event => {
+                            if (!event) return false;
+                            
+                            // Get event dates (already processed in loadClinicEvents)
+                            const startDate = event.start_date;
+                            const endDate = event.end_date;
+                            
+                            if (!startDate || !endDate) {
+                                console.log('⚠️ Event missing dates:', event);
+                                return false;
+                            }
+                            
+                            // Parse dates properly
+                            const eventStartDate = new Date(startDate.split('T')[0] + 'T00:00:00');
+                            const eventEndDate = new Date(endDate.split('T')[0] + 'T23:59:59');
+                            const currentDate = new Date(dateStr + 'T12:00:00');
+                            
+                            const isInRange = currentDate >= eventStartDate && currentDate <= eventEndDate;
+                            
+                            if (isInRange) {
+                                console.log(`🎯 Event "${event.title}" matches date ${dateStr}`);
+                            }
+                            
+                            return isInRange;
+                        });
+                        
+                        // Determine event type for styling
+                        let eventType = null;
+                        let eventInfo = null;
+                        if (dayEvents.length > 0) {
+                            const event = dayEvents[0]; // Use first event if multiple
+                            eventType = event.event_type;
+                            eventInfo = {
+                                title: event.title,
+                                description: event.description,
+                                type: event.event_type,
+                                isAllDay: event.is_all_day || event.allDay,
+                                startTime: event.start_time,
+                                endTime: event.end_time
+                            };
+                            
+                            // Debug log for events found
+                            if (dateStr === '2025-10-15' || dateStr === '2025-10-18') {
+                                console.log(`🎯 Event found for ${dateStr}:`, event);
+                            }
+                        }
+                        
+                        // Debug logging for specific dates
+                        if (dayEvents.length > 0) {
+                            console.log(`📅 Date ${dateStr} has ${dayEvents.length} events:`, dayEvents);
+                        }
+                        
+                        // Check if date is in the past
+                        const isPastDate = dateStr < todayStr;
+                        
+                        days.push({
+                            date: dateStr,
+                            day: date.getDate(),
+                            isCurrentMonth: date.getMonth() === month,
+                            isToday: dateStr === todayStr,
+                            isSelected: dateStr === this.selectedDate,
+                            isPastDate: isPastDate,
+                            hasAppointments: hasAppointments,
+                            hasEvent: dayEvents.length > 0,
+                            eventType: eventType,
+                            eventInfo: eventInfo
+                        });
+                    }
+                    
+                    // Summary debug log
+                    const daysWithEvents = days.filter(day => day.hasEvent);
+                    console.log(`📋 Calendar summary: ${daysWithEvents.length} days with events out of ${days.length} total days`);
+                    if (daysWithEvents.length > 0) {
+                        console.log('📅 Days with events:', daysWithEvents.map(day => `${day.date} (${day.eventType})`));
+                    }
+                    
+                    return days;
+                },
+                
+                get availableTimeSlots() {
+                    const timeSlots = [
+                        { time: '08:00', display: '8:00 AM' },
+                        { time: '08:30', display: '8:30 AM' },
+                        { time: '09:00', display: '9:00 AM' },
+                        { time: '09:30', display: '9:30 AM' },
+                        { time: '10:00', display: '10:00 AM' },
+                        { time: '10:30', display: '10:30 AM' },
+                        { time: '11:00', display: '11:00 AM' },
+                        { time: '11:30', display: '11:30 AM' },
+                        { time: '13:00', display: '1:00 PM' },
+                        { time: '13:30', display: '1:30 PM' },
+                        { time: '14:00', display: '2:00 PM' },
+                        { time: '14:30', display: '2:30 PM' },
+                        { time: '15:00', display: '3:00 PM' },
+                        { time: '15:30', display: '3:30 PM' },
+                        { time: '16:00', display: '4:00 PM' },
+                        { time: '16:30', display: '4:30 PM' }
+                    ];
+                    
+                    // Get ALL appointments (not user-specific) for availability checking
+                    const allAppointments = Array.isArray(this.allAppointments) ? this.allAppointments : [];
+                    const requests = Array.isArray(this.appointmentRequests) ? this.appointmentRequests : [];
+                    const events = Array.isArray(this.clinicEvents) ? this.clinicEvents : [];
+                    
+                    const bookedTimes = new Set();
+                    console.log(`🗓️ Checking availability for date: ${this.selectedDate}`);
+                    console.log(`📅 ALL appointments for availability:`, allAppointments);
+                    console.log(`📝 All requests:`, requests);
+                    
+                    // Add confirmed appointment times from ALL appointments (prevents double-booking)
+                    allAppointments.forEach((appointment, index) => {
+                        console.log(`🔍 Checking appointment ${index + 1}:`, {
+                            date: appointment.date,
+                            selectedDate: this.selectedDate,
+                            dateMatch: appointment.date === this.selectedDate,
+                            status: appointment.status,
+                            statusMatch: appointment.status === 'confirmed' || appointment.status === 'Confirmed',
+                            time: appointment.time
+                        });
+                        
+                        if (appointment.date === this.selectedDate && 
+                            (appointment.status === 'confirmed' || appointment.status === 'Confirmed')) {
+                            console.log(`🔒 Blocking time slot: ${appointment.time} for confirmed appointment on ${appointment.date}`);
+                            console.log(`📋 Appointment details:`, appointment);
+                            
+                            // Handle different time formats: "13:00" should match "13:00" time slot
+                            let timeToBlock = appointment.time;
+                            
+                            // If appointment time is in 24-hour format (like "13:00"), use it directly
+                            // The time slots are already in 24-hour format
+                            bookedTimes.add(timeToBlock);
+                            console.log(`⏰ Added to blocked times: ${timeToBlock}`);
+                        }
+                    });
+                    
+                    // ✅ DO NOT block time slots for pending requests - they should remain available
+                    // Pending requests are just requests, not confirmed appointments
+                    console.log(`📝 Found ${requests.length} pending requests for ${this.selectedDate}, but NOT blocking their time slots`);
+                    
+                    // Check for clinic events that block appointments
+                    const dayEvents = events.filter(event => {
+                        if (!event) return false;
+                        
+                        // Get event dates (already processed in loadClinicEvents)
+                        const startDate = event.start_date;
+                        const endDate = event.end_date;
+                        
+                        if (!startDate || !endDate) {
+                            console.log('⚠️ Event missing dates:', event);
+                            return false;
+                        }
+                        
+                        // Parse dates properly - use date part only to avoid timezone issues
+                        const eventStartDate = new Date(startDate.split('T')[0] + 'T00:00:00');
+                        const eventEndDate = new Date(endDate.split('T')[0] + 'T23:59:59');
+                        const selectedDate = new Date(this.selectedDate.split('T')[0] + 'T12:00:00');
+                        
+                        const isInRange = selectedDate >= eventStartDate && selectedDate <= eventEndDate;
+                        
+                        if (isInRange) {
+                            console.log(`🎯 Time slot check: Event "${event.title}" blocks ${this.selectedDate}`);
+                        }
+                        
+                        return isInRange;
+                    });
+                    
+                    // Get current date and time for real-time blocking
+                    const now = new Date();
+                    const today = this.getLocalDateString(now);
+                    const currentTimeMinutes = now.getHours() * 60 + now.getMinutes();
+                    const isToday = this.selectedDate === today;
+                    const isPastDate = this.selectedDate < today;
+                    
+                    // console.log(`⏰ Real-time check: Today=${today}, Selected=${this.selectedDate}, IsToday=${isToday}, IsPastDate=${isPastDate}, CurrentTime=${now.getHours()}:${now.getMinutes()}`);
+                    
+                    // Check if selected date is weekend (Saturday=6, Sunday=0)
+                    const selectedDateObj = new Date(this.selectedDate + 'T12:00:00');
+                    const dayOfWeek = selectedDateObj.getDay();
+                    const isWeekend = (dayOfWeek === 0 || dayOfWeek === 6); // Sunday=0, Saturday=6
+                    
+                    if (isWeekend) {
+                        // console.log(`🚫 WEEKEND BLOCK: ${this.selectedDate} is ${dayOfWeek === 0 ? 'Sunday' : 'Saturday'} - Clinic is closed`);
+                    }
+                    
+                    // Mark availability considering clinic events
+                    return timeSlots.map(slot => {
+                        let available = !bookedTimes.has(slot.time);
+                        
+                        // WEEKEND BLOCKING: Block ALL time slots for Saturday and Sunday
+                        if (isWeekend) {
+                            available = false;
+                            // console.log(`🚫 Weekend block: ${slot.time} on ${this.selectedDate} (Clinic closed on weekends)`);
+                        }
+                        // PAST DATE BLOCKING: Block ALL time slots for past dates
+                        else if (isPastDate) {
+                            available = false;
+                            // console.log(`🚫 Past date block: ${slot.time} on ${this.selectedDate} (date has passed)`);
+                        }
+                        // REAL-TIME BLOCKING: Block past time slots for today
+                        else if (isToday) {
+                            const slotMinutes = this.timeToMinutes(slot.time);
+                            if (slotMinutes <= currentTimeMinutes) {
+                                available = false;
+                                // console.log(`🚫 Real-time block: ${slot.time} (${slotMinutes}min) has passed current time (${currentTimeMinutes}min)`);
+                            }
+                        }
+                        
+                        // Check if clinic events block this time slot
+                        dayEvents.forEach(event => {
+                            if (event.event_type === 'no_appointments') {
+                                // No appointments allowed at all
+                                available = false;
+                            } else if (event.event_type === 'emergency_only') {
+                                // Only emergency appointments (block regular appointments)
+                                available = false;
+                            } else if (event.event_type === 'limited_hours') {
+                                // For limited hours, check if this specific time slot is blocked
+                                if (event.is_all_day) {
+                                    // If all day event, block everything
+                                    available = false;
+                                } else if (event.start_time && event.end_time) {
+                                    // Check if current time slot falls within the blocked time range
+                                    const slotTime = slot.time; // Format: "10:00", "14:30", etc.
+                                    const eventStartTime = event.start_time; // Format: "10:00"
+                                    const eventEndTime = event.end_time; // Format: "15:00"
+                                    
+                                    // Convert times to minutes for comparison
+                                    const slotMinutes = this.timeToMinutes(slotTime);
+                                    const startMinutes = this.timeToMinutes(eventStartTime);
+                                    const endMinutes = this.timeToMinutes(eventEndTime);
+                                    
+                                    // Block if slot time is within the event time range
+                                    if (slotMinutes >= startMinutes && slotMinutes < endMinutes) {
+                                        available = false;
+                                        console.log(`🚫 Blocking time slot ${slotTime} (${slotMinutes}min) - within event range ${eventStartTime}-${eventEndTime} (${startMinutes}-${endMinutes}min)`);
+                                    }
+                                }
+                            } else if (event.event_type === 'maintenance') {
+                                // For maintenance, check specific time if available
+                                if (event.is_all_day) {
+                                    available = false;
+                                } else if (event.start_time && event.end_time) {
+                                    const slotMinutes = this.timeToMinutes(slot.time);
+                                    const startMinutes = this.timeToMinutes(event.start_time);
+                                    const endMinutes = this.timeToMinutes(event.end_time);
+                                    
+                                    if (slotMinutes >= startMinutes && slotMinutes < endMinutes) {
+                                        available = false;
+                                    }
+                                } else {
+                                    // No specific time, block all day
+                                    available = false;
+                                }
+                            } else if (event.event_type === 'holiday') {
+                                // No appointments during holidays
+                                available = false;
+                            }
+                        });
+                        
+                        return {
+                            ...slot,
+                            available: available
+                        };
+                    });
+                    
+                    console.log(`⏰ Booked times for ${this.selectedDate}:`, Array.from(bookedTimes));
+                    console.log(`🔍 Checking if 13:00 is blocked:`, bookedTimes.has('13:00'));
+                    console.log(`✅ Final time slots:`, timeSlots.map(slot => `${slot.time}: ${slot.available ? 'Available' : 'Blocked'}`));
+                },
+                
+                // Helper function to get local date string (YYYY-MM-DD) without timezone issues
+                getLocalDateString(date = new Date()) {
+                    const year = date.getFullYear();
+                    const month = String(date.getMonth() + 1).padStart(2, '0');
+                    const day = String(date.getDate()).padStart(2, '0');
+                    return `${year}-${month}-${day}`;
+                },
+                
+                // Methods
+                async init() {
+                    // Safe feather icon initialization
+                    setTimeout(() => {
+                        if (typeof feather !== 'undefined') {
+                            try {
+                                // Get all elements with data-feather attribute
+                                const icons = document.querySelectorAll('[data-feather]');
+                                icons.forEach(icon => {
+                                    const iconName = icon.getAttribute('data-feather');
+                                    // Check if icon exists in feather library
+                                    if (feather.icons[iconName]) {
+                                        // Icon is valid, safe to replace
+                                    } else {
+                                        console.warn(`⚠️ Invalid feather icon: ${iconName}`);
+                                        // Remove invalid icon attribute to prevent errors
+                                        icon.removeAttribute('data-feather');
+                                    }
+                                });
+                                // Now safely replace all valid icons
+                                feather.replace();
+                            } catch (error) {
+                                console.error('❌ Feather icons error:', error);
+                            }
+                        }
+                    }, 100);
+                    
+                    // Initialize AOS
+                    if (typeof AOS !== 'undefined') {
+                        AOS.init({
+                            duration: 600,
+                            once: true,
+                            offset: 50
+                        });
+                    }
+                    
+                    // Set default date for new appointment (using local timezone)
+                    const today = this.getLocalDateString();
+                    this.selectedDate = today;
+                    this.newAppointment.preferred_date = today;
+                    
+                    // Load appointments, requests, and clinic events from database
+                    await this.loadAppointments();
+                    await this.loadAllAppointments(); // Load ALL appointments for availability checking
+                    await this.loadAppointmentRequests();
+                    await this.loadClinicEvents();
+                    
+                    // Ensure icons render in cards
+                    this.$nextTick(() => {
+                        setTimeout(() => {
+                            if (typeof feather !== 'undefined') {
+                                feather.replace();
+                                console.log('✅ Card icons refreshed');
+                            }
+                        }, 100);
+                    });
+                    
+                    // Refresh feather icons after data loads
+                    setTimeout(() => {
+                        if (typeof feather !== 'undefined') {
+                            try {
+                                const icons = document.querySelectorAll('[data-feather]');
+                                icons.forEach(icon => {
+                                    const iconName = icon.getAttribute('data-feather');
+                                    if (!feather.icons[iconName]) {
+                                        console.warn(`⚠️ Invalid feather icon: ${iconName}`);
+                                        icon.removeAttribute('data-feather');
+                                    }
+                                });
+                                feather.replace();
+                                console.log('✅ Feather icons refreshed after data load');
+                            } catch (error) {
+                                console.error('❌ Feather icons error:', error);
+                            }
+                        }
+                    }, 500);
+                    
+                    // Set up periodic refresh for clinic events (every 30 seconds)
+                    setInterval(async () => {
+                        await this.loadClinicEvents();
+                    }, 30000);
+                },
+                
+                // Calendar methods
+                previousMonth() {
+                    this.currentDate = new Date(this.currentDate.getFullYear(), this.currentDate.getMonth() - 1, 1);
+                },
+                
+                nextMonth() {
+                    this.currentDate = new Date(this.currentDate.getFullYear(), this.currentDate.getMonth() + 1, 1);
+                },
+                
+                selectDate(day) {
+                    if (day.isCurrentMonth) {
+                        this.selectedDate = day.date;
+                        // Auto-fill the appointment date when user selects a date
+                        this.newAppointment.preferred_date = day.date;
+                        console.log('Selected date:', day.date); // Debug log
+                        console.log('Updated newAppointment.preferred_date:', this.newAppointment.preferred_date);
+                        
+                        // Show event info if date has events
+                        if (day.hasEvent && day.eventInfo) {
+                            this.showEventInfo(day.eventInfo);
+                        }
+                    }
+                },
+                
+                selectTimeSlot(time) {
+                    // Set the selected time in the appointment form
+                    this.newAppointment.preferred_time = time;
+                    console.log('Selected time slot:', time);
+                    
+                    // Optionally open the appointment modal for quick booking
+                    // this.openAppointmentModal();
+                },
+                
+                // API Methods
+                async loadAppointments() {
+                    try {
+                        this.loading = true;
+                        const response = await fetch('/api/appointments');
+                        if (response.ok) {
+                            const data = await response.json();
+                            this.appointments = data.appointments || [];
+                            console.log('✅ Loaded appointments:', this.appointments.length);
+                            console.log('📅 Appointments data:', this.appointments);
+                        } else {
+                            console.error('❌ Failed to load appointments');
+                            this.appointments = [];
+                        }
+                    } catch (error) {
+                        console.error('❌ Error loading appointments:', error);
+                        this.appointments = [];
+                    } finally {
+                        this.loading = false;
+                    }
+                },
+                
+                async loadAllAppointments() {
+                    try {
+                        const response = await fetch('/api/appointments/availability');
+                        if (response.ok) {
+                            const data = await response.json();
+                            this.allAppointments = data.appointments || [];
+                            console.log('✅ Loaded ALL appointments for availability:', this.allAppointments.length);
+                            console.log('🔒 All appointments data:', this.allAppointments);
+                        } else {
+                            console.error('❌ Failed to load all appointments for availability');
+                            this.allAppointments = [];
+                        }
+                    } catch (error) {
+                        console.error('❌ Error loading all appointments for availability:', error);
+                        this.allAppointments = [];
+                    }
+                },
+                
+                async loadAppointmentRequests() {
+                    try {
+                        const response = await fetch('/api/appointment-requests');
+                        if (response.ok) {
+                            const data = await response.json();
+                            this.appointmentRequests = data.requests || [];
+                            console.log('✅ Loaded appointment requests:', this.appointmentRequests.length);
+                        } else {
+                            console.error('❌ Failed to load appointment requests');
+                            this.appointmentRequests = [];
+                        }
+                    } catch (error) {
+                        console.error('❌ Error loading appointment requests:', error);
+                        this.appointmentRequests = [];
+                    }
+                },
+                
+                async loadClinicEvents() {
+                    try {
+                        const response = await fetch('/api/clinic-events');
+                        if (response.ok) {
+                            const data = await response.json();
+                            // Process all events and ensure they have the required fields
+                            this.clinicEvents = (data.events || []).map(event => {
+                                return {
+                                    ...event,
+                                    // Ensure all events are marked as clinic events
+                                    type: 'clinic_event',
+                                    // Map field variations to consistent names
+                                    start_date: event.start_date || event.start,
+                                    end_date: event.end_date || event.end || event.start_date || event.start,
+                                    event_type: event.event_type || event.type || 'general',
+                                    title: event.title || 'Clinic Event',
+                                    description: event.description || '',
+                                    start_time: event.start_time || event.startTime,
+                                    end_time: event.end_time || event.endTime,
+                                    is_all_day: event.is_all_day !== undefined ? event.is_all_day : (event.allDay || false)
+                                };
+                            });
+                            
+                            console.log('✅ Loaded clinic events:', this.clinicEvents.length);
+                            console.log('📅 Processed clinic events:', this.clinicEvents);
+                        } else {
+                            console.error('❌ Failed to load clinic events');
+                            this.clinicEvents = [];
+                        }
+                    } catch (error) {
+                        console.error('❌ Error loading clinic events:', error);
+                        this.clinicEvents = [];
+                    }
+                },
+                
+                // Create test data for student demonstration
+                async createStudentTestData() {
+                    try {
+                        // Create some test appointment requests for the student
+                        const today = new Date();
+                        const tomorrow = new Date();
+                        tomorrow.setDate(today.getDate() + 1);
+                        const nextWeek = new Date();
+                        nextWeek.setDate(today.getDate() + 5);
+                        
+                        const testRequests = [
+                            {
+                                patient_name: 'John Student',
+                                patient_contact: '09123456789',
+                                appointment_type: 'General Consultation',
+                                reason: 'Regular health check-up',
+                                preferred_date: today.toISOString().split('T')[0],
+                                preferred_time: '09:00',
+                                notes: 'First time consultation'
+                            },
+                            {
+                                patient_name: 'John Student',
+                                patient_contact: '09123456789',
+                                appointment_type: 'Follow-up',
+                                reason: 'Follow-up for previous medication',
+                                preferred_date: tomorrow.toISOString().split('T')[0],
+                                preferred_time: '10:30',
+                                notes: 'Need to check medication effectiveness'
+                            },
+                            {
+                                patient_name: 'John Student',
+                                patient_contact: '09123456789',
+                                appointment_type: 'Emergency',
+                                reason: 'Severe headache and dizziness',
+                                preferred_date: nextWeek.toISOString().split('T')[0],
+                                preferred_time: '14:00',
+                                notes: 'Urgent consultation needed'
+                            }
+                        ];
+
+                        // Create appointment requests via API
+                        for (const request of testRequests) {
+                            const response = await fetch('/api/appointment-requests', {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json'
+                                },
+                                body: JSON.stringify(request)
+                            });
+                            
+                            if (!response.ok) {
+                                console.error('Failed to create appointment request:', request);
+                            }
+                        }
+
+                        // Reload data to update the cards
+                        await this.loadAppointments();
+                        await this.loadAllAppointments(); // Reload ALL appointments for availability
+                        await this.loadAppointmentRequests();
+                        
+                        // Show success message
+                        alert('✅ Test data created successfully! Check the statistics cards and your appointment requests.');
+                        
+                    } catch (error) {
+                        console.error('Error creating test data:', error);
+                        alert('❌ Failed to create test data. Please try again.');
+                    }
+                },
+                
+                showEventInfo(eventInfo) {
+                    let message = `📅 ${eventInfo.title}\n\n`;
+                    if (eventInfo.description) {
+                        message += `${eventInfo.description}\n\n`;
+                    }
+                    message += `Type: ${this.formatEventType(eventInfo.event_type || eventInfo.type)}\n`;
+                    if (eventInfo.is_all_day || eventInfo.isAllDay) {
+                        message += 'Time: All Day';
+                    } else if (eventInfo.start_time && eventInfo.end_time) {
+                        message += `Time: ${eventInfo.start_time} - ${eventInfo.end_time}`;
+                    } else if (eventInfo.startTime && eventInfo.endTime) {
+                        message += `Time: ${eventInfo.startTime} - ${eventInfo.endTime}`;
+                    }
+                    
+                },
+                
+                formatEventType(eventType) {
+                    const types = {
+                        'no_appointments': 'No Appointments Available',
+                        'limited_hours': 'Limited Hours',
+                        'emergency_only': 'Emergency Only',
+                        'maintenance': 'Clinic Maintenance',
+                        'holiday': 'Holiday/Break'
+                    };
+                    return types[eventType] || eventType;
+                },
+                
+                async submitAppointmentRequest() {
+                    if (this.isSubmitting) return;
+                    
+                    try {
+                        this.isSubmitting = true;
+                        
+                        // Ensure the preferred_date is set to the currently selected date
+                        this.newAppointment.preferred_date = this.selectedDate;
+                        
+                        // Validate that the selected time slot is not blocked by clinic events or confirmed appointments
+                        const selectedTimeSlot = this.availableTimeSlots.find(slot => slot.time === this.newAppointment.preferred_time);
+                        if (!selectedTimeSlot || !selectedTimeSlot.available) {
+                            alert('The selected time slot is blocked by clinic events or confirmed appointments. Please choose a different time.');
+                            this.isSubmitting = false;
+                            return;
+                        }
+                        
+                        console.log('Submitting appointment request:', this.newAppointment); // Debug log
+                        
+                        const response = await fetch('/api/appointment-requests', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify(this.newAppointment)
+                        });
+                        
+                        if (response.ok) {
+                            const result = await response.json();
+                            alert('Appointment confirmed successfully! Your appointment has been booked.');
+                            this.resetNewAppointment();
+                            this.showAddModal = false;
+                            await this.loadAppointments();
+                            await this.loadAllAppointments();
+                        } else {
+                            const error = await response.json();
+                            alert('Error: ' + (error.error || 'Failed to book appointment'));
+                        }
+                    } catch (error) {
+                        console.error('Error submitting appointment request:', error);
+                        alert('Error submitting appointment request. Please try again.');
+                    } finally {
+                        this.isSubmitting = false;
+                    }
+                },
+                
+                
+                completeAppointment(id) {
+                    const appointment = this.appointments.find(a => a.id === id);
+                    if (appointment) {
+                        appointment.status = 'Completed';
+                        alert('Appointment marked as completed!');
+                    }
+                },
+                
+                cancelAppointment(id) {
+                    if (confirm('Are you sure you want to cancel this appointment?')) {
+                        const appointment = this.appointments.find(a => a.id === id);
+                        if (appointment) {
+                            appointment.status = 'Cancelled';
+                            alert('Appointment cancelled!');
+                        }
+                    }
+                },
+                
+                // Request management
+                approveRequest(request) {
+                    const newId = Math.max(...this.appointments.map(a => a.id)) + 1;
+                    const appointment = {
+                        id: newId,
+                        patient: request.patient,
+                        contact: request.contact,
+                        date: new Date(request.preferredDate).toISOString().split('T')[0],
+                        time: request.preferredTime.replace(' AM', '').replace(' PM', ''),
+                        type: request.type,
+                        status: 'Confirmed',
+                        notes: request.notes || ''
+                    };
+                    
+                    this.appointments.push(appointment);
+                    this.appointmentRequests = this.appointmentRequests.filter(r => r.id !== request.id);
+                    
+                    alert(`Appointment approved for ${request.patient}!`);
+                },
+                
+                rejectRequest(id) {
+                    if (confirm('Are you sure you want to reject this appointment request?')) {
+                        this.appointmentRequests = this.appointmentRequests.filter(r => r.id !== id);
+                        alert('Appointment request rejected!');
+                    }
+                },
+                
+                async cancelAppointment(appointmentId) {
+                    // Find the appointment to check the date
+                    const appointment = this.appointments.find(a => a.id === appointmentId);
+                    if (!appointment) {
+                        alert('Appointment not found.');
+                        return;
+                    }
+                    
+                    // Check if appointment is within 3 days (cancellation policy)
+                    const today = new Date();
+                    today.setHours(0, 0, 0, 0); // Reset time to start of day
+                    
+                    const appointmentDate = new Date(appointment.date);
+                    appointmentDate.setHours(0, 0, 0, 0);
+                    
+                    const daysUntilAppointment = Math.floor((appointmentDate - today) / (1000 * 60 * 60 * 24));
+                    
+                    console.log(`📅 Cancellation check: Appointment on ${appointment.date}, Days until: ${daysUntilAppointment}`);
+                    
+                    // Cancellation Policy: Must be at least 3 days before appointment
+                    if (daysUntilAppointment < 3) {
+                        alert(`❌ Cancellation Policy:\n\nYou can only cancel appointments that are 3 or more days away.\n\nYour appointment is on ${appointment.date} (${daysUntilAppointment} day${daysUntilAppointment === 1 ? '' : 's'} from now).\n\nPlease contact the clinic directly if you need to cancel.`);
+                        return;
+                    }
+                    
+                    if (!confirm(`Are you sure you want to cancel this appointment?\n\nDate: ${appointment.date}\nTime: ${appointment.time}\nType: ${appointment.type}\n\nThis action cannot be undone.`)) {
+                        return;
+                    }
+                    
+                    try {
+                        const response = await fetch(`/api/appointments/${appointmentId}`, {
+                            method: 'PUT',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({ status: 'Cancelled' })
+                        });
+                        
+                        if (response.ok) {
+                            alert('✅ Appointment cancelled successfully!\n\nThe time slot is now available for other students.');
+                            // Reload appointments to reflect the change
+                            await this.loadAppointments();
+                            // Refresh feather icons
+                            setTimeout(() => {
+                                if (typeof feather !== 'undefined') {
+                                    try {
+                                        const icons = document.querySelectorAll('[data-feather]');
+                                        icons.forEach(icon => {
+                                            const iconName = icon.getAttribute('data-feather');
+                                            if (!feather.icons[iconName]) {
+                                                icon.removeAttribute('data-feather');
+                                            }
+                                        });
+                                        feather.replace();
+                                    } catch (error) {
+                                        console.error('❌ Feather icons error:', error);
+                                    }
+                                }
+                            }, 100);
+                        } else {
+                            const error = await response.json();
+                            alert('Error: ' + (error.error || 'Failed to cancel appointment'));
+                        }
+                    } catch (error) {
+                        console.error('Error cancelling appointment:', error);
+                        alert('Failed to cancel appointment. Please try again.');
+                    }
+                },
+                
+                canCancelAppointment(appointment) {
+                    // Check if appointment can be cancelled based on 3-day policy
+                    if (appointment.status !== 'Confirmed') {
+                        console.log(`❌ Cannot cancel - status is ${appointment.status}, not Confirmed`);
+                        return false;
+                    }
+                    
+                    const today = new Date();
+                    today.setHours(0, 0, 0, 0);
+                    
+                    const appointmentDate = new Date(appointment.date);
+                    appointmentDate.setHours(0, 0, 0, 0);
+                    
+                    const daysUntilAppointment = Math.floor((appointmentDate - today) / (1000 * 60 * 60 * 24));
+                    
+                    const canCancel = daysUntilAppointment >= 3;
+                    console.log(`🔍 Can cancel appointment on ${appointment.date}? ${canCancel} (${daysUntilAppointment} days away)`);
+                    
+                    return canCancel;
+                },
+                
+                exportAppointments() {
+                    const csvContent = this.generateAppointmentsReport();
+                    const blob = new Blob([csvContent], { type: 'text/plain' });
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `appointments-report-${new Date().toISOString().split('T')[0]}.txt`;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    window.URL.revokeObjectURL(url);
+                },
+                
+                generateAppointmentsReport() {
+                    let report = 'APPOINTMENTS REPORT\n';
+                    report += '='.repeat(50) + '\n';
+                    report += `Generated on: ${new Date().toLocaleDateString()}\n\n`;
+                    
+                    report += 'APPOINTMENTS SUMMARY:\n';
+                    report += `-`.repeat(20) + '\n';
+                    report += `Total Today: ${this.todayAppointments}\n`;
+                    report += `Pending: ${this.pendingCount}\n`;
+                    report += `Confirmed: ${this.confirmedCount}\n`;
+                    report += `Completed: ${this.completedCount}\n\n`;
+                    
+                    report += 'DETAILED APPOINTMENTS:\n';
+                    report += `-`.repeat(20) + '\n';
+                    
+                    this.appointments.forEach(appointment => {
+                        report += `Patient: ${appointment.patient}\n`;
+                        report += `Contact: ${appointment.contact}\n`;
+                        report += `Date: ${appointment.date}\n`;
+                        report += `Time: ${appointment.time}\n`;
+                        report += `Type: ${appointment.type}\n`;
+                        report += `Status: ${appointment.status}\n`;
+                        report += `Notes: ${appointment.notes}\n`;
+                        report += '-'.repeat(30) + '\n';
+                    });
+                    
+                    return report;
+                },
+                
+                resetNewAppointment() {
+                    this.newAppointment = {
+                        patient_name: '{{ user.first_name if user and user.first_name else "Student" }} {{ user.last_name if user and user.last_name else "User" }}',
+                        patient_contact: '',
+                        appointment_type: '',
+                        reason: '',
+                        preferred_date: this.selectedDate, // Use currently selected date
+                        preferred_time: '',
+                        notes: ''
+                    };
+                    console.log('Reset appointment with date:', this.selectedDate); // Debug log
+                },
+                
+                openAppointmentModal() {
+                    // Check if the selected date is completely blocked by clinic events
+                    if (this.isDateBlocked(this.selectedDate)) {
+                        // Show alert for completely blocked dates
+                        const reason = this.getBlockedReason(this.selectedDate);
+                        alert(`Cannot book appointments on this date: ${reason}`);
+                        return;
+                    }
+                    
+                    // Check if there are any available time slots
+                    const availableSlots = this.availableTimeSlots.filter(slot => slot.available);
+                    if (availableSlots.length === 0) {
+                        alert('No available time slots for this date. All slots are blocked by confirmed appointments or clinic events.');
+                        return;
+                    }
+                    
+                    // Ensure the appointment form uses the currently selected date
+                    this.newAppointment.preferred_date = this.selectedDate;
+                    console.log('Opening modal with selected date:', this.selectedDate);
+                    console.log(`Available time slots: ${availableSlots.length}/${this.availableTimeSlots.length}`);
+                    this.showAddModal = true;
+                },
+                
+                isDateBlocked(dateStr) {
+                    if (!dateStr) return false;
+                    
+                    // Check if date is weekend (Saturday or Sunday)
+                    const checkDate = new Date(dateStr + 'T12:00:00');
+                    const dayOfWeek = checkDate.getDay();
+                    if (dayOfWeek === 0 || dayOfWeek === 6) {
+                        return true; // Block weekends - Clinic closed
+                    }
+                    
+                    // Check if date is in the past (using LOCAL timezone, not UTC)
+                    const today = new Date();
+                    const year = today.getFullYear();
+                    const month = String(today.getMonth() + 1).padStart(2, '0');
+                    const day = String(today.getDate()).padStart(2, '0');
+                    const todayStr = `${year}-${month}-${day}`;
+                    
+                    if (dateStr < todayStr) {
+                        return true; // Block booking on past dates
+                    }
+                    
+                    const events = Array.isArray(this.clinicEvents) ? this.clinicEvents : [];
+                    const blockedEvents = events.filter(event => {
+                        // Only process clinic events, not appointments
+                        if (event.type !== 'clinic_event') return false;
+                        
+                        // Handle both API formats: start_date/end_date and start/end
+                        const startDate = event.start_date || event.start;
+                        const endDate = event.end_date || event.end;
+                        
+                        if (!startDate || !endDate) return false;
+                        
+                        const eventStartDate = new Date(startDate + 'T00:00:00');
+                        const eventEndDate = new Date(endDate + 'T00:00:00');
+                        const selectedDate = new Date(dateStr + 'T00:00:00');
+                        
+                        const isInDateRange = selectedDate >= eventStartDate && selectedDate <= eventEndDate;
+                        
+                        // Only consider it "blocked" if it's a full-day blocking event
+                        if (isInDateRange) {
+                            // These event types block the entire day
+                            if (event.event_type === 'no_appointments' || 
+                                event.event_type === 'emergency_only' || 
+                                event.event_type === 'holiday' ||
+                                event.is_all_day) {
+                                return true;
+                            }
+                            
+                            // For limited_hours and maintenance with specific times, don't block the entire day
+                            // Let the time slot logic handle the specific time blocking
+                            if ((event.event_type === 'limited_hours' || event.event_type === 'maintenance') && 
+                                event.start_time && event.end_time && !event.is_all_day) {
+                                return false; // Don't block entire day, just specific time slots
+                            }
+                            
+                            // Default to blocking if no specific time info
+                            return true;
+                        }
+                        
+                        return false;
+                    });
+                    
+                    return blockedEvents.length > 0;
+                },
+                
+                getBlockedReason(dateStr) {
+                    if (!dateStr) return 'Unknown reason';
+                    
+                    // Check if weekend first
+                    const checkDate = new Date(dateStr + 'T12:00:00');
+                    const dayOfWeek = checkDate.getDay();
+                    if (dayOfWeek === 0) {
+                        return 'Sunday - Clinic is closed on weekends';
+                    }
+                    if (dayOfWeek === 6) {
+                        return 'Saturday - Clinic is closed on weekends';
+                    }
+                    
+                    const events = Array.isArray(this.clinicEvents) ? this.clinicEvents : [];
+                    const blockedEvent = events.find(event => {
+                        // Only process clinic events, not appointments
+                        if (event.type !== 'clinic_event') return false;
+                        
+                        // Handle both API formats: start_date/end_date and start/end
+                        const startDate = event.start_date || event.start;
+                        const endDate = event.end_date || event.end;
+                        
+                        if (!startDate || !endDate) return false;
+                        
+                        const eventStartDate = new Date(startDate + 'T00:00:00');
+                        const eventEndDate = new Date(endDate + 'T00:00:00');
+                        const selectedDate = new Date(dateStr + 'T00:00:00');
+                        
+                        return selectedDate >= eventStartDate && selectedDate <= eventEndDate;
+                    });
+                    
+                    if (!blockedEvent) return 'Unknown reason';
+                    
+                    const eventTypeMessages = {
+                        'no_appointments': 'No appointments available - Clinic closed',
+                        'limited_hours': 'Limited hours - Restricted schedule',
+                        'emergency_only': 'Emergency only - Regular appointments not available',
+                        'maintenance': 'Clinic maintenance - Facility unavailable',
+                        'holiday': 'Holiday/Break - Clinic closed'
+                    };
+                    
+                    const reason = eventTypeMessages[blockedEvent.event_type] || 'Clinic event scheduled';
+                    return `${reason} (${blockedEvent.title})`;
+                },
+                
+                selectedDateHasEvent() {
+                    if (!this.selectedDate) return false;
+                    const events = Array.isArray(this.clinicEvents) ? this.clinicEvents : [];
+                    return events.some(event => {
+                        if (event.type !== 'clinic_event') return false;
+                        const startDate = event.start_date || event.start;
+                        const endDate = event.end_date || event.end;
+                        if (!startDate || !endDate) return false;
+                        
+                        const eventStartDate = new Date(startDate + 'T00:00:00');
+                        const eventEndDate = new Date(endDate + 'T00:00:00');
+                        const selectedDate = new Date(this.selectedDate + 'T00:00:00');
+                        
+                        return selectedDate >= eventStartDate && selectedDate <= eventEndDate;
+                    });
+                },
+                
+                getSelectedDateEvent() {
+                    if (!this.selectedDate) return null;
+                    const events = Array.isArray(this.clinicEvents) ? this.clinicEvents : [];
+                    const foundEvent = events.find(event => {
+                        if (event.type !== 'clinic_event') return false;
+                        const startDate = event.start_date || event.start;
+                        const endDate = event.end_date || event.end;
+                        if (!startDate || !endDate) return false;
+                        
+                        const eventStartDate = new Date(startDate + 'T00:00:00');
+                        const eventEndDate = new Date(endDate + 'T00:00:00');
+                        const selectedDate = new Date(this.selectedDate + 'T00:00:00');
+                        
+                        return selectedDate >= eventStartDate && selectedDate <= eventEndDate;
+                    });
+                    
+                    
+                    return foundEvent;
+                },
+                
+                formatSelectedDate() {
+                    if (this.selectedDate) {
+                        // Fix timezone issue by adding 'T00:00:00' to ensure local date
+                        const date = new Date(this.selectedDate + 'T00:00:00');
+                        return date.toLocaleDateString('en-US', { 
+                            weekday: 'long', 
+                            year: 'numeric', 
+                            month: 'long', 
+                            day: 'numeric' 
+                        });
+                    }
+                    return 'today';
+                },
+                
+                // Helper function to convert time string to minutes for comparison
+                timeToMinutes(timeStr) {
+                    if (!timeStr) return 0;
+                    const [hours, minutes] = timeStr.split(':').map(Number);
+                    return hours * 60 + (minutes || 0);
+                },
+
+            }
+        }
+    </script>
+
+    <!-- Logout Confirmation Modal -->
+    <div x-show="showLogoutConfirm" x-cloak
+         x-transition:enter="transition ease-out duration-300"
+         x-transition:enter-start="opacity-0"
+         x-transition:enter-end="opacity-100"
+         x-transition:leave="transition ease-in duration-200"
+         x-transition:leave-start="opacity-100"
+         x-transition:leave-end="opacity-0"
+         class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+         @click.self="showLogoutConfirm = false">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-md mx-4">
+            <div class="p-6">
+                <div class="flex items-center mb-4">
+                    <div class="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center mr-3">
+                        <i data-feather="log-out" class="w-5 h-5 text-red-600"></i>
+                    </div>
+                    <h3 class="text-lg font-semibold text-gray-900">Confirm Logout</h3>
+                </div>
+                
+                <p class="text-gray-600 mb-6">Are you sure you want to logout? You will need to login again to access the system.</p>
+                
+                <div class="flex justify-end space-x-3">
+                    <button @click="showLogoutConfirm = false"
+                            class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">
+                        Cancel
+                    </button>
+                    <a href="{{ url_for('logout') }}"
+                       class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 inline-block text-center">
+                        Yes, Logout
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</body>
+</html>

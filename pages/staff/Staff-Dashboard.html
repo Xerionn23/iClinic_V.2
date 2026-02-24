@@ -1,0 +1,1336 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - iClinic Healthcare Management System</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>    <!-- Suppress Tailwind CDN Warning -->
+    <script>
+        // Suppress Tailwind CDN production warning
+        const originalWarn = console.warn;
+        console.warn = function(...args) {
+            if (args[0] && typeof args[0] === 'string' && args[0].includes('cdn.tailwindcss.com')) {
+                return; // Suppress Tailwind CDN warning
+            }
+            originalWarn.apply(console, args);
+        };
+    </script>
+<!-- Alpine.js -->
+    <script defer src="/assets/js/libs/alpine.min.js"></script>
+    
+    <!-- Feather Icons -->
+    <script src="/assets/js/libs/feather.min.js"></script>
+    
+    <!-- Chart.js -->
+    <script src="/assets/js/libs/chart.min.js"></script>
+    
+    <!-- AOS Animation -->
+    <link href="/assets/css/libs/aos.css" rel="stylesheet">
+    <script src="/assets/js/libs/aos.js"></script>
+    
+    <!-- Inter Font -->
+    <link href="/assets/css/libs/inter-font.css" rel="stylesheet">
+    
+    <style>
+        * {
+            font-family: 'Inter', sans-serif;
+        }
+        
+        /* Custom scrollbar for better UX */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 8px;
+        }
+        
+        ::-webkit-scrollbar-thumb {
+            background: linear-gradient(180deg, #0056b3, #003d82);
+            border-radius: 8px;
+        }
+        
+        ::-webkit-scrollbar-thumb:hover {
+            background: linear-gradient(180deg, #004494, #002d61);
+        }
+        
+        /* Dark mode scrollbar */
+        .dark ::-webkit-scrollbar-track {
+            background: #374151;
+        }
+        
+        .dark ::-webkit-scrollbar-thumb {
+            background: linear-gradient(180deg, #60a5fa, #3b82f6);
+        }
+        
+        /* Glassmorphism */
+        .glass {
+            background: rgba(255, 255, 255, 0.98);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.06);
+        }
+        
+        .dark .glass {
+            background: rgba(20, 35, 55, 0.95);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid rgba(55, 65, 81, 0.3);
+        }
+        
+        body.dark {
+            --tw-bg-opacity: 1;
+            background-color: #0f172a;
+        }
+        
+        body {
+            background-color: #ffffff;
+        }
+        
+        /* Sidebar gradient */
+        .gradient-bg-sidebar {
+            background: linear-gradient(135deg, #0056b3 0%, #003d82 100%);
+            position: relative;
+        }
+        
+        .gradient-bg-sidebar::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(45deg, transparent, rgba(253, 184, 19, 0.1), transparent);
+            pointer-events: none;
+        }
+        
+        .dark .gradient-bg-sidebar {
+            background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+        }
+        
+        /* Card hover effects */
+        .stat-card {
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, var(--primary), var(--secondary));
+            transform: translateX(-100%);
+            transition: transform 0.3s ease;
+        }
+        
+        .stat-card:hover::before {
+            transform: translateX(0);
+        }
+        
+        .stat-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 12px 24px rgba(0, 0, 0, 0.1);
+        }
+        
+        /* Section headers */
+        .section-header {
+            position: relative;
+            display: inline-block;
+        }
+        
+        .section-header::after {
+            content: '';
+            position: absolute;
+            bottom: -4px;
+            left: 0;
+            width: 40px;
+            height: 3px;
+            background: linear-gradient(90deg, #0056b3, #FDB813);
+            border-radius: 2px;
+        }
+        
+        /* Quick action cards */
+        .quick-action-card {
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        
+        .quick-action-card:hover {
+            transform: translateY(-6px) scale(1.02);
+        }
+        
+        /* Smooth animations */
+        @keyframes slideInFromTop {
+            from {
+                opacity: 0;
+                transform: translateY(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+            }
+            to {
+                opacity: 1;
+            }
+        }
+        
+        .animate-slide-in {
+            animation: slideInFromTop 0.6s ease-out;
+        }
+        
+        .animate-fade-in {
+            animation: fadeIn 0.8s ease-out;
+        }
+        
+        /* Activity item hover */
+        .activity-item {
+            transition: all 0.2s ease;
+            border-left: 3px solid transparent;
+        }
+        
+        .activity-item:hover {
+            background: linear-gradient(90deg, rgba(0, 86, 179, 0.05) 0%, transparent 100%);
+            border-left-color: #0056b3;
+            padding-left: 12px;
+        }
+        
+        /* Mobile responsive adjustments */
+        @media (max-width: 768px) {
+            .sidebar-collapsed {
+                transform: translateX(-100%);
+                position: fixed;
+                z-index: 50;
+            }
+            
+            .sidebar-collapsed.mobile-open {
+                transform: translateX(0);
+            }
+        }
+
+        /* Enhanced responsive breakpoints */
+        @media (max-width: 320px) {
+            .stat-card {
+                padding: 1rem;
+            }
+            .stat-card .text-3xl {
+                font-size: 1.5rem;
+            }
+        }
+
+        @media (max-width: 640px) {
+            .main-content-padding {
+                padding: 1rem;
+            }
+            .page-title {
+                font-size: 1.5rem;
+            }
+            .section-header {
+                font-size: 1rem;
+            }
+        }
+
+        @media (min-width: 641px) and (max-width: 767px) {
+            .tablet-optimized {
+                padding: 1.5rem;
+            }
+        }
+
+        /* Mobile overlay for sidebar */
+        .mobile-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 30;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .mobile-overlay.active {
+            opacity: 1;
+            visibility: visible;
+        }
+        
+        /* Active sidebar item */
+        .sidebar-item-active {
+            background: linear-gradient(90deg, rgba(253, 184, 19, 0.2) 0%, rgba(253, 184, 19, 0.05) 100%);
+            border-left: 4px solid var(--accent);
+            box-shadow: 0 0 20px rgba(253, 184, 19, 0.2);
+        }
+        
+        .dark .sidebar-item-active {
+            background: linear-gradient(90deg, rgba(253, 184, 19, 0.25) 0%, rgba(253, 184, 19, 0.05) 100%);
+            border-left: 4px solid var(--accent);
+            box-shadow: 0 0 25px rgba(253, 184, 19, 0.3);
+        }
+        
+        :root {
+            --primary: #0056b3;
+            --primary-dark: #003d82;
+            --secondary: #FDB813;
+            --accent: #FDB813;
+            --accent-hover: #e5a200;
+            --neutral: #6b7280;
+            --success: #10b981;
+            --danger: #ef4444;
+            --purple: #8b5cf6;
+            --navy-dark: #1e293b;
+            --navy-darker: #0f172a;
+        }
+        
+        .dark .bg-navy-dark {
+            background-color: #2d3748;
+        }
+        
+        .dark .bg-navy-darker {
+            background-color: #1a202c;
+        }
+    
+        /* Mobile-first responsive design */
+        @media (max-width: 374px) {
+            /* Extra small phones */
+            .stat-card {
+                padding: 0.75rem !important;
+            }
+            .stat-card p {
+                font-size: 0.7rem !important;
+            }
+            .stat-card .text-2xl,
+            .stat-card .text-3xl {
+                font-size: 1.25rem !important;
+            }
+        }
+        
+        @media (max-width: 640px) {
+            /* Mobile devices */
+            .sidebar {
+                transform: translateX(-100%);
+                transition: transform 0.3s ease-in-out;
+            }
+            .sidebar.mobile-open {
+                transform: translateX(0);
+            }
+            /* Ensure stat cards stack properly */
+            .stat-card {
+                min-width: 100%;
+            }
+        }
+        
+        @media (min-width: 641px) and (max-width: 767px) {
+            /* Tablets portrait */
+            .stat-card {
+                padding: 1rem !important;
+            }
+        }
+        
+        /* Touch-friendly targets */
+        .touch-target {
+            min-height: 44px;
+            min-width: 44px;
+        }
+        
+        /* Mobile overlay */
+        .mobile-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 40;
+            backdrop-filter: blur(4px);
+        }
+        
+        /* Prevent body scroll when mobile menu is open */
+        body.mobile-menu-open {
+            overflow: hidden;
+        }
+
+        
+        /* ========================================
+           COMPREHENSIVE RESPONSIVE DESIGN
+           For ALL phone sizes and devices
+        ======================================== */
+        
+        /* Extra Small Phones (320px - 374px) */
+        @media (max-width: 374px) {
+            .stat-card {
+                padding: 0.625rem !important;
+            }
+            .stat-card .text-xs {
+                font-size: 0.65rem !important;
+            }
+            .stat-card .text-2xl,
+            .stat-card .text-3xl {
+                font-size: 1.125rem !important;
+            }
+            .stat-card .w-12,
+            .stat-card .w-14 {
+                width: 2.5rem !important;
+                height: 2.5rem !important;
+            }
+        }
+        
+        /* Small Phones (375px - 640px) */
+        @media (max-width: 640px) {
+            /* Mobile sidebar - hidden by default */
+            .sidebar-mobile-hidden {
+                transform: translateX(-100%);
+            }
+            .sidebar-mobile-visible {
+                transform: translateX(0);
+            }
+            
+            /* Stat cards responsive */
+            .stat-card {
+                padding: 0.875rem !important;
+            }
+            
+            /* Mobile header */
+            .mobile-header {
+                display: flex !important;
+            }
+            
+            /* Hide desktop elements on mobile */
+            .desktop-only {
+                display: none !important;
+            }
+        }
+        
+        /* Tablets (641px - 767px) */
+        @media (min-width: 641px) and (max-width: 767px) {
+            .stat-card {
+                padding: 1rem !important;
+            }
+        }
+        
+        /* Desktop and larger */
+        @media (min-width: 768px) {
+            .mobile-only {
+                display: none !important;
+            }
+        }
+        
+        /* Touch-friendly targets for mobile */
+        .touch-target {
+            min-height: 44px;
+            min-width: 44px;
+        }
+        
+        /* Mobile overlay backdrop */
+        .mobile-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.6);
+            z-index: 35;
+            backdrop-filter: blur(4px);
+            -webkit-backdrop-filter: blur(4px);
+        }
+        
+        /* Prevent body scroll when mobile menu open */
+        body.mobile-menu-open {
+            overflow: hidden;
+            position: fixed;
+            width: 100%;
+        }
+        
+        /* Responsive grid adjustments */
+        @media (max-width: 640px) {
+            .grid {
+                gap: 0.75rem !important;
+            }
+        }
+        
+        /* Sidebar transitions */
+        .sidebar-transition {
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        /* Responsive Action Buttons */
+        @media (max-width: 640px) {
+            .action-buttons {
+                flex-direction: column;
+                width: 100%;
+            }
+            .action-buttons button {
+                width: 100%;
+                justify-content: center;
+            }
+        }
+        
+        /* Hide elements before Alpine.js loads */
+        [x-cloak] {
+            display: none !important;
+        }
+        
+        /* Hide elements before Alpine.js loads */
+        [x-cloak] {
+            display: none !important;
+        }
+    </style>
+</head>
+<body class="bg-white transition-colors duration-200" x-data="{
+    sidebarCollapsed: false,
+    sidebarHovered: false,
+    mobileMenuOpen: false,
+    showMobileMenu: false,
+    monthlyVisitsChart: null,
+    commonIllnessesChart: null,
+    chartsLoaded: false,
+    notificationDropdown: false,
+    userDropdown: false,
+    showSettingsModal: false,
+    showLogoutConfirm: false,
+    loading: true,
+    error: null,
+    // Dashboard Stats
+    totalPatients: 0,
+    appointmentsToday: 0,
+    pendingRequests: 0,
+    completedToday: 0,
+    activeConsultations: 0,
+    patientsInClinic: 0,
+    lowStockMedicines: 0,
+    recentActivities: [],
+    chartInstance: null,
+    isMobile: false,
+    
+    async init() {
+        // Handle responsive sidebar first
+        this.handleResize();
+        window.addEventListener('resize', () => this.handleResize());
+        
+        // Load dashboard data
+        await this.loadDashboardData();
+        
+        // Initialize animations and icons AFTER data loads
+        this.$nextTick(() => {
+            // Initialize Feather icons safely
+            if (typeof safeFeatherReplace !== 'undefined') {
+                safeFeatherReplace();
+            }
+            
+            // Initialize AOS animations
+            if (typeof AOS !== 'undefined') {
+                AOS.init({
+                    duration: 600,
+                    once: true,
+                    offset: 50
+                });
+                console.log('? AOS animations initialized');
+            }
+            
+            // Load charts AFTER DOM is ready
+            setTimeout(() => {
+                this.loadChartData();
+            }, 500);
+        });
+    },
+    
+    async loadDashboardData() {
+        this.loading = true;
+        this.error = null;
+        
+        try {
+            console.log('📊 Loading dashboard statistics...');
+            const response = await fetch('/api/dashboard/stats');
+            
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            
+            const data = await response.json();
+            console.log('✅ Dashboard data loaded:', data);
+            
+            // Update stats with animation
+            this.animateValue('totalPatients', 0, data.total_patients, 1500);
+            this.animateValue('appointmentsToday', 0, data.appointments_today, 1000);
+            this.animateValue('pendingRequests', 0, data.pending_requests, 800);
+            this.animateValue('completedToday', 0, data.completed_today, 1200);
+            this.animateValue('activeConsultations', 0, data.active_consultations, 900);
+            this.animateValue('patientsInClinic', 0, data.patients_in_clinic, 1100);
+            this.animateValue('lowStockMedicines', 0, data.low_stock_medicines, 700);
+            
+            this.recentActivities = data.recent_activities || [];
+            
+            this.loading = false;
+            
+            // Refresh feather icons after data loads
+            this.$nextTick(() => {
+                if (typeof safeFeatherReplace !== 'undefined') {
+                    safeFeatherReplace();
+                }
+            });
+            
+        } catch (error) {
+            console.error('❌ Error loading dashboard data:', error);
+            this.error = error.message;
+            this.loading = false;
+        }
+    },
+    
+    async loadChartData() {
+        // Prevent multiple simultaneous loads
+        if (this.chartsLoaded) {
+            console.log('⚠️ Charts already loaded, skipping...');
+            return;
+        }
+        
+        try {
+            this.chartsLoaded = true;
+            
+            // Load monthly visits data
+            const visitsResponse = await fetch('/api/dashboard/monthly-visits');
+            const visitsData = await visitsResponse.json();
+            
+            // Load common illnesses data
+            const illnessesResponse = await fetch('/api/dashboard/common-illnesses');
+            const illnessesData = await illnessesResponse.json();
+            console.log('📊 Illnesses Data:', illnessesData);
+            
+            // Destroy existing charts if they exist
+            if (this.monthlyVisitsChart) {
+                this.monthlyVisitsChart.destroy();
+                this.monthlyVisitsChart = null;
+            }
+            if (this.commonIllnessesChart) {
+                this.commonIllnessesChart.destroy();
+                this.commonIllnessesChart = null;
+            }
+            
+            // Initialize Monthly Visits Chart
+            const visitsCtx = document.getElementById('monthlyVisitsChart');
+            console.log('🔍 Monthly Visits Canvas:', visitsCtx);
+            if (visitsCtx && visitsCtx.getContext) {
+                console.log('📊 Creating Monthly Visits Chart...');
+                this.monthlyVisitsChart = new Chart(visitsCtx, {
+                    type: 'bar',
+                    data: {
+                        labels: visitsData.months,
+                        datasets: [{
+                            label: 'Patient Visits',
+                            data: visitsData.counts,
+                            backgroundColor: 'rgba(59, 130, 246, 0.8)',
+                            borderColor: 'rgba(59, 130, 246, 1)',
+                            borderWidth: 2,
+                            borderRadius: 8,
+                            barThickness: 40
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                display: false
+                            },
+                            tooltip: {
+                                backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                                padding: 12,
+                                titleFont: { size: 14, weight: 'bold' },
+                                bodyFont: { size: 13 },
+                                borderColor: 'rgba(59, 130, 246, 1)',
+                                borderWidth: 1
+                            }
+                        },
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                ticks: {
+                                    stepSize: 1,
+                                    font: { size: 11 }
+                                },
+                                grid: {
+                                    color: 'rgba(0, 0, 0, 0.05)'
+                                }
+                            },
+                            x: {
+                                ticks: {
+                                    font: { size: 11 }
+                                },
+                                grid: {
+                                    display: false
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+            
+            // Initialize Common Illnesses Chart
+            const illnessesCtx = document.getElementById('commonIllnessesChart');
+            console.log('🔍 Common Illnesses Canvas:', illnessesCtx);
+            if (illnessesCtx && illnessesCtx.getContext) {
+                console.log('📊 Creating Common Illnesses Chart...');
+                this.commonIllnessesChart = new Chart(illnessesCtx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: illnessesData.illnesses,
+                        datasets: [{
+                            data: illnessesData.counts,
+                            backgroundColor: [
+                                'rgba(239, 68, 68, 0.8)',
+                                'rgba(59, 130, 246, 0.8)',
+                                'rgba(34, 197, 94, 0.8)',
+                                'rgba(251, 191, 36, 0.8)',
+                                'rgba(168, 85, 247, 0.8)',
+                                'rgba(236, 72, 153, 0.8)'
+                            ],
+                            borderColor: [
+                                'rgba(239, 68, 68, 1)',
+                                'rgba(59, 130, 246, 1)',
+                                'rgba(34, 197, 94, 1)',
+                                'rgba(251, 191, 36, 1)',
+                                'rgba(168, 85, 247, 1)',
+                                'rgba(236, 72, 153, 1)'
+                            ],
+                            borderWidth: 2
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                position: 'bottom',
+                                labels: {
+                                    padding: 15,
+                                    font: { size: 11 },
+                                    usePointStyle: true,
+                                    pointStyle: 'circle'
+                                }
+                            },
+                            tooltip: {
+                                backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                                padding: 12,
+                                titleFont: { size: 14, weight: 'bold' },
+                                bodyFont: { size: 13 },
+                                callbacks: {
+                                    label: function(context) {
+                                        const label = context.label || '';
+                                        const value = context.parsed || 0;
+                                        const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                        const percentage = ((value / total) * 100).toFixed(1);
+                                        return `${label}: ${value} (${percentage}%)`;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+            
+            console.log('📊 Charts initialized successfully');
+        } catch (error) {
+            console.error('❌ Error loading chart data:', error);
+        }
+    },
+    
+    animateValue(property, start, end, duration) {
+        let startTimestamp = null;
+        const step = (timestamp) => {
+            if (!startTimestamp) startTimestamp = timestamp;
+            const progress = Math.min((timestamp - startTimestamp) / duration, 1);
+            this[property] = Math.floor(progress * (end - start) + start);
+            if (progress < 1) {
+                window.requestAnimationFrame(step);
+            }
+        };
+        window.requestAnimationFrame(step);
+    },
+    
+    handleResize() {
+        this.isMobile = window.innerWidth < 768;
+        if (this.isMobile) {
+            this.sidebarCollapsed = true;
+            this.mobileMenuOpen = false;
+        } else {
+            this.sidebarCollapsed = false;
+            this.mobileMenuOpen = false;
+        }
+    },
+    
+    toggleMobileMenu() {
+        if (this.isMobile) {
+            this.mobileMenuOpen = !this.mobileMenuOpen;
+        }
+    },
+    
+    getActivityIcon(activity) {
+        return activity.icon || 'activity';
+    },
+    
+    getActivityColor(activity) {
+        const colors = {
+            'blue': 'from-blue-400 to-blue-500',
+            'green': 'from-green-400 to-green-500',
+            'yellow': 'from-yellow-400 to-yellow-500',
+            'purple': 'from-purple-400 to-purple-500',
+            'red': 'from-red-400 to-red-500'
+        };
+        return colors[activity.color] || 'from-gray-400 to-gray-500';
+    },
+    
+    formatTime(timeStr) {
+        try {
+            const date = new Date(timeStr);
+            const now = new Date();
+            const diff = Math.floor((now - date) / 1000 / 60); // minutes
+            
+            if (diff < 1) return 'Just now';
+            if (diff < 60) return `${diff}m ago`;
+            if (diff < 1440) return `${Math.floor(diff / 60)}h ago`;
+            return `${Math.floor(diff / 1440)}d ago`;
+        } catch {
+            return timeStr;
+        }
+    }
+}" x-init="init()">
+    
+    <div class="flex h-screen overflow-hidden">
+        <!-- Mobile Overlay -->
+        <div class="mobile-overlay md:hidden" 
+             :class="{ 'active': mobileMenuOpen }"
+             @click="mobileMenuOpen = false"></div>
+
+        <!-- Sidebar -->
+        <aside :class="[
+                   sidebarCollapsed ? 'w-20' : 'w-64',
+                   isMobile && mobileMenuOpen ? 'translate-x-0' : '',
+                   isMobile && !mobileMenuOpen ? '-translate-x-full' : ''
+               ]" 
+               class="fixed left-0 top-0 h-screen gradient-bg-sidebar text-white sidebar-transition shadow-2xl z-50"
+               @mouseenter="sidebarHovered = true"
+               @mouseleave="sidebarHovered = false">
+        
+            <!-- Logo -->
+            <div class="relative p-6">
+                <div class="flex items-center gap-3" :class="sidebarCollapsed && !sidebarHovered ? 'justify-center' : ''">
+                    <div class="flex items-center justify-center">
+                        <img src="../assets/img/iclinic-logo.png" alt="Norzagaray College" class="w-14 h-14 object-contain">
+                    </div>
+                    <div x-show="!sidebarCollapsed || sidebarHovered" x-transition>
+                        <h1 class="text-xl font-bold text-white">iClinic</h1>
+                        <p class="text-xs text-yellow-300">Norzagaray College</p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Navigation -->
+            <nav class="relative mt-8 px-4 space-y-2">
+                <!-- Dashboard -->
+                <a href="{{ url_for('staff_dashboard') }}"
+                   class="sidebar-item-active flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all group">
+                    <div class="flex items-center justify-center" :class="sidebarCollapsed && !sidebarHovered ? 'w-full' : ''">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5 group-hover:scale-110 transition-transform"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
+                    </div>
+                    <span x-show="!sidebarCollapsed || sidebarHovered" x-transition class="font-medium">Dashboard</span>
+                </a>
+                
+                <!-- Patients -->
+                <a href="{{ url_for('staff_patients') }}"
+                   class="flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all group hover:bg-white/10">
+                    <div class="flex items-center justify-center" :class="sidebarCollapsed && !sidebarHovered ? 'w-full' : ''">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5 group-hover:scale-110 transition-transform"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+                    </div>
+                    <span x-show="!sidebarCollapsed || sidebarHovered" x-transition class="font-medium">Patients</span>
+                </a>
+                
+                <!-- Appointments -->
+                <a href="{{ url_for('staff_appointments') }}"
+                   class="flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all group hover:bg-white/10">
+                    <div class="flex items-center justify-center" :class="sidebarCollapsed && !sidebarHovered ? 'w-full' : ''">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5 group-hover:scale-110 transition-transform"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+                    </div>
+                    <span x-show="!sidebarCollapsed || sidebarHovered" x-transition class="font-medium">Appointments</span>
+                </a>
+                
+                <!-- Announcements -->
+                <a href="{{ url_for('staff_announcements') }}"
+                   class="flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all group hover:bg-white/10">
+                    <div class="flex items-center justify-center" :class="sidebarCollapsed && !sidebarHovered ? 'w-full' : ''">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5 group-hover:scale-110 transition-transform"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>
+                    </div>
+                    <span x-show="!sidebarCollapsed || sidebarHovered" x-transition class="font-medium">Announcements</span>
+                </a>
+                
+                <!-- Consultations -->
+                <a href="{{ url_for('staff_consultations') }}"
+                   class="flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all group hover:bg-white/10">
+                    <div class="flex items-center justify-center" :class="sidebarCollapsed && !sidebarHovered ? 'w-full' : ''">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5 group-hover:scale-110 transition-transform"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path></svg>
+                    </div>
+                    <span x-show="!sidebarCollapsed || sidebarHovered" x-transition class="font-medium">Consultations</span>
+                </a>
+                
+                <!-- Inventory -->
+                <a href="{{ url_for('staff_inventory') }}"
+                   class="flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all group hover:bg-white/10">
+                    <div class="flex items-center justify-center" :class="sidebarCollapsed && !sidebarHovered ? 'w-full' : ''">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5 group-hover:scale-110 transition-transform"><line x1="16.5" y1="9.4" x2="7.5" y2="4.21"></line><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>
+                    </div>
+                    <span x-show="!sidebarCollapsed || sidebarHovered" x-transition class="font-medium">Inventory</span>
+                </a>
+                
+                <!-- Reports -->
+                <a href="{{ url_for('staff_reports') }}"
+                   class="flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all group hover:bg-white/10">
+                    <div class="flex items-center justify-center" :class="sidebarCollapsed && !sidebarHovered ? 'w-full' : ''">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5 group-hover:scale-110 transition-transform"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
+                    </div>
+                    <span x-show="!sidebarCollapsed || sidebarHovered" x-transition class="font-medium">Reports</span>
+                </a>
+                
+            </nav>
+        
+        <!-- User Profile - Responsive -->
+        <div class="absolute bottom-0 w-full p-2 sm:p-3 md:p-4 bg-gradient-to-t from-black/20 to-transparent z-[55]">
+            <div class="relative" @click.outside="userDropdown = false">
+                <button @click="userDropdown = !userDropdown" 
+                        class="w-full flex items-center gap-2 sm:gap-3 p-1.5 sm:p-2 rounded-lg hover:bg-white/10 active:bg-white/20 transition-colors touch-target" 
+                        :class="sidebarCollapsed && !sidebarHovered ? 'justify-center' : ''">
+                    <!-- Avatar - Responsive Size -->
+                    <div class="w-9 h-9 sm:w-10 sm:h-10 bg-gradient-to-br from-yellow-400 to-yellow-500 rounded-full flex items-center justify-center shadow-lg flex-shrink-0">
+                        <span class="text-blue-900 font-bold text-sm sm:text-base">{{ user.first_name[0] }}{{ user.last_name[0] }}</span>
+                    </div>
+                    <!-- User Info - Responsive Text -->
+                    <div x-show="!sidebarCollapsed || sidebarHovered" x-transition class="flex-1 text-left min-w-0">
+                        <p class="text-xs sm:text-sm font-medium text-white truncate">{{ user.first_name }} {{ user.last_name }}</p>
+                        <p class="text-[10px] sm:text-xs text-yellow-300 truncate">{{ user.position }}</p>
+                    </div>
+                    <!-- Chevron Icon -->
+                    <svg x-show="!sidebarCollapsed || sidebarHovered" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white/70 flex-shrink-0">
+                        <polyline points="18 15 12 9 6 15"></polyline>
+                    </svg>
+                </button>
+                
+                <!-- User Dropdown - Responsive -->
+                <div x-show="userDropdown" x-cloak x-cloak 
+                     x-transition:enter="transition ease-out duration-200"
+                     x-transition:enter-start="opacity-0 scale-95"
+                     x-transition:enter-end="opacity-100 scale-100"
+                     x-transition:leave="transition ease-in duration-150"
+                     x-transition:leave-start="opacity-100 scale-100"
+                     x-transition:leave-end="opacity-0 scale-95"
+                     class="absolute bottom-full left-2 right-2 sm:left-4 sm:right-4 mb-2 bg-white rounded-lg shadow-xl border border-gray-200 py-1 z-[60]"><button @click="showLogoutConfirm = true; userDropdown = false" 
+                            class="w-full flex items-center gap-2 px-2 sm:px-3 py-2 sm:py-2.5 text-xs sm:text-sm text-red-600 hover:bg-red-50 active:bg-red-100 transition-colors touch-target">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4 flex-shrink-0">
+                            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                            <polyline points="16 17 21 12 16 7"></polyline>
+                            <line x1="21" y1="12" x2="9" y2="12"></line>
+                        </svg>
+                        <span class="flex-1 text-left">Logout</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+        </aside>
+        
+        <!-- Main Content Area -->
+        <div :class="sidebarCollapsed ? 'md:ml-20' : 'md:ml-64'" class="flex-1 flex flex-col transition-all duration-300 ml-0">
+            
+            <!-- Enhanced Mobile Header -->
+            <header class="md:hidden bg-gradient-to-r from-blue-600 to-blue-700 shadow-lg sticky top-0 z-30">
+                <div class="px-3 py-2.5 flex items-center justify-between">
+                    <!-- Menu Button -->
+                    <button @click="toggleMobileMenu()" 
+                            class="touch-target p-2 rounded-lg hover:bg-white/10 active:bg-white/20 transition-colors">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-6 h-6 text-white">
+                            <line x1="3" y1="12" x2="21" y2="12"></line>
+                            <line x1="3" y1="6" x2="21" y2="6"></line>
+                            <line x1="3" y1="18" x2="21" y2="18"></line>
+                        </svg>
+                    </button>
+                    
+                    <!-- Logo and Title -->
+                    <div class="flex items-center gap-2">
+                        <img src="../assets/img/iclinic-logo.png" alt="iClinic" class="w-8 h-8 sm:w-9 sm:h-9">
+                        <div class="flex flex-col">
+                            <h1 class="text-base sm:text-lg font-bold text-white leading-tight">iClinic</h1>
+                            <span class="text-[10px] sm:text-xs text-blue-100">Dashboard</span>
+                        </div>
+                    </div>
+                    
+                    <!-- User Avatar -->
+                    <div class="w-8 h-8 sm:w-9 sm:h-9 bg-yellow-400 rounded-full flex items-center justify-center shadow-md">
+                        <span class="text-blue-900 font-bold text-sm">{{ user.first_name[0] }}{{ user.last_name[0] }}</span>
+                    </div>
+                </div>
+            </header>
+            
+            <!-- Main Dashboard Content -->
+            <main class="flex-1 overflow-y-auto bg-gray-50 p-3 sm:p-4 md:p-6" style="max-height: calc(100vh - 0px);">
+                <!-- Enhanced Dashboard Header -->
+                <div class="gradient-bg-sidebar text-white shadow-lg sm:shadow-2xl relative overflow-hidden rounded-xl sm:rounded-2xl md:rounded-[2rem] ml-0 sm:ml-1">
+                    <!-- Decorative Elements -->
+                    <div class="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -translate-y-32 translate-x-32"></div>
+                    <div class="absolute bottom-0 left-0 w-48 h-48 bg-yellow-400/10 rounded-full translate-y-24 -translate-x-24"></div>
+                    
+                    <!-- Header Content -->
+                    <div class="relative px-3 py-3 sm:px-4 sm:py-4 md:px-6 md:py-5">
+                        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                            <!-- Title Section -->
+                            <div class="flex items-center gap-4">
+                                <div class="relative">
+                                    <div class="w-10 h-10 sm:w-12 sm:h-12 bg-yellow-400 rounded-lg sm:rounded-xl flex items-center justify-center shadow-lg transform rotate-2 hover:rotate-0 transition-transform duration-300">
+                                        <i data-feather="home" class="w-5 h-5 sm:w-6 sm:h-6 text-blue-900"></i>
+                                    </div>
+                                </div>
+                                <div>
+                                    <div class="flex items-center gap-2 mb-1">
+                                        <h1 class="text-lg sm:text-2xl md:text-3xl font-bold text-white">
+                                            Dashboard
+                                        </h1>
+                                    </div>
+                                    <div class="flex items-center gap-1.5 sm:gap-2 text-blue-100">
+                                        <i data-feather="activity" class="w-3 h-3"></i>
+                                        <span class="text-xs sm:text-sm">Welcome back, {{ user.first_name }}!</span>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Compact Stats and Actions -->
+                            <div class="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+                                
+                                <!-- Action Buttons -->
+                                <div class="flex items-center gap-2">
+                                    
+                                    <button @click="loadDashboardData()" :disabled="loading" class="group bg-white/15 hover:bg-white/25 active:bg-white/30 backdrop-blur-sm text-white px-3 sm:px-4 py-2 sm:py-2.5 rounded-lg font-medium border border-white/30 hover:border-white/50 transition-all duration-200 flex items-center gap-1.5 sm:gap-2 shadow-lg hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed touch-target text-sm sm:text-base">
+                                        <div class="w-5 h-5 sm:w-6 sm:h-6 bg-blue-500/30 rounded flex items-center justify-center group-hover:bg-blue-500/50 transition-colors flex-shrink-0">
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-3 h-3 sm:w-3.5 sm:h-3.5" :class="{ 'animate-spin': loading }">
+                                                <polyline points="23 4 23 10 17 10"></polyline>
+                                                <polyline points="1 20 1 14 7 14"></polyline>
+                                                <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+                                            </svg>
+                                        </div>
+                                        <span class="hidden sm:inline" x-text="loading ? 'Loading...' : 'Refresh'">Refresh</span>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Dashboard Content -->
+                <div class="p-3 sm:p-4 md:p-6 main-content-padding">
+                    
+                    <!-- Overview Section -->
+                    <div class="mb-6 sm:mb-8">
+                        <h2 class="section-header text-base sm:text-lg font-semibold text-gray-800 mb-4 sm:mb-6">Overview</h2>
+                        
+                        <!-- Statistics Cards -->
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 lg:gap-5">
+                            <!-- Total Patients Card -->
+                            <div class="stat-card bg-white rounded-xl shadow-md border border-gray-100 p-4 sm:p-6 hover:shadow-xl" data-aos="fade-up" data-aos-delay="100">
+                                <div class="flex items-center justify-between">
+                                    <div class="flex-1 min-w-0">
+                                        <p class="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">Total Patients</p>
+                                        <p class="text-2xl sm:text-3xl font-bold text-gray-900 truncate" x-text="totalPatients.toLocaleString()">0</p>
+                                        <div class="flex items-center gap-1 sm:gap-2 mt-2 sm:mt-3 flex-wrap">
+                                            <span class="inline-flex items-center gap-1 text-xs font-medium text-blue-600 bg-blue-50 px-2 py-1 rounded-full">
+                                                <i data-feather="database" class="w-3 h-3"></i>
+                                                All Records
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <div class="w-12 h-12 sm:w-14 sm:h-14 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center shadow-lg flex-shrink-0 ml-2">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-6 h-6 sm:w-7 sm:h-7 text-white"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+                                    </div>
+                                </div>
+                            </div>
+                        
+                            <!-- Appointments Today Card -->
+                            <div class="stat-card bg-white rounded-xl shadow-md border border-gray-100 p-4 sm:p-6 hover:shadow-xl" data-aos="fade-up" data-aos-delay="200">
+                                <div class="flex items-center justify-between">
+                                    <div class="flex-1 min-w-0">
+                                        <p class="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">Appointments Today</p>
+                                        <p class="text-2xl sm:text-3xl font-bold text-gray-900 truncate" x-text="appointmentsToday">0</p>
+                                        <div class="flex items-center gap-1 sm:gap-2 mt-2 sm:mt-3 flex-wrap">
+                                            <span class="inline-flex items-center text-xs font-medium text-yellow-700 bg-yellow-50 px-2 py-1 rounded-full" x-text="`${pendingRequests} pending`">
+                                                0 pending
+                                            </span>
+                                            <span class="text-xs text-gray-500 hidden sm:inline" x-text="`${completedToday} completed`">0 completed</span>
+                                        </div>
+                                    </div>
+                                    <div class="w-12 h-12 sm:w-14 sm:h-14 bg-gradient-to-br from-yellow-400 to-yellow-500 rounded-xl flex items-center justify-center shadow-lg flex-shrink-0 ml-2">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-6 h-6 sm:w-7 sm:h-7 text-white"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+                                    </div>
+                                </div>
+                            </div>
+                        
+                        </div>
+                        
+                        <!-- Secondary Stats Row -->
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3 md:gap-4 lg:gap-5 mt-3 sm:mt-4">
+                            
+                            <!-- Low Stock Medicines Card -->
+                            <div class="stat-card bg-white rounded-xl shadow-md border border-gray-100 p-4 hover:shadow-lg" data-aos="fade-up" data-aos-delay="600">
+                                <div class="flex items-center justify-between">
+                                    <div class="flex-1 min-w-0">
+                                        <p class="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">Low Stock Medicines</p>
+                                        <p class="text-xl sm:text-2xl font-bold text-gray-900" x-text="lowStockMedicines">0</p>
+                                        <p class="text-xs text-gray-500 mt-1">Need Restock</p>
+                                    </div>
+                                    <div class="w-10 h-10 bg-gradient-to-br from-red-400 to-red-500 rounded-lg flex items-center justify-center shadow flex-shrink-0">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5 text-white"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Completed Today Card -->
+                            <div class="stat-card bg-white rounded-xl shadow-md border border-gray-100 p-4 hover:shadow-lg" data-aos="fade-up" data-aos-delay="700">
+                                <div class="flex items-center justify-between">
+                                    <div class="flex-1 min-w-0">
+                                        <p class="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">Completed Today</p>
+                                        <p class="text-xl sm:text-2xl font-bold text-gray-900" x-text="completedToday">0</p>
+                                        <p class="text-xs text-gray-500 mt-1">Appointments</p>
+                                    </div>
+                                    <div class="w-10 h-10 bg-gradient-to-br from-teal-400 to-teal-500 rounded-lg flex items-center justify-center shadow flex-shrink-0">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5 text-white"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Charts Section -->
+                    <div class="mb-6 sm:mb-8">
+                        <h2 class="section-header text-base sm:text-lg font-semibold text-gray-800 mb-4 sm:mb-6">Analytics</h2>
+                        
+                        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+                            <!-- Monthly Patient Visits Chart -->
+                            <div class="bg-white rounded-xl shadow-md border border-gray-100 p-4 sm:p-6" data-aos="fade-up">
+                                <div class="flex items-center justify-between mb-4">
+                                    <h3 class="text-base sm:text-lg font-semibold text-gray-900">Monthly Patient Visits</h3>
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5 text-blue-500">
+                                        <line x1="18" y1="20" x2="18" y2="10"></line>
+                                        <line x1="12" y1="20" x2="12" y2="4"></line>
+                                        <line x1="6" y1="20" x2="6" y2="14"></line>
+                                    </svg>
+                                </div>
+                                <p class="text-xs text-gray-500 mb-4">Medical records added per month</p>
+                                <div class="h-64 sm:h-72">
+                                    <canvas id="monthlyVisitsChart"></canvas>
+                                </div>
+                            </div>
+                            
+                            <!-- Common Illnesses Chart -->
+                            <div class="bg-white rounded-xl shadow-md border border-gray-100 p-4 sm:p-6" data-aos="fade-up" data-aos-delay="100">
+                                <div class="flex items-center justify-between mb-4">
+                                    <h3 class="text-base sm:text-lg font-semibold text-gray-900">Common Illnesses This Month</h3>
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5 text-green-500">
+                                        <circle cx="12" cy="12" r="10"></circle>
+                                        <line x1="12" y1="8" x2="12" y2="12"></line>
+                                        <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                                    </svg>
+                                </div>
+                                <p class="text-xs text-gray-500 mb-4">Top diagnoses this month</p>
+                                <div class="h-64 sm:h-72 flex items-center justify-center">
+                                    <canvas id="commonIllnessesChart"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <!-- Settings Modal -->
+    <div x-show="showSettingsModal" x-cloak x-cloak 
+         x-transition:enter="transition ease-out duration-300"
+         x-transition:enter-start="opacity-0"
+         x-transition:enter-end="opacity-100"
+         x-transition:leave="transition ease-in duration-200"
+         x-transition:leave-start="opacity-100"
+         x-transition:leave-end="opacity-0"
+         class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+         @click.self="showSettingsModal = false">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-2xl mx-2 sm:mx-4 max-h-[90vh] overflow-y-auto">
+            <div class="p-4 sm:p-6">
+                <div class="flex justify-between items-center mb-4 sm:mb-6">
+                    <h3 class="text-lg sm:text-xl font-semibold text-gray-900">Settings</h3>
+                    <button @click="showSettingsModal = false" class="text-gray-400 hover:text-gray-600 active:text-gray-800 p-2 rounded-lg hover:bg-gray-100 active:bg-gray-200 transition-colors touch-target">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5 sm:w-6 sm:h-6">
+                            <line x1="18" y1="6" x2="6" y2="18"></line>
+                            <line x1="6" y1="6" x2="18" y2="18"></line>
+                        </svg>
+                    </button>
+                </div>
+                
+                <form class="space-y-4 sm:space-y-6">
+                    <!-- Profile Settings -->
+                    <div>
+                        <h4 class="text-base sm:text-lg font-medium text-gray-900 mb-3 sm:mb-4">Profile Information</h4>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                            <div>
+                                <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">Full Name</label>
+                                <input type="text" value="{{ user.first_name }} {{ user.last_name }}" 
+                                       class="w-full px-3 py-2.5 sm:py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-base sm:text-sm">
+                            </div>
+                            <div>
+                                <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">Email</label>
+                                <input type="email" value="{{ user.username }}" 
+                                       class="w-full px-3 py-2.5 sm:py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-base sm:text-sm">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Security Settings -->
+                    <div>
+                        <h4 class="text-base sm:text-lg font-medium text-gray-900 mb-3 sm:mb-4">Security</h4>
+                        <div class="space-y-3 sm:space-y-4">
+                            <div>
+                                <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">Current Password</label>
+                                <input type="password" placeholder="Current password" 
+                                       class="w-full px-3 py-2.5 sm:py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-base sm:text-sm">
+                            </div>
+                            <div>
+                                <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">New Password</label>
+                                <input type="password" placeholder="New password" 
+                                       class="w-full px-3 py-2.5 sm:py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-base sm:text-sm">
+                            </div>
+                            <div>
+                                <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">Confirm New Password</label>
+                                <input type="password" placeholder="Confirm password" 
+                                       class="w-full px-3 py-2.5 sm:py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-base sm:text-sm">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Notification Settings -->
+                    <div>
+                        <h4 class="text-base sm:text-lg font-medium text-gray-900 mb-3 sm:mb-4">Notifications</h4>
+                        <div class="space-y-3">
+                            <label class="flex items-center gap-2 sm:gap-3 cursor-pointer hover:bg-gray-50 p-2 rounded-lg transition-colors">
+                                <input type="checkbox" checked class="rounded border-gray-300 text-blue-600 focus:ring-blue-500 w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0 cursor-pointer">
+                                <span class="text-xs sm:text-sm text-gray-700 flex-1">Email notifications for new appointments</span>
+                            </label>
+                            <label class="flex items-center gap-2 sm:gap-3 cursor-pointer hover:bg-gray-50 p-2 rounded-lg transition-colors">
+                                <input type="checkbox" checked class="rounded border-gray-300 text-blue-600 focus:ring-blue-500 w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0 cursor-pointer">
+                                <span class="text-xs sm:text-sm text-gray-700 flex-1">SMS notifications for urgent matters</span>
+                            </label>
+                            <label class="flex items-center gap-2 sm:gap-3 cursor-pointer hover:bg-gray-50 p-2 rounded-lg transition-colors">
+                                <input type="checkbox" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500 w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0 cursor-pointer">
+                                <span class="text-xs sm:text-sm text-gray-700 flex-1">Weekly summary reports</span>
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <div class="flex flex-col sm:flex-row justify-end gap-3 sm:space-x-3 pt-4">
+                        <button type="button" @click="showSettingsModal = false"
+                                class="w-full sm:w-auto px-4 py-2.5 sm:py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 active:bg-gray-100 transition-colors text-base sm:text-sm font-medium touch-target">
+                            Cancel
+                        </button>
+                        <button type="submit"
+                                class="w-full sm:w-auto px-4 py-2.5 sm:py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 active:bg-blue-800 transition-colors text-base sm:text-sm font-medium shadow-md hover:shadow-lg touch-target">
+                            Save Changes
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Logout Confirmation Modal -->
+    <div x-show="showLogoutConfirm" x-cloak x-cloak 
+         x-transition:enter="transition ease-out duration-300"
+         x-transition:enter-start="opacity-0"
+         x-transition:enter-end="opacity-100"
+         x-transition:leave="transition ease-in duration-200"
+         x-transition:leave-start="opacity-100"
+         x-transition:leave-end="opacity-0"
+         class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+         @click.self="showLogoutConfirm = false">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-md mx-2 sm:mx-4">
+            <div class="p-4 sm:p-6">
+                <div class="flex items-center mb-4">
+                    <div class="w-10 h-10 sm:w-12 sm:h-12 bg-red-100 rounded-full flex items-center justify-center mr-2 sm:mr-3 flex-shrink-0">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5 sm:w-6 sm:h-6 text-red-600">
+                            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                            <polyline points="16 17 21 12 16 7"></polyline>
+                            <line x1="21" y1="12" x2="9" y2="12"></line>
+                        </svg>
+                    </div>
+                    <h3 class="text-base sm:text-lg font-semibold text-gray-900">Confirm Logout</h3>
+                </div>
+                
+                <p class="text-sm sm:text-base text-gray-600 mb-4 sm:mb-6">Are you sure you want to logout? You will need to login again to access the system.</p>
+                
+                <div class="flex flex-col sm:flex-row justify-end gap-3 sm:space-x-3">
+                    <button @click="showLogoutConfirm = false"
+                            class="w-full sm:w-auto px-4 py-2.5 sm:py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 active:bg-gray-100 transition-colors text-base sm:text-sm font-medium touch-target">
+                        Cancel
+                    </button>
+                    <button @click="window.location.href = '{{ url_for('logout') }}'"
+                            class="w-full sm:w-auto px-4 py-2.5 sm:py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 active:bg-red-800 transition-colors text-base sm:text-sm font-medium shadow-md hover:shadow-lg touch-target">
+                        Yes, Logout
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+    <!-- Initialize Feather Icons - SAFE VERSION -->
+    <script>
+        // Safe feather icon initialization
+        function safeFeatherReplace() {
+            if (typeof feather === 'undefined') {
+                console.warn('⚠️ Feather library not loaded');
+                return;
+            }
+            
+            try {
+                // Get all feather icon elements
+                const icons = document.querySelectorAll('[data-feather]');
+                
+                icons.forEach(icon => {
+                    try {
+                        // Only replace if it's a valid element node
+                        if (icon && icon.nodeType === Node.ELEMENT_NODE && icon.parentNode) {
+                            const iconName = icon.getAttribute('data-feather');
+                            const svgString = feather.icons[iconName];
+                            
+                            if (svgString) {
+                                const tempDiv = document.createElement('div');
+                                tempDiv.innerHTML = svgString.toSvg({
+                                    class: icon.className,
+                                    'stroke-width': icon.getAttribute('stroke-width') || 2
+                                });
+                                
+                                const svg = tempDiv.firstChild;
+                                if (svg && icon.parentNode) {
+                                    icon.parentNode.replaceChild(svg, icon);
+                                }
+                            }
+                        }
+                    } catch (e) {
+                        // Skip problematic icons silently
+                    }
+                });
+                
+                console.log('✅ Feather icons initialized safely');
+            } catch (error) {
+                console.warn('⚠️ Feather initialization error:', error.message);
+            }
+        }
+        
+        // Initialize on page load
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', safeFeatherReplace);
+        } else {
+            safeFeatherReplace();
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,1072 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Health Records - iClinic Healthcare Portal</title>    
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" href="../assets/img/iclinic-logo.png">
+    <link rel="apple-touch-icon" href="../assets/img/iclinic-logo.png">
+
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>    <!-- Suppress Tailwind CDN Warning -->
+    <script>
+        // Suppress Tailwind CDN production warning
+        const originalWarn = console.warn;
+        console.warn = function(...args) {
+            if (args[0] && typeof args[0] === 'string' && args[0].includes('cdn.tailwindcss.com')) {
+                return; // Suppress Tailwind CDN warning
+            }
+            originalWarn.apply(console, args);
+        };
+    </script>
+<!-- Alpine.js -->
+    <script defer src="/assets/js/libs/alpine.min.js"></script>
+    
+    <!-- Feather Icons -->
+    <script src="/assets/js/libs/feather.min.js"></script>
+    
+    <!-- Page Initialization -->
+    <script>
+        // Ensure page loads properly
+        window.addEventListener('DOMContentLoaded', function() {
+            // Initialize Feather icons
+            if (typeof feather !== 'undefined') {
+                feather.replace();
+                // Re-run after Alpine initializes
+                setTimeout(() => feather.replace(), 250);
+                setTimeout(() => feather.replace(), 500);
+                setTimeout(() => feather.replace(), 1000);
+            }
+        });
+    </script>
+    
+    <!-- Chart.js -->
+    <script src="/assets/js/libs/chart.min.js"></script>
+    
+    <!-- AOS Animation -->
+    <link href="/assets/css/libs/aos.css" rel="stylesheet">
+    <script src="/assets/js/libs/aos.js"></script>
+    
+    <!-- Inter Font -->
+    <link href="/assets/css/libs/inter-font.css" rel="stylesheet">
+    
+    <style>
+        * {
+            font-family: 'Inter', sans-serif;
+        }
+        
+        /* Custom scrollbar for better UX */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 8px;
+        }
+        
+        ::-webkit-scrollbar-thumb {
+            background: linear-gradient(180deg, #0056b3, #003d82);
+            border-radius: 8px;
+        }
+        
+        ::-webkit-scrollbar-thumb:hover {
+            background: linear-gradient(180deg, #004494, #002d61);
+        }
+        
+        /* Dark mode scrollbar */
+        .dark ::-webkit-scrollbar-track {
+            background: #374151;
+        }
+        
+        .dark ::-webkit-scrollbar-thumb {
+            background: linear-gradient(180deg, #60a5fa, #3b82f6);
+        }
+        
+        /* Glassmorphism */
+        .glass {
+            background: rgba(255, 255, 255, 0.98);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.06);
+        }
+        
+        .dark .glass {
+            background: rgba(20, 35, 55, 0.95);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid rgba(55, 65, 81, 0.3);
+        }
+        
+        body.dark {
+            --tw-bg-opacity: 1;
+            background-color: #0f172a;
+        }
+        
+        body {
+            background-color: #ffffff;
+        }
+        
+        /* Sidebar gradient */
+        .gradient-bg-sidebar {
+            background: linear-gradient(135deg, #0056b3 0%, #003d82 100%);
+            position: relative;
+        }
+        
+        .gradient-bg-sidebar::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(45deg, transparent, rgba(253, 184, 19, 0.1), transparent);
+            pointer-events: none;
+        }
+        
+        .dark .gradient-bg-sidebar {
+            background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+        }
+        
+        /* Card hover effects */
+        .stat-card {
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, var(--primary), var(--secondary));
+            transform: translateX(-100%);
+            transition: transform 0.3s ease;
+        }
+        
+        .stat-card:hover::before {
+            transform: translateX(0);
+        }
+        
+        .stat-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 12px 24px rgba(0, 0, 0, 0.1);
+        }
+        
+        /* Section headers */
+        .section-header {
+            position: relative;
+            display: inline-block;
+        }
+        
+        .section-header::after {
+            content: '';
+            position: absolute;
+            bottom: -4px;
+            left: 0;
+            width: 40px;
+            height: 3px;
+            background: linear-gradient(90deg, #0056b3, #FDB813);
+            border-radius: 2px;
+        }
+        
+        /* Quick action cards */
+        .quick-action-card {
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        
+        .quick-action-card:hover {
+            transform: translateY(-6px) scale(1.02);
+        }
+        
+        /* Smooth animations */
+        @keyframes slideInFromTop {
+            from {
+                opacity: 0;
+                transform: translateY(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+            }
+            to {
+                opacity: 1;
+            }
+        }
+        
+        .animate-slide-in {
+            animation: slideInFromTop 0.6s ease-out;
+        }
+        
+        .animate-fade-in {
+            animation: fadeIn 0.8s ease-out;
+        }
+        
+        /* Activity item hover */
+        .activity-item {
+            transition: all 0.2s ease;
+            border-left: 3px solid transparent;
+        }
+        
+        .activity-item:hover {
+            background: linear-gradient(90deg, rgba(0, 86, 179, 0.05) 0%, transparent 100%);
+            border-left-color: #0056b3;
+            padding-left: 12px;
+        }
+        
+        /* Mobile responsive adjustments */
+        @media (max-width: 768px) {
+            .sidebar-collapsed {
+                transform: translateX(-100%);
+                position: fixed;
+                z-index: 50;
+            }
+            
+            .sidebar-collapsed.mobile-open {
+                transform: translateX(0);
+            }
+        }
+        
+        /* Active sidebar item */
+        .sidebar-item-active {
+            background: linear-gradient(90deg, rgba(253, 184, 19, 0.2) 0%, rgba(253, 184, 19, 0.05) 100%);
+            border-left: 4px solid #FDB813;
+            box-shadow: 0 0 20px rgba(253, 184, 19, 0.2);
+        }
+        
+        .dark .sidebar-item-active {
+            background: linear-gradient(90deg, rgba(253, 184, 19, 0.25) 0%, rgba(253, 184, 19, 0.05) 100%);
+            border-left: 4px solid #FDB813;
+            box-shadow: 0 0 25px rgba(253, 184, 19, 0.3);
+        }
+        
+        :root {
+            --primary: #0056b3;
+            --primary-dark: #003d82;
+            --secondary: #FDB813;
+            --accent: #FDB813;
+            --accent-hover: #e5a200;
+            --neutral: #6b7280;
+            --success: #10b981;
+            --danger: #ef4444;
+            --purple: #8b5cf6;
+            --navy-dark: #1e293b;
+            --navy-darker: #0f172a;
+        }
+        
+        .dark .bg-navy-dark {
+            background-color: #2d3748;
+        }
+        
+        .dark .bg-navy-darker {
+            background-color: #1a202c;
+        }
+            
+        /* Prevent modal flash before Alpine loads */
+        [x-cloak] { display: none !important; }
+    </style>
+</head>
+<body class="bg-white transition-colors duration-200" x-data="{
+    sidebarCollapsed: false,
+    sidebarHovered: false,
+    mobileMenuOpen: false,
+    notificationDropdown: false,
+    userDropdown: false,
+    profileDropdown: false,
+    showLogoutConfirm: false,
+    profileModal: false,
+    settingsModal: false,
+    patientCount: 1234,
+    appointmentCount: 28,
+    revenue: 85420,
+    staffCount: 12,
+    chartInstance: null,
+    notesExpanded: false,
+    showToast: false,
+    toastMessage: '',
+    toastType: 'success',
+    studentInfo: {
+        first_name: '',
+        last_name: '',
+        username: '',
+        course: '',
+        contact_number: '',
+        role: '',
+        created_at: '',
+        emergency_contact_name: '',
+        emergency_contact_relationship: '',
+        emergency_contact_number: '',
+        allergies: '',
+        blood_type: '',
+        medical_conditions: ''
+    },
+    medicalRecords: [],
+    loading: true,
+    init() {
+        // Load student data first
+        this.loadStudentInfo();
+        this.loadMedicalRecords();
+        
+        // Initialize components after DOM is ready
+        setTimeout(() => {
+            // Initialize Feather icons if available
+            if (typeof feather !== 'undefined') {
+                feather.replace();
+            }
+            
+            this.animateNumbers();
+            
+            // Initialize AOS if available
+            if (typeof AOS !== 'undefined') {
+                AOS.init({
+                    duration: 600,
+                    once: true,
+                    offset: 50
+                });
+            }
+        }, 100);
+        
+        // Handle responsive sidebar
+        this.handleResize();
+        window.addEventListener('resize', () => this.handleResize());
+    },
+    async loadStudentInfo() {
+        try {
+            console.log('🔍 Loading user information...');
+            const response = await fetch('/api/user/profile');
+            if (response.ok) {
+                const data = await response.json();
+                this.studentInfo = data;
+                console.log('✅ User info loaded:', data);
+                console.log('👤 Role:', data.role, '| Name:', data.first_name, data.last_name);
+            } else {
+                console.error('❌ Failed to load user info:', response.status);
+            }
+        } catch (error) {
+            console.error('🔥 Error loading user info:', error);
+        } finally {
+            this.loading = false;
+        }
+    },
+    async loadMedicalRecords() {
+        try {
+            console.log('🔍 Loading medical records...');
+            const response = await fetch('/api/user/medical-records');
+            if (response.ok) {
+                const data = await response.json();
+                this.medicalRecords = data.records || [];
+                console.log('✅ Medical records loaded:', this.medicalRecords.length, 'records');
+            } else {
+                console.error('❌ Failed to load medical records:', response.status);
+            }
+        } catch (error) {
+            console.error('🔥 Error loading medical records:', error);
+        }
+    },
+    handleResize() {
+        if (window.innerWidth < 768) {
+            this.sidebarCollapsed = true;
+        }
+    },
+    animateNumbers() {
+        const animateValue = (property, start, end, duration) => {
+            let startTimestamp = null;
+            const step = (timestamp) => {
+                if (!startTimestamp) startTimestamp = timestamp;
+                const progress = Math.min((timestamp - startTimestamp) / duration, 1);
+                this[property] = Math.floor(progress * (end - start) + start);
+                if (progress < 1) {
+                    window.requestAnimationFrame(step);
+                }
+            };
+            window.requestAnimationFrame(step);
+        };
+        
+        animateValue('patientCount', 0, 1234, 1500);
+        animateValue('appointmentCount', 0, 28, 1000);
+        animateValue('revenue', 0, 85420, 1800);
+        animateValue('staffCount', 0, 12, 800);
+    }
+}" x-init="init()">
+    
+    <div class="flex h-screen overflow-hidden">
+        <!-- Sidebar -->
+        <aside :class="sidebarCollapsed ? 'w-20' : 'w-64'" 
+               class="fixed left-0 top-0 h-screen gradient-bg-sidebar text-white transition-all duration-300 shadow-2xl z-40"
+               @mouseenter="sidebarHovered = true"
+               @mouseleave="sidebarHovered = false">
+        
+            <!-- Logo -->
+            <div class="relative p-6">
+                <div class="flex items-center gap-3" :class="sidebarCollapsed && !sidebarHovered ? 'justify-center' : ''">
+                    <div class="flex items-center justify-center">
+                        <img src="../assets/img/iclinic-logo.png" alt="Norzagaray College" class="w-14 h-14 object-contain">
+                    </div>
+                    <div x-show="!sidebarCollapsed || sidebarHovered" x-transition>
+                        <h1 class="text-xl font-bold text-white">iClinic</h1>
+                        <p class="text-xs text-yellow-300">Norzagaray College</p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Navigation -->
+            <nav class="relative mt-8 px-4 space-y-3">
+                <!-- Dashboard -->
+                <a href="{{ url_for('student_dashboard') }}"
+                   class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all group hover:bg-white/10">
+                    <div class="flex items-center justify-center" :class="sidebarCollapsed && !sidebarHovered ? 'w-full' : ''">
+                        <i data-feather="home" class="w-5 h-5 group-hover:scale-110 transition-transform"></i>
+                    </div>
+                    <span x-show="!sidebarCollapsed || sidebarHovered" class="font-medium">Dashboard</span>
+                </a>
+                
+                <!-- Health Records -->
+                <a href="{{ url_for('student_health_records') }}"
+                   class="sidebar-item-active flex items-center gap-3 px-4 py-3 rounded-lg transition-all group">
+                    <div class="flex items-center justify-center" :class="sidebarCollapsed && !sidebarHovered ? 'w-full' : ''">
+                        <i data-feather="file-text" class="w-5 h-5 group-hover:scale-110 transition-transform"></i>
+                    </div>
+                    <span x-show="!sidebarCollapsed || sidebarHovered" class="font-medium">Health Records</span>
+                </a>
+                
+                <!-- Appointments -->
+                <a href="{{ url_for('student_appointments') }}"
+                   class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all group hover:bg-white/10">
+                    <div class="flex items-center justify-center" :class="sidebarCollapsed && !sidebarHovered ? 'w-full' : ''">
+                        <i data-feather="calendar" class="w-5 h-5 group-hover:scale-110 transition-transform"></i>
+                    </div>
+                    <span x-show="!sidebarCollapsed || sidebarHovered" class="font-medium">Appointments</span>
+                </a>
+                
+                <!-- Messages/Clinic Chat -->
+                <a href="{{ url_for('student_consultation_chat') }}"
+                   class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all group hover:bg-white/10">
+                    <div class="flex items-center justify-center" :class="sidebarCollapsed && !sidebarHovered ? 'justify-center' : ''">
+                        <i data-feather="message-circle" class="w-5 h-5 group-hover:scale-110 transition-transform"></i>
+                    </div>
+                    <span x-show="!sidebarCollapsed || sidebarHovered" x-transition class="font-medium">Consultation Chat</span>
+                </a>
+                
+                <!-- Announcements -->
+                <a href="{{ url_for('student_announcements') }}"
+                   class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all group hover:bg-white/10">
+                    <div class="flex items-center justify-center" :class="sidebarCollapsed && !sidebarHovered ? 'w-full' : ''">
+                        <i data-feather="volume-2" class="w-5 h-5 group-hover:scale-110 transition-transform"></i>
+                    </div>
+                    <span x-show="!sidebarCollapsed || sidebarHovered" class="font-medium">Announcements</span>
+                </a>
+            </nav>
+        
+        <!-- User Profile -->
+        <div class="absolute bottom-0 w-full p-4 bg-gradient-to-t from-black/20 to-transparent" @click.outside="profileDropdown = false">
+            <div class="relative">
+                <div class="flex items-center gap-2 mb-2">
+                    <button @click="profileDropdown = !profileDropdown" class="flex-1 flex items-center gap-3 hover:bg-white/10 rounded-lg p-2 transition-all group" :class="sidebarCollapsed && !sidebarHovered ? 'justify-center' : ''">
+                        <div class="w-10 h-10 bg-gradient-to-br from-green-400 to-blue-500 rounded-full flex items-center justify-center shadow-lg group-hover:scale-105 transition-transform">
+                            <span class="text-white font-bold">{{ user.first_name[0] if user and user.first_name else 'S' }}{{ user.last_name[0] if user and user.last_name else 'T' }}</span>
+                        </div>
+                        <div x-show="!sidebarCollapsed || sidebarHovered" x-transition class="text-left">
+                            <p class="text-sm font-medium text-white text-left">{{ user.first_name if user and user.first_name else 'Student' }} {{ user.last_name if user and user.last_name else 'User' }}</p>
+                            <p class="text-xs text-green-300 text-left" style="font-size: 10px;">{{ user.position if user and user.position else 'Student' }}</p>
+                        </div>
+                        <!-- Chevron Icon -->
+                        <svg x-show="!sidebarCollapsed || sidebarHovered" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4 text-white/70 flex-shrink-0">
+                            <polyline points="18 15 12 9 6 15"></polyline>
+                        </svg>
+                    </button>
+                </div>
+                
+                <!-- Profile Dropdown -->
+                <div x-show="profileDropdown" 
+                     x-transition:enter="transition ease-out duration-200"
+                     x-transition:enter-start="opacity-0 transform scale-95"
+                     x-transition:enter-end="opacity-100 transform scale-100"
+                     x-transition:leave="transition ease-in duration-150"
+                     x-transition:leave-start="opacity-100 transform scale-100"
+                     x-transition:leave-end="opacity-0 transform scale-95"
+                     class="absolute bottom-full left-0 mb-2 w-48 bg-white rounded-lg shadow-xl border border-gray-200 py-2 z-50">
+                    
+                    <button @click="showLogoutConfirm = true; profileDropdown = false" class="w-full flex items-center gap-3 px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors">
+                        <i data-feather="log-out" class="w-4 h-4 text-red-600"></i>
+                        <span>Logout</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+        </aside>
+        
+        <!-- Main Content Area -->
+        <div :class="sidebarCollapsed ? 'ml-20' : 'ml-64'" class="flex-1 flex flex-col transition-all duration-300">
+            
+            <!-- Main Dashboard Content -->
+            <main class="flex-1 bg-gray-50 overflow-y-auto p-6">
+                <!-- Enhanced Health Records Header -->
+                <div class="gradient-bg-sidebar text-white shadow-2xl relative overflow-hidden rounded-[2rem] ml-1 mb-6">
+                    <!-- Decorative Elements -->
+                    <div class="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -translate-y-32 translate-x-32"></div>
+                    <div class="absolute bottom-0 left-0 w-48 h-48 bg-yellow-400/10 rounded-full translate-y-24 -translate-x-24"></div>
+                    
+                    <!-- Header Content -->
+                    <div class="relative px-6 py-5">
+                        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                            <!-- Title Section -->
+                            <div class="flex items-center gap-4">
+                                <div class="relative">
+                                    <div class="w-12 h-12 bg-yellow-400 rounded-xl flex items-center justify-center shadow-lg transform rotate-2 hover:rotate-0 transition-transform duration-300">
+                                        <i data-feather="clipboard" class="w-6 h-6 text-blue-900"></i>
+                                    </div>
+                                </div>
+                                <div>
+                                    <div class="flex items-center gap-2 mb-1">
+                                        <h1 class="text-2xl sm:text-3xl font-bold text-white">
+                                            My Health Records
+                                        </h1>
+                                    </div>
+                                    <div class="flex items-center gap-2 text-blue-100">
+                                        <i data-feather="activity" class="w-3 h-3"></i>
+                                        <span class="text-sm">View and manage your complete health information</span>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Main Content Area -->
+                <div>
+                    
+                    <!-- PRIMARY SECTION: Personal Information -->
+                    <div class="bg-white rounded-xl shadow-md p-6 mb-8">
+                        <!-- Loading State -->
+                        <div x-show="loading" class="flex items-center justify-center py-8">
+                            <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                            <span class="ml-2 text-gray-600">Loading your information...</span>
+                        </div>
+                        
+                        <!-- Personal Information Content -->
+                        <div x-show="!loading" class="flex items-center gap-2 mb-6">
+                            
+                        </div>
+                        
+                        <!-- Main Layout with Balanced Profile -->
+                        <div x-show="!loading" class="flex flex-col lg:flex-row gap-6">
+                            <!-- LEFT SIDE: Medium Profile -->
+                            <div class="flex flex-col items-center lg:items-start">
+                                <div class="w-24 h-24 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center shadow-lg">
+                                    <span class="text-white font-bold text-5xl" x-text="(studentInfo.first_name ? studentInfo.first_name[0] : 'S') + (studentInfo.last_name ? studentInfo.last_name[0] : 'T')"></span>
+                                </div>
+                                <div class="text-center lg:text-left mt-3">
+                                    <p class="font-bold text-gray-900 text-xl" x-text="(studentInfo.first_name || 'User') + ' ' + (studentInfo.last_name || 'Name')"></p>
+                                    <p class="text-gray-600 text-sm" x-show="studentInfo.role === 'student'">Student ID: <span x-text="studentInfo.student_number || 'N/A'"></span></p>
+                                    <p class="text-gray-600 text-sm" x-show="studentInfo.role === 'teaching_staff'">Faculty ID: <span x-text="studentInfo.faculty_id || studentInfo.staff_id || 'N/A'"></span></p>
+                                    <p class="text-gray-600 text-sm" x-show="studentInfo.role === 'non_teaching_staff'">Staff ID: <span x-text="studentInfo.staff_id || 'N/A'"></span></p>
+                                    <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 mt-2" x-show="studentInfo.role === 'student'">
+                                        ✅ Active Student
+                                    </span>
+                                    <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 mt-2" x-show="studentInfo.role === 'teaching_staff'">
+                                        ✅ Teaching Staff
+                                    </span>
+                                    <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800 mt-2" x-show="studentInfo.role === 'non_teaching_staff'">
+                                        ✅ Non-Teaching Staff
+                                    </span>
+                                </div>
+                            </div>
+                            
+                            <!-- RIGHT SIDE: Two Column Info -->
+                            <div class="flex-1 grid grid-cols-1 lg:grid-cols-2 gap-4">
+                                <!-- Personal Information Column -->
+                                <div>
+                                    <div class="flex items-center gap-2 mb-3">
+                                        <i data-feather="user" class="w-4 h-4 text-blue-600"></i>
+                                        <h3 class="text-sm font-bold text-gray-800">Personal Information</h3>
+                                    </div>
+                                    <div class="space-y-2">
+                                        <div class="py-1.5 border-b border-gray-100" x-show="studentInfo.role === 'student'">
+                                            <p class="text-sm text-gray-600 mb-1">Course</p>
+                                            <p class="font-semibold text-gray-900" x-text="studentInfo.course || 'Course not specified'"></p>
+                                        </div>
+                                        <div class="py-1.5 border-b border-gray-100" x-show="studentInfo.role !== 'student'">
+                                            <p class="text-sm text-gray-600 mb-1">Department</p>
+                                            <p class="font-semibold text-gray-900" x-text="studentInfo.department || studentInfo.position || 'Not specified'"></p>
+                                        </div>
+                                        <div class="py-1.5 border-b border-gray-100">
+                                            <p class="text-sm text-gray-600 mb-1">Email</p>
+                                            <p class="font-semibold text-gray-900" x-text="studentInfo.username || 'Email not available'"></p>
+                                        </div>
+                                        <div class="py-1.5 border-b border-gray-100">
+                                            <p class="text-sm text-gray-600 mb-1">Contact</p>
+                                            <p class="font-semibold text-gray-900" x-text="studentInfo.contact_number || 'Contact not available'"></p>
+                                        </div>
+                                        <div class="py-1.5 border-b border-gray-100">
+                                            <p class="text-sm text-gray-600 mb-1">Role</p>
+                                            <p class="font-semibold text-gray-900" x-text="studentInfo.role ? studentInfo.role.charAt(0).toUpperCase() + studentInfo.role.slice(1) : 'Student'"></p>
+                                        </div>
+                                        <div class="py-1.5 border-b border-gray-100">
+                                            <p class="text-sm text-gray-600 mb-1">Status</p>
+                                            <p class="font-semibold text-gray-900">Active</p>
+                                        </div></div>
+                                </div>
+                                
+                                <!-- Emergency Contact Column -->
+                                <div>
+                                    <div class="flex items-center gap-2 mb-3">
+                                        <i data-feather="alert-circle" class="w-4 h-4 text-red-600"></i>
+                                        <h3 class="text-sm font-bold text-gray-800">Emergency Contact</h3>
+                                    </div>
+                                    <div class="space-y-2">
+                                        <!-- Primary Contact -->
+                                        <div class="bg-red-50 rounded-lg p-3 border-l-4 border-red-500">
+                                            <p class="text-sm font-bold text-gray-900" x-text="studentInfo.emergency_contact_name || 'Emergency contact not specified'"></p>
+                                            <p class="text-xs text-gray-700">Relationship: <span x-text="studentInfo.emergency_contact_relationship || 'Not specified'"></span></p>
+                                            <p class="text-sm text-gray-800 font-semibold mt-1">📱 <span x-text="studentInfo.emergency_contact_number || 'Contact not available'"></span></p>
+                                        </div>
+                                        
+                                        <!-- Hospital Info -->
+                                        <div class="bg-blue-50 rounded-lg p-3 border-l-4 border-blue-500">
+                                            <p class="text-sm font-bold text-gray-800 mb-1">🏥 NEAREST HOSPITAL</p>
+                                            <p class="text-xs font-semibold text-gray-700">Norzagaray General Hospital</p>
+                                            <p class="text-xs text-gray-700">📞 Emergency: 911</p>
+                                            <p class="text-xs text-gray-700">☎️ Hospital: (044) 123-4567</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- CLINIC VISITS SECTION: Redesigned with Clean Responsive Table -->
+                    <div class="bg-white rounded-xl shadow-lg p-6 mb-8" x-data="{ 
+                        selectedVisit: null,
+                        showModal: false,
+                        currentVisit: null,
+                        openModal(visit) {
+                            this.currentVisit = visit;
+                            this.showModal = true;
+                        },
+                        closeModal() {
+                            this.showModal = false;
+                            this.currentVisit = null;
+                        },
+                        showToastNotification(message, type = 'success') {
+                            this.toastMessage = message;
+                            this.toastType = type;
+                            this.showToast = true;
+                            
+                            // Auto-hide after 5 seconds
+                            setTimeout(() => {
+                                this.showToast = false;
+                            }, 5000);
+                        },
+                        approveRequest(requestId) {
+                            const request = this.documentRequests.find(r => r.id === requestId);
+                            if (request && this.currentUserRole === 'staff') {
+                                request.status = 'approved';
+                                request.remarks = 'Excuse letter ready';
+                                request.actionText = 'Download';
+                                request.canDownload = true;
+                                this.showToastNotification('Request approved successfully', 'success');
+                            }
+                        },
+                        rejectRequest(requestId) {
+                            const request = this.documentRequests.find(r => r.id === requestId);
+                            if (request && this.currentUserRole === 'staff') {
+                                request.status = 'rejected';
+                                request.remarks = 'Not valid';
+                                request.actionText = 'Rejected';
+                                request.canDownload = false;
+                                this.showToastNotification('Request rejected', 'error');
+                            }
+                        },
+                        downloadExcuseLetter(request) {
+                            if (!request.canDownload) return;
+                            
+                            const letterContent = `
+EXCUSE LETTER
+
+Date: ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
+
+To Whom It May Concern:
+
+This is to certify that the student was seen at our clinic on ${new Date(request.visitDate).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })} for medical consultation.
+
+Reason: ${request.reason}
+
+${request.supportingRemarks ? `Additional Remarks: ${request.supportingRemarks}\n\n` : ''}This letter is issued upon request for whatever legal purpose it may serve.
+
+Respectfully,
+
+_____________________
+Nurse Staff
+iClinic Healthcare Portal
+                            `.trim();
+                            
+                            // Create a blob and download
+                            const blob = new Blob([letterContent], { type: 'text/plain' });
+                            const url = window.URL.createObjectURL(blob);
+                            const a = document.createElement('a');
+                            a.href = url;
+                            a.download = `excuse_letter_${request.id}.txt`;
+                            document.body.appendChild(a);
+                            a.click();
+                            document.body.removeChild(a);
+                            window.URL.revokeObjectURL(url);
+                            
+                            // Update status to released
+                            request.status = 'released';
+                            request.remarks = 'Downloaded on ' + new Date().toLocaleDateString();
+                            this.showToastNotification('Excuse letter downloaded successfully', 'success');
+                        }
+                    }">
+                        <!-- Section Header -->
+                        <div class="flex items-center justify-between mb-6">
+                            <div class="flex items-center gap-2">
+                                <span class="text-2xl">📅</span>
+                                <h2 class="text-xl font-bold text-gray-800">Clinic Visits</h2>
+                            </div>
+                            <span class="text-sm text-gray-500">Most recent visits first</span>
+                        </div>
+                        
+                        <!-- Loading State -->
+                        <div x-show="loading" class="flex items-center justify-center py-12">
+                            <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                            <span class="ml-2 text-gray-600">Loading medical records...</span>
+                        </div>
+                        
+                        <!-- Empty State -->
+                        <div x-show="!loading && medicalRecords.length === 0" class="text-center py-12">
+                            <div class="text-6xl mb-4">🏥</div>
+                            <h3 class="text-lg font-medium text-gray-900 mb-2">No Medical Records Found</h3>
+                            <p class="text-gray-500">You haven't visited the clinic yet. Your medical records will appear here after your first visit.</p>
+                        </div>
+                        
+                        <!-- Desktop Table View - SIMPLIFIED FOR STUDENTS -->
+                        <div x-show="!loading && medicalRecords.length > 0" class="hidden lg:block overflow-x-auto">
+                            <table class="w-full">
+                                <thead>
+                                    <tr class="border-b-2 border-gray-200 bg-gray-50">
+                                        <th class="text-left py-3 px-4 font-semibold text-gray-700 text-sm">📅 Visit Date</th>
+                                        <th class="text-left py-3 px-4 font-semibold text-gray-700 text-sm">🕐 Time</th>
+                                        <th class="text-left py-3 px-4 font-semibold text-gray-700 text-sm">💊 Medicine Prescribed</th>
+                                        <th class="text-left py-3 px-4 font-semibold text-gray-700 text-sm">📋 Instructions</th>
+                                        <th class="text-left py-3 px-4 font-semibold text-gray-700 text-sm">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-gray-100">
+                                    <template x-for="visit in medicalRecords" :key="visit.id">
+                                        <tr class="hover:bg-gray-50 transition-colors duration-150">
+                                            <td class="py-4 px-4">
+                                                <div>
+                                                    <p class="text-sm font-medium text-gray-900" x-text="visit.visit_date ? new Date(visit.visit_date).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : 'N/A'"></p>
+                                                    <p class="text-xs text-gray-500">Clinic Visit</p>
+                                                </div>
+                                            </td>
+                                            <td class="py-4 px-4">
+                                                <span class="text-sm font-medium text-gray-900" x-text="visit.visit_time ? (function() {
+                                                    const [hours, minutes] = visit.visit_time.split(':');
+                                                    const hour = parseInt(hours);
+                                                    const ampm = hour >= 12 ? 'PM' : 'AM';
+                                                    const hour12 = hour % 12 || 12;
+                                                    return hour12 + ':' + minutes + ' ' + ampm;
+                                                })() : 'N/A'"></span>
+                                            </td>
+                                            <td class="py-4 px-4">
+                                                <div>
+                                                    <p class="text-sm text-gray-900" x-text="visit.prescribed_medicine || 'No medicine prescribed'"></p>
+                                                    <p class="text-xs text-gray-500 mt-1">Take as directed</p>
+                                                </div>
+                                            </td>
+                                            <td class="py-4 px-4">
+                                                <div>
+                                                    <p class="text-sm text-gray-900" x-text="visit.treatment || visit.notes || 'Follow general health guidelines'"></p>
+                                                    <p class="text-xs text-gray-500 mt-1">Clinic instructions</p>
+                                                </div>
+                                            </td>
+                                            <td class="py-4 px-4">
+                                                <a 
+                                                    href="/student/appointments"
+                                                    class="inline-flex items-center px-3 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors">
+                                                    <span class="mr-1">📅</span>
+                                                    Request Appointment
+                                                </a>
+                                            </td>
+                                        </tr>
+                                    </template>
+                                </tbody>
+                            </table>
+                        </div>
+                        
+                        <!-- Mobile Card View - SIMPLIFIED FOR STUDENTS -->
+                        <div x-show="!loading && medicalRecords.length > 0" class="lg:hidden space-y-4">
+                            <template x-for="visit in medicalRecords" :key="visit.id">
+                                <div class="bg-white rounded-lg p-4 border border-gray-200 shadow-sm">
+                                    <!-- Card Header -->
+                                    <div class="flex items-center justify-between mb-4 pb-3 border-b border-gray-100">
+                                        <div class="flex items-center gap-2">
+                                            <span class="text-2xl">📅</span>
+                                            <div>
+                                                <p class="text-sm font-semibold text-gray-900" x-text="visit.visit_date ? new Date(visit.visit_date).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : 'N/A'"></p>
+                                                <p class="text-xs text-gray-500">Clinic Visit</p>
+                                            </div>
+                                        </div>
+                                        <div class="flex items-center gap-2">
+                                            <span class="text-lg">🕐</span>
+                                            <span class="text-sm font-medium text-gray-700" x-text="visit.visit_time ? (function() {
+                                                const [hours, minutes] = visit.visit_time.split(':');
+                                                const hour = parseInt(hours);
+                                                const ampm = hour >= 12 ? 'PM' : 'AM';
+                                                const hour12 = hour % 12 || 12;
+                                                return hour12 + ':' + minutes + ' ' + ampm;
+                                            })() : 'N/A'"></span>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Card Content -->
+                                    <div class="space-y-3">
+                                        <!-- Medicine -->
+                                        <div class="bg-blue-50 rounded-lg p-3 border border-blue-100">
+                                            <div class="flex items-start gap-2">
+                                                <span class="text-lg">💊</span>
+                                                <div>
+                                                    <p class="text-xs font-medium text-blue-700 mb-1">Medicine Prescribed</p>
+                                                    <p class="text-sm text-gray-900" x-text="visit.prescribed_medicine || 'No medicine prescribed'"></p>
+                                                    <p class="text-xs text-blue-600 mt-1">Take as directed by clinic</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        
+                                        <!-- Instructions -->
+                                        <div class="bg-green-50 rounded-lg p-3 border border-green-100">
+                                            <div class="flex items-start gap-2">
+                                                <span class="text-lg">📋</span>
+                                                <div>
+                                                    <p class="text-xs font-medium text-green-700 mb-1">Clinic Instructions</p>
+                                                    <p class="text-sm text-gray-900" x-text="visit.treatment || visit.notes || 'Follow general health guidelines'"></p>
+                                                    <p class="text-xs text-green-600 mt-1">Follow instructions carefully</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        
+                                        <!-- Action Button -->
+                                        <div class="pt-2">
+                                            <a 
+                                                href="/student/appointments"
+                                                class="w-full px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors flex items-center justify-center">
+                                                <span class="mr-1">📅</span>
+                                                Request Appointment
+                                            </a>
+                                        </div>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                        <!-- Modal Form for Clinic Visit Details -->
+                        <div x-show="showModal" x-cloak 
+                             x-transition:enter="transition ease-out duration-300"
+                             x-transition:enter-start="opacity-0"
+                             x-transition:enter-end="opacity-100"
+                             x-transition:leave="transition ease-in duration-200"
+                             x-transition:leave-start="opacity-100"
+                             x-transition:leave-end="opacity-0"
+                             class="fixed inset-0 z-50 overflow-y-auto" 
+                             @click.self="closeModal()">
+                            <!-- Modal Background Overlay -->
+                            <div class="fixed inset-0 bg-gray-900 bg-opacity-50 transition-opacity"></div>
+                            
+                            <!-- Modal Content -->
+                            <div class="flex min-h-full items-center justify-center p-4">
+                                <div x-show="showModal" x-cloak
+                                     x-transition:enter="transition ease-out duration-300"
+                                     x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
+                                     x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100"
+                                     x-transition:leave="transition ease-in duration-200"
+                                     x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100"
+                                     x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
+                                     class="relative bg-white rounded-lg shadow-xl transform transition-all w-full max-w-2xl">
+                                    
+                                    <!-- Modal Header -->
+                                    <div class="bg-gradient-to-r from-blue-600 to-blue-700 px-6 py-4 rounded-t-lg">
+                                        <div class="flex items-center justify-between">
+                                            <div class="flex items-center gap-3">
+                                                <span class="text-2xl">📋</span>
+                                                <h3 class="text-xl font-bold text-white">Clinic Visit Details</h3>
+                                            </div>
+                                            <button @click="closeModal()" 
+                                                    class="text-white hover:text-gray-200 transition-colors">
+                                                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                                                </svg>
+                                            </button>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Modal Body -->
+                                    <div class="p-6" x-show="currentVisit">
+                                        <!-- Visit Header Info -->
+                                        <div class="flex items-center justify-between mb-4 pb-4 border-b border-gray-200">
+                                            <div>
+                                                <p class="text-sm text-gray-500">Consultation ID</p>
+                                                <p class="text-lg font-bold text-gray-900">#<span x-text="currentVisit?.id"></span></p>
+                                            </div>
+                                            <div>
+                                                <p class="text-sm text-gray-500">Date</p>
+                                                <p class="text-lg font-semibold text-gray-900" x-text="currentVisit?.date"></p>
+                                            </div>
+                                            <div>
+                                                <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium"
+                                                      :class="currentVisit?.status === 'recovered' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'">
+                                                    <span x-text="currentVisit?.status === 'recovered' ? '✓ Recovered' : '⚡ Ongoing'"></span>
+                                                </span>
+                                            </div>
+                                        </div>
+                                        
+                                        <!-- Form Fields -->
+                                        <div class="space-y-4">
+                                            <!-- Reason & Symptoms Row -->
+                                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                <div class="bg-gray-50 rounded-lg p-4">
+                                                    <label class="block text-sm font-semibold text-gray-700 mb-2">Reason for Visit</label>
+                                                    <p class="text-gray-900" x-text="currentVisit?.reason"></p>
+                                                </div>
+                                                <div class="bg-gray-50 rounded-lg p-4">
+                                                    <label class="block text-sm font-semibold text-gray-700 mb-2">Symptoms</label>
+                                                    <p class="text-gray-900" x-text="currentVisit?.symptoms"></p>
+                                                </div>
+                                            </div>
+                                            
+                                            <!-- Diagnosis & Treatment Row -->
+                                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                <div class="bg-blue-50 rounded-lg p-4 border border-blue-200">
+                                                    <label class="block text-sm font-semibold text-gray-700 mb-2">Diagnosis</label>
+                                                    <p class="text-gray-900 font-medium" x-text="currentVisit?.diagnosis"></p>
+                                                </div>
+                                                <div class="bg-green-50 rounded-lg p-4 border border-green-200">
+                                                    <label class="block text-sm font-semibold text-gray-700 mb-2">Treatment</label>
+                                                    <p class="text-gray-900" x-text="currentVisit?.treatment"></p>
+                                                </div>
+                                            </div>
+                                            
+                                            <!-- Vital Signs -->
+                                            <div class="bg-gray-50 rounded-lg p-4">
+                                                <label class="block text-sm font-semibold text-gray-700 mb-2">Vital Signs</label>
+                                                <p class="text-gray-900" x-text="currentVisit?.vitalSigns"></p>
+                                            </div>
+                                            
+                                            <!-- Prescription -->
+                                            <div class="bg-yellow-50 rounded-lg p-4 border border-yellow-200">
+                                                <label class="block text-sm font-semibold text-gray-700 mb-2">💊 Prescription</label>
+                                                <p class="text-gray-900" x-text="currentVisit?.prescription"></p>
+                                            </div>
+                                            
+                                            <!-- Clinical Notes -->
+                                            <div class="bg-white border border-gray-300 rounded-lg p-4">
+                                                <label class="block text-sm font-semibold text-gray-700 mb-2">📝 Clinical Notes</label>
+                                                <p class="text-gray-700 leading-relaxed" x-text="currentVisit?.notes"></p>
+                                            </div>
+                                            
+                                            <!-- Follow-up Instructions -->
+                                            <div class="bg-red-50 rounded-lg p-4 border border-red-200">
+                                                <label class="block text-sm font-semibold text-gray-700 mb-2">📅 Follow-up Instructions</label>
+                                                <p class="text-gray-900" x-text="currentVisit?.followUp"></p>
+                                            </div>
+                                            
+                                            <!-- Staff Information -->
+                                            <div class="flex items-center justify-between pt-4 border-t border-gray-200">
+                                                <div>
+                                                    <p class="text-sm text-gray-500">Attended by</p>
+                                                    <p class="font-semibold text-gray-900" x-text="currentVisit?.staff"></p>
+                                                </div>
+                                                <button @click="closeModal()" 
+                                                        class="px-6 py-2 bg-gray-600 text-white font-medium rounded-lg hover:bg-gray-700 transition-colors">
+                                                    Close
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- TOAST NOTIFICATION -->
+                    <div x-show="showToast"
+                         x-transition:enter="transition ease-out duration-300"
+                         x-transition:enter-start="opacity-0 translate-y-2"
+                         x-transition:enter-end="opacity-100 translate-y-0"
+                         x-transition:leave="transition ease-in duration-200"
+                         x-transition:leave-start="opacity-100 translate-y-0"
+                         x-transition:leave-end="opacity-0 translate-y-2"
+                         class="fixed bottom-4 right-4 z-50"
+                         style="display: none;">
+                        <div class="flex items-center gap-3 px-6 py-4 rounded-lg shadow-lg"
+                             :class="toastType === 'success' ? 'bg-green-600 text-white' : 'bg-red-600 text-white'">
+                            <div>
+                                <svg x-show="toastType === 'success'" class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                </svg>
+                                <svg x-show="toastType === 'error'" class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                </svg>
+                            </div>
+                            <p class="font-medium" x-text="toastMessage"></p>
+                            <button @click="showToast = false" class="ml-4 hover:opacity-75 transition-opacity">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+               
+                    
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <!-- Logout Confirmation Modal -->
+    <div x-show="showLogoutConfirm" x-cloak
+         x-transition:enter="transition ease-out duration-300"
+         x-transition:enter-start="opacity-0"
+         x-transition:enter-end="opacity-100"
+         x-transition:leave="transition ease-in duration-200"
+         x-transition:leave-start="opacity-100"
+         x-transition:leave-end="opacity-0"
+         class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+         @click.self="showLogoutConfirm = false">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-md mx-4">
+            <div class="p-6">
+                <div class="flex items-center mb-4">
+                    <div class="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center mr-3">
+                        <i data-feather="log-out" class="w-5 h-5 text-red-600"></i>
+                    </div>
+                    <h3 class="text-lg font-semibold text-gray-900">Confirm Logout</h3>
+                </div>
+                
+                <p class="text-gray-600 mb-6">Are you sure you want to logout? You will need to login again to access the system.</p>
+                
+                <div class="flex justify-end space-x-3">
+                    <button @click="showLogoutConfirm = false"
+                            class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">
+                        Cancel
+                    </button>
+                    <a href="{{ url_for('logout') }}"
+                       class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 inline-block text-center">
+                        Yes, Logout
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</body>
+</html>
