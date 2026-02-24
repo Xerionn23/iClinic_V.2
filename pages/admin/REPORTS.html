@@ -1,0 +1,1428 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>System Admin  Reports - iClinic Admin Dashboard</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>    <!-- Suppress Tailwind CDN Warning -->
+    <script>
+        // Suppress Tailwind CDN production warning
+        const originalWarn = console.warn;
+        console.warn = function(...args) {
+            if (args[0] && typeof args[0] === 'string' && args[0].includes('cdn.tailwindcss.com')) {
+                return; // Suppress Tailwind CDN warning
+            }
+            originalWarn.apply(console, args);
+        };
+    </script>
+<!-- Alpine.js -->
+    <script defer src="/assets/js/libs/alpine.min.js"></script>
+    
+    <!-- Feather Icons -->
+    <script src="/assets/js/libs/feather.min.js"></script>
+    
+    <!-- Chart.js -->
+    <script src="/assets/js/libs/chart.min.js"></script>
+    
+    <!-- Inter Font -->
+    <link href="/assets/css/libs/inter-font.css" rel="stylesheet">
+    
+    <style>
+        * {
+            font-family: 'Inter', sans-serif;
+        }
+        
+        /* Custom scrollbar for better UX */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 8px;
+        }
+        
+        ::-webkit-scrollbar-thumb {
+            background: linear-gradient(180deg, #0056b3, #003d82);
+            border-radius: 8px;
+        }
+        
+        ::-webkit-scrollbar-thumb:hover {
+            background: linear-gradient(180deg, #004494, #002d61);
+        }
+        
+        /* Sidebar gradient */
+        .gradient-bg-sidebar {
+            background: linear-gradient(135deg, #0056b3 0%, #003d82 100%);
+            position: relative;
+        }
+        
+        .gradient-bg-sidebar::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(45deg, transparent, rgba(253, 184, 19, 0.1), transparent);
+            pointer-events: none;
+        }
+        
+        /* Active sidebar item */
+        .sidebar-item-active {
+            background: linear-gradient(90deg, rgba(253, 184, 19, 0.2) 0%, rgba(253, 184, 19, 0.05) 100%);
+            border-left: 4px solid var(--accent);
+            box-shadow: 0 0 20px rgba(253, 184, 19, 0.2);
+        }
+        
+        :root {
+            --primary: #0056b3;
+            --primary-dark: #003d82;
+            --secondary: #FDB813;
+            --accent: #FDB813;
+            --accent-hover: #e5a200;
+        }
+    </style>
+
+    
+    <!-- Mobile Responsive Styles -->
+    <style id="mobile-responsive-styles">
+        /* Mobile-first responsive utilities */
+        @media (max-width: 640px) {
+            /* Extra small devices */
+            .xs\:text-xs { font-size: 0.75rem; }
+            .xs\:text-sm { font-size: 0.875rem; }
+            .xs\:p-2 { padding: 0.5rem; }
+            .xs\:px-2 { padding-left: 0.5rem; padding-right: 0.5rem; }
+            .xs\:py-2 { padding-top: 0.5rem; padding-bottom: 0.5rem; }
+            .xs\:gap-2 { gap: 0.5rem; }
+            .xs\:grid-cols-1 { grid-template-columns: repeat(1, minmax(0, 1fr)); }
+            .xs\:grid-cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        }
+        
+        /* Touch-friendly targets for mobile */
+        @media (max-width: 768px) {
+            button, a, input, select, textarea {
+                min-height: 44px;
+                min-width: 44px;
+            }
+            
+            /* Ensure modals are mobile-friendly */
+            .modal-content {
+                max-width: calc(100vw - 2rem);
+                margin: 1rem;
+            }
+            
+            /* Stack elements on mobile */
+            .mobile-stack {
+                flex-direction: column !important;
+            }
+            
+            /* Hide on mobile */
+            .mobile-hide {
+                display: none !important;
+            }
+            
+            /* Full width on mobile */
+            .mobile-full {
+                width: 100% !important;
+            }
+        }
+        
+        /* Tablet optimization */
+        @media (min-width: 641px) and (max-width: 1024px) {
+            .tablet-hide {
+                display: none !important;
+            }
+        }
+        
+        /* Responsive tables */
+        @media (max-width: 768px) {
+            table {
+                display: block;
+                overflow-x: auto;
+                white-space: nowrap;
+                -webkit-overflow-scrolling: touch;
+            }
+            
+            .responsive-table {
+                min-width: 600px;
+            }
+        }
+        
+        /* Responsive grid adjustments */
+        @media (max-width: 640px) {
+            .grid-cols-2, .grid-cols-3, .grid-cols-4 {
+                grid-template-columns: repeat(1, minmax(0, 1fr)) !important;
+            }
+            
+            .sm\:grid-cols-2 {
+                grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+            }
+        }
+        
+        /* Responsive padding and margins */
+        @media (max-width: 640px) {
+            .p-6 { padding: 1rem !important; }
+            .p-8 { padding: 1.5rem !important; }
+            .px-6 { padding-left: 1rem !important; padding-right: 1rem !important; }
+            .py-6 { padding-top: 1rem !important; padding-bottom: 1rem !important; }
+        }
+    </style>
+
+    
+    <style>
+        /* Custom scrollbar for tables */
+        .scrollbar-thin::-webkit-scrollbar {
+            height: 6px;
+        }
+        
+        .scrollbar-thin::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 3px;
+        }
+        
+        .scrollbar-thin::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 3px;
+        }
+        
+        .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+        
+        /* Responsive font sizes */
+        @media (max-width: 640px) {
+            h1 { font-size: 1.5rem !important; }
+            h2 { font-size: 1.25rem !important; }
+            h3 { font-size: 1.125rem !important; }
+        }
+        
+        /* Mobile-optimized spacing */
+        @media (max-width: 640px) {
+            .gap-6 { gap: 1rem !important; }
+            .gap-8 { gap: 1.5rem !important; }
+            .space-y-6 > * + * { margin-top: 1rem !important; }
+        }
+    </style>
+
+    <!-- Print Styles -->
+    <style>
+        @media print {
+            /* Hide browser header/footer and title */
+            @page {
+                margin: 0;
+                size: A4 portrait;
+            }
+            
+            * {
+                margin: 0;
+                padding: 0;
+                box-sizing: border-box;
+            }
+            
+            body {
+                margin: 0 !important;
+                padding: 0 !important;
+                background: white !important;
+                overflow: visible !important;
+            }
+            
+            /* Hide ALL main content when printing */
+            body > div:not(.print-only),
+            aside, nav, button, .sidebar, main, .main-content, header, footer,
+            .gradient-bg-sidebar, [x-data] > div:not(.print-only) {
+                display: none !important;
+                visibility: hidden !important;
+                opacity: 0 !important;
+                position: absolute !important;
+                left: -9999px !important;
+            }
+            
+            /* Show ONLY print section */
+            .print-only {
+                display: block !important;
+                visibility: visible !important;
+                opacity: 1 !important;
+                position: static !important;
+                left: 0 !important;
+                top: 0 !important;
+                width: 100% !important;
+                max-width: 210mm !important;
+                height: auto !important;
+                padding: 15mm !important;
+                margin: 0 auto !important;
+                background: white !important;
+                page-break-after: avoid !important;
+            }
+            
+            /* Ensure colors print */
+            body, .print-only {
+                print-color-adjust: exact !important;
+                -webkit-print-color-adjust: exact !important;
+            }
+            
+            /* Prevent page breaks inside important elements */
+            table, tr, td, th, img, canvas {
+                page-break-inside: avoid !important;
+            }
+        }
+    </style>
+</head>
+<body class="bg-white transition-colors duration-200" x-data="reportsModule()" x-init="init()">
+    
+    <div class="flex h-screen overflow-hidden">
+        <!-- Sidebar -->
+        <aside :class="sidebarCollapsed ? 'w-20' : 'w-64'" 
+               class="fixed left-0 top-0 h-screen gradient-bg-sidebar text-white transition-all duration-300 shadow-2xl z-40"
+               @mouseenter="sidebarHovered = true"
+               @mouseleave="sidebarHovered = false">
+        
+            <!-- Logo -->
+            <div class="relative p-6">
+                <div class="flex items-center gap-3" :class="sidebarCollapsed && !sidebarHovered ? 'justify-center' : ''">
+                    <div class="flex items-center justify-center">
+                        <img src="{{ url_for('static', filename='img/iclinic-logo.png') }}" alt="Norzagaray College" class="w-14 h-14 object-contain">
+                    </div>
+                    <div x-show="!sidebarCollapsed || sidebarHovered" x-transition>
+                        <h1 class="text-xl font-bold text-white text-base sm:text-lg md:text-xl">iClinic</h1>
+                        <p class="text-xs text-yellow-300">Norzagaray College</p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Navigation -->
+            <nav class="relative mt-8 px-4 space-y-2">
+                <!-- Dashboard -->
+                <a href="{{ url_for('admin_dashboard') }}"
+                   class="flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all group hover:bg-white/10">
+                    <div class="flex items-center justify-center" :class="sidebarCollapsed && !sidebarHovered ? 'w-full' : ''">
+                        <i data-feather="home" class="w-5 h-5 group-hover:scale-110 transition-transform"></i>
+                    </div>
+                    <span x-show="!sidebarCollapsed || sidebarHovered" x-transition class="font-medium">Dashboard</span>
+                </a>
+                
+                <!-- User Management -->
+                <a href="{{ url_for('admin_user_management') }}"
+                   class="flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all group hover:bg-white/10">
+                    <div class="flex items-center justify-center" :class="sidebarCollapsed && !sidebarHovered ? 'w-full' : ''">
+                        <i data-feather="users" class="w-5 h-5 group-hover:scale-110 transition-transform"></i>
+                    </div>
+                    <span x-show="!sidebarCollapsed || sidebarHovered" x-transition class="font-medium">User Management</span>
+                </a>
+                
+                <!-- Patient Management -->
+                <a href="{{ url_for('admin_patient_management') }}"
+                   class="flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all group hover:bg-white/10">
+                    <div class="flex items-center justify-center" :class="sidebarCollapsed && !sidebarHovered ? 'w-full' : ''">
+                        <i data-feather="heart" class="w-5 h-5 group-hover:scale-110 transition-transform"></i>
+                    </div>
+                    <span x-show="!sidebarCollapsed || sidebarHovered" x-transition class="font-medium">Patient Management</span>
+                </a>
+                
+                <!-- Reports & Analytics -->
+                <a href="{{ url_for('admin_reports') }}"
+                   class="sidebar-item-active flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all group">
+                    <div class="flex items-center justify-center" :class="sidebarCollapsed && !sidebarHovered ? 'w-full' : ''">
+                        <i data-feather="bar-chart-2" class="w-5 h-5 group-hover:scale-110 transition-transform"></i>
+                    </div>
+                    <span x-show="!sidebarCollapsed || sidebarHovered" x-transition class="font-medium">Reports & Analytics</span>
+                </a>
+            
+            </nav>
+        
+        <!-- User Profile -->
+        <div class="absolute bottom-0 w-full p-4 bg-gradient-to-t from-black/20 to-transparent">
+            <div class="relative" @click.outside="userDropdown = false">
+                <button @click="userDropdown = !userDropdown" 
+                        class="w-full flex items-center gap-3 p-2 rounded-lg hover:bg-white/10 transition-colors" 
+                        :class="sidebarCollapsed && !sidebarHovered ? 'justify-center' : ''">
+                    <div class="w-10 h-10 bg-gradient-to-br from-yellow-400 to-yellow-500 rounded-full flex items-center justify-center shadow-lg">
+                        <span class="text-blue-900 font-bold">AU</span>
+                    </div>
+                    <div x-show="!sidebarCollapsed || sidebarHovered" x-transition class="flex-1 text-left">
+                        <p class="text-sm font-medium text-white">Admin User</p>
+                        <p class="text-xs text-yellow-300">System Administrator</p>
+                    </div>
+                    <i x-show="!sidebarCollapsed || sidebarHovered" data-feather="chevron-up" class="w-4 h-4 text-white/70"></i>
+                </button>
+                
+                <!-- User Dropdown -->
+                <div x-show="userDropdown" 
+                     x-transition
+                     class="absolute bottom-full left-4 right-4 mb-2 bg-white rounded-lg shadow-lg border border-gray-200 py-1">
+                    <button @click="showLogoutConfirm = true; userDropdown = false" class="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-md mx-1">
+                        <i data-feather="log-out" class="w-4 h-4"></i>
+                        Logout
+                    </button>
+                </div>
+            </div>
+        </div>
+        </aside>
+    
+        
+        <!-- Main Content Area -->
+        <div :class="sidebarCollapsed ? 'md:ml-20' : 'md:ml-64'" class="flex-1 flex flex-col transition-all duration-300">
+            
+            <!-- Mobile Header -->
+            <div class="md:hidden bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between">
+                <button @click="sidebarCollapsed = !sidebarCollapsed" class="p-2 rounded-lg hover:bg-gray-100">
+                    <i data-feather="menu" class="w-6 h-6 text-gray-600"></i>
+                </button>
+                <div class="flex items-center space-x-2">
+                    <img src="{{ url_for('static', filename='img/iclinic-logo.png') }}" alt="iClinic" class="w-8 h-8">
+                    <h1 class="text-lg font-bold text-gray-900">System Administration Reports</h1>
+                </div>
+                <div class="w-10"></div> <!-- Spacer for centering -->
+            </div>
+            
+            <!-- Main Reports Content -->
+            <main class="flex-1 overflow-hidden bg-gray-50 p-6 p-3 sm:p-4 md:p-6">
+                <!-- Enhanced Reports Header -->
+                <div class="gradient-bg-sidebar text-white shadow-2xl relative overflow-hidden rounded-[2rem] ml-1">
+                    <!-- Decorative Elements -->
+                    <div class="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -translate-y-32 translate-x-32"></div>
+                    <div class="absolute bottom-0 left-0 w-48 h-48 bg-yellow-400/10 rounded-full translate-y-24 -translate-x-24"></div>
+                    
+                    <!-- Header Content -->
+                    <div class="relative px-6 py-5">
+                        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                            <!-- Title Section -->
+                            <div class="flex items-center gap-4">
+                                <div class="relative">
+                                    <div class="w-12 h-12 bg-yellow-400 rounded-xl flex items-center justify-center shadow-lg transform rotate-2 hover:rotate-0 transition-transform duration-300">
+                                        <i data-feather="bar-chart-2" class="w-6 h-6 text-blue-900"></i>
+                                    </div>
+                                </div>
+                                <div>
+                                    <div class="flex items-center gap-2 mb-1">
+                                        <h1 class="text-2xl sm:text-3xl font-bold text-white text-xl sm:text-2xl md:text-3xl text-lg sm:text-xl md:text-2xl text-base sm:text-lg md:text-xl">
+                                            System Administration Reports
+                                        </h1>
+                                    </div>
+                                    <div class="flex items-center gap-2 text-blue-100">
+                                        <i data-feather="activity" class="w-3 h-3"></i>
+                                        <span class="text-sm">System administration & monitoring insights</span>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Compact Stats and Actions -->
+                            <div class="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+                                
+                                <!-- Action Buttons -->
+                                <div class="flex items-center gap-2">
+                                    <button class="group bg-white/15 hover:bg-white/25 backdrop-blur-sm text-white px-4 py-2 rounded-lg font-medium border border-white/30 hover:border-white/50 transition-all duration-200 flex items-center gap-2 shadow-lg hover:scale-105">
+                                        <div class="w-6 h-6 bg-blue-500/30 rounded flex items-center justify-center group-hover:bg-blue-500/50 transition-colors">
+                                            <i data-feather="refresh-cw" class="w-3 h-3 group-hover:animate-spin"></i>
+                                        </div>
+                                        <span class="hidden sm:inline">Refresh</span>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Reports Dashboard Content -->
+                <div class="p-6 overflow-y-auto" style="max-height: calc(100vh - 200px);">
+                    
+                    <!-- KPI Summary Cards -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+                        <!-- Total Patients Card -->
+                        <div class="bg-gradient-to-br from-blue-50 to-blue-100 rounded-2xl p-6 border border-blue-200 shadow-lg hover:shadow-xl transition-all duration-300">
+                            <div class="flex items-center justify-between mb-4">
+                                <div class="w-12 h-12 bg-blue-500 rounded-xl flex items-center justify-center shadow-md">
+                                    <i data-feather="users" class="w-6 h-6 text-white"></i>
+                                </div>
+                                <div class="text-right">
+                                    <div class="text-3xl font-bold text-blue-900" x-text="totalPatients">0</div>
+                                    <div class="text-sm text-blue-600 font-medium">Total Patients</div>
+                                </div>
+                            </div>
+                            <div class="flex items-center text-sm">
+                                <i data-feather="trending-up" class="w-4 h-4 text-green-600 mr-1"></i>
+                                <span class="text-green-600 font-semibold">All registered</span>
+                            </div>
+                        </div>
+
+                        <!-- Total Visits Card -->
+                        <div class="bg-gradient-to-br from-green-50 to-green-100 rounded-2xl p-6 border border-green-200 shadow-lg hover:shadow-xl transition-all duration-300">
+                            <div class="flex items-center justify-between mb-4">
+                                <div class="w-12 h-12 bg-green-500 rounded-xl flex items-center justify-center shadow-md">
+                                    <i data-feather="activity" class="w-6 h-6 text-white"></i>
+                                </div>
+                                <div class="text-right">
+                                    <div class="text-3xl font-bold text-green-900" x-text="totalVisits">0</div>
+                                    <div class="text-sm text-green-600 font-medium">Total Visits</div>
+                                </div>
+                            </div>
+                            <div class="flex items-center text-sm">
+                                <i data-feather="calendar" class="w-4 h-4 text-green-600 mr-1"></i>
+                                <span class="text-green-600 font-semibold">All time</span>
+                            </div>
+                        </div>
+
+                        <!-- Active Consultations Card -->
+                        <div class="bg-gradient-to-br from-purple-50 to-purple-100 rounded-2xl p-6 border border-purple-200 shadow-lg hover:shadow-xl transition-all duration-300">
+                            <div class="flex items-center justify-between mb-4">
+                                <div class="w-12 h-12 bg-purple-500 rounded-xl flex items-center justify-center shadow-md">
+                                    <i data-feather="message-circle" class="w-6 h-6 text-white"></i>
+                                </div>
+                                <div class="text-right">
+                                    <div class="text-3xl font-bold text-purple-900" x-text="activeConsultations">0</div>
+                                    <div class="text-sm text-purple-600 font-medium">Active Consultations</div>
+                                </div>
+                            </div>
+                            <div class="flex items-center text-sm">
+                                <i data-feather="clock" class="w-4 h-4 text-purple-600 mr-1"></i>
+                                <span class="text-purple-600 font-semibold">Ongoing</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Charts Grid (2 Columns) -->
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <!-- Monthly Patient Visits Chart -->
+                    <div class="bg-white rounded-2xl shadow-lg border border-gray-100 p-8 hover:shadow-xl transition-shadow duration-300">
+                        <div class="mb-6">
+                            <div class="flex items-center justify-between mb-4">
+                                <div>
+                                    <h3 class="text-xl font-bold text-gray-900">Monthly Patient Visits</h3>
+                                    <p class="text-sm text-gray-600 mt-1">Track patient visit trends over time</p>
+                                </div>
+                                <div class="flex items-center space-x-2">
+                                    <select x-model="monthlyVisitsChartType" @change="updateMonthlyVisitsChart()" class="bg-white border border-gray-300 text-gray-700 px-3 py-2 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                        <option value="line">📈 Line</option>
+                                        <option value="bar">📊 Bar</option>
+                                        <option value="pie">🥧 Pie</option>
+                                    </select>
+                                    <button @click="exportChart('monthlyVisitsChart', 'Monthly_Visits')" class="bg-blue-50 hover:bg-blue-100 text-blue-700 px-4 py-2 rounded-lg text-sm flex items-center space-x-2 transition-colors border border-blue-200">
+                                        <i data-feather="download" class="w-4 h-4"></i>
+                                        <span>Export</span>
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <!-- Chart-specific Filters -->
+                            <div class="flex gap-3 mb-4">
+                                <!-- Time Period Filter -->
+                                <div class="flex-1">
+                                    <label class="block text-xs font-semibold text-gray-700 mb-1">
+                                        <i data-feather="calendar" class="w-3 h-3 inline mr-1"></i>
+                                        Time Period
+                                    </label>
+                                    <select x-model="monthlyVisitsPeriod" @change="updateMonthlyVisitsChart()" class="w-full px-3 py-2 border-2 border-purple-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 bg-white text-gray-900 text-sm">
+                                        <option value="week">📆 This Week</option>
+                                        <option value="month">📊 This Month</option>
+                                        <option value="quarter">📈 This Quarter</option>
+                                        <option value="year">📅 This Year</option>
+                                    </select>
+                                </div>
+                                
+                                <!-- Department Filter -->
+                                <div class="flex-1">
+                                    <label class="block text-xs font-semibold text-gray-700 mb-1">
+                                        <i data-feather="users" class="w-3 h-3 inline mr-1"></i>
+                                        Department
+                                    </label>
+                                    <select x-model="monthlyVisitsDepartment" @change="updateMonthlyVisitsChart()" class="w-full px-3 py-2 border-2 border-green-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 bg-white text-gray-900 text-sm">
+                                        <option value="all">🏢 All Departments</option>
+                                        <option value="students">🎓 All Students</option>
+                                        <option value="teaching_staff">👨‍🏫 Teaching Staff</option>
+                                        <option value="non_teaching_staff">👔 Non-Teaching Staff</option>
+                                        <option value="visitors">👥 Visitors</option>
+                                        <optgroup label="📚 Student Departments">
+                                            <option value="beed">📖 BEED Students</option>
+                                            <option value="bsed">🎓 BSED Students</option>
+                                            <option value="computer_science">💻 Computer Science Students</option>
+                                            <option value="hm">🏨 HM Students</option>
+                                        </optgroup>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="h-72 bg-gray-50 rounded-xl p-4">
+                            <canvas id="monthlyVisitsChart"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- Medical Records Trends Chart -->
+                    <div class="bg-white rounded-2xl shadow-lg border border-gray-100 p-8 mt-6">
+                        <div class="flex items-center justify-between mb-6">
+                            <div>
+                                <h4 class="text-xl font-bold text-gray-900">Medical Records Trends</h4>
+                                <p class="text-sm text-gray-600 mt-1">Top 6 chief complaints from all medical records (Students, Staff, Visitors)</p>
+                            </div>
+                            <div class="flex items-center space-x-2">
+                                <select x-model="medicalRecordsChartType" @change="updateMedicalRecordsChart()" class="bg-white border border-gray-300 text-gray-700 px-3 py-2 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500">
+                                    <option value="bar">📊 Bar</option>
+                                    <option value="line">📈 Line</option>
+                                    <option value="pie">🥧 Pie</option>
+                                </select>
+                                <button @click="exportChart('medicalRecordsChart', 'Medical_Records_Trends')" class="bg-green-50 hover:bg-green-100 text-green-700 px-4 py-2 rounded-lg text-sm flex items-center space-x-2 transition-colors border border-green-200">
+                                    <i data-feather="download" class="w-4 h-4"></i>
+                                    <span>Export</span>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="h-72 bg-gray-50 rounded-xl p-4">
+                            <canvas id="medicalRecordsChart"></canvas>
+                        </div>
+                    </div>
+                    </div>
+                    <!-- End Charts Grid -->
+
+                </div>
+
+            </main>
+        </div>
+    </div>
+
+    <script>
+        function reportsModule() {
+            return {
+                async init() {
+                    console.log('🚀 Initializing Admin Reports...');
+                    
+                    // Prevent double initialization
+                    if (this._initialized) {
+                        console.log('⚠️ Already initialized, skipping...');
+                        return;
+                    }
+                    this._initialized = true;
+                    
+                    // Initialize feather icons
+                    if (typeof feather !== 'undefined') {
+                        setTimeout(() => feather.replace(), 250);
+                        setTimeout(() => feather.replace(), 500);
+                        setTimeout(() => feather.replace(), 1000);
+                    }
+                    
+                    // Load data and initialize charts
+                    await this.loadAllData();
+                    setTimeout(() => {
+                        this.initMonthlyVisitsChart();
+                        this.initMedicalRecordsChart();
+                    }, 1000);
+                },
+                
+                // State
+                _initialized: false,
+                sidebarCollapsed: false,
+                sidebarHovered: false,
+                userDropdown: false,
+                showLogoutConfirm: false,
+                
+                // Chart instances
+                monthlyVisitsChart: null,
+                medicalRecordsChart: null,
+                
+                // Chart settings
+                monthlyVisitsChartType: 'line',
+                monthlyVisitsPeriod: 'month',
+                monthlyVisitsDepartment: 'all',
+                medicalRecordsChartType: 'bar',
+                
+                // Print-specific data
+                selectedChartForPrint: null,
+                selectedChartTitle: '',
+                reportPeriod: '2024-2025',
+                chartSummaryData: [],
+                
+                // Raw data storage
+                rawData: null,
+                
+                // Load all data from API
+                async loadAllData() {
+                    console.log('📥 Loading all data from API...');
+                    try {
+                        // Load visits
+                        const visitsResponse = await fetch('/api/visits');
+                        const visits = visitsResponse.ok ? await visitsResponse.json() : [];
+                        
+                        // Load patients
+                        const patientsResponse = await fetch('/api/admin/patients');
+                        const patientsData = patientsResponse.ok ? await patientsResponse.json() : { patients: [] };
+                        const patients = patientsData.patients || [];
+                        
+                        // Load consultations
+                        const consultationsResponse = await fetch('/api/online-consultations');
+                        const consultations = consultationsResponse.ok ? await consultationsResponse.json() : [];
+                        
+                        this.rawData = { visits, patients, consultations };
+                        console.log('✅ Data loaded:', visits.length, 'visits,', patients.length, 'patients,', consultations.length, 'consultations');
+                    } catch (error) {
+                        console.error('❌ Error loading data:', error);
+                        this.rawData = { visits: [], patients: [], consultations: [] };
+                    }
+                },
+                
+                // Computed properties for KPI cards
+                get totalPatients() {
+                    return this.rawData?.patients?.length || 0;
+                },
+                
+                get totalVisits() {
+                    return this.rawData?.visits?.length || 0;
+                },
+                
+                get activeConsultations() {
+                    if (!this.rawData?.consultations) return 0;
+                    return this.rawData.consultations.filter(c => c.status === 'active').length;
+                },
+                
+                // Initialize Monthly Visits Chart
+                async initMonthlyVisitsChart() {
+                    console.log('📊 Initializing Monthly Visits Chart...');
+                    const canvas = document.getElementById('monthlyVisitsChart');
+                    if (!canvas) {
+                        console.warn('⚠️ Canvas not found');
+                        return;
+                    }
+
+                    try {
+                        // Destroy existing chart if it exists
+                        if (this.monthlyVisitsChart) {
+                            console.log('🗑️ Destroying existing Monthly Visits Chart...');
+                            this.monthlyVisitsChart.destroy();
+                            this.monthlyVisitsChart = null;
+                        }
+                        
+                        if (!this.rawData || !this.rawData.visits) {
+                            console.warn('⚠️ Raw data not available yet');
+                            return;
+                        }
+                        
+                        const visits = this.rawData.visits;
+                        const monthlyData = this.aggregateByMonth(visits, 'visit_date');
+
+                        this.monthlyVisitsChart = new Chart(canvas, {
+                            type: 'line',
+                            data: {
+                                labels: monthlyData.labels,
+                                datasets: [{
+                                    label: 'Patient Visits',
+                                    data: monthlyData.data,
+                                    borderColor: 'rgb(59, 130, 246)',
+                                    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                                    tension: 0.4,
+                                    fill: true,
+                                    borderWidth: 3,
+                                    pointRadius: 5,
+                                    pointHoverRadius: 7,
+                                    pointBackgroundColor: 'rgb(59, 130, 246)',
+                                    pointBorderColor: '#fff',
+                                    pointBorderWidth: 2
+                                }]
+                            },
+                            options: {
+                                responsive: true,
+                                maintainAspectRatio: false,
+                                plugins: {
+                                    legend: { display: false },
+                                    tooltip: {
+                                        backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                                        padding: 12,
+                                        titleFont: { size: 14 },
+                                        bodyFont: { size: 13 }
+                                    }
+                                },
+                                scales: {
+                                    y: {
+                                        beginAtZero: true,
+                                        grid: { color: 'rgba(0, 0, 0, 0.05)' },
+                                        ticks: { font: { size: 12 } }
+                                    },
+                                    x: {
+                                        grid: { display: false },
+                                        ticks: { font: { size: 12 } }
+                                    }
+                                }
+                            }
+                        });
+                        
+                        console.log('✅ Monthly Visits Chart initialized');
+                    } catch (error) {
+                        console.error('❌ Error initializing chart:', error);
+                    }
+                },
+
+                // Update Monthly Visits Chart with filters
+                async updateMonthlyVisitsChart() {
+                    console.log('🔄 Updating Monthly Visits Chart...');
+                    console.log('📅 Period:', this.monthlyVisitsPeriod);
+                    console.log('🏢 Department:', this.monthlyVisitsDepartment);
+                    
+                    if (!this.monthlyVisitsChart || !this.rawData) {
+                        console.warn('⚠️ Chart or data not ready');
+                        return;
+                    }
+                    
+                    try {
+                        // Filter by department
+                        let filteredVisits = this.rawData.visits;
+                        
+                        if (this.monthlyVisitsDepartment !== 'all') {
+                            filteredVisits = filteredVisits.filter(visit => {
+                                const dept = this.monthlyVisitsDepartment;
+                                if (dept === 'students') return visit.patient_type === 'Student';
+                                if (dept === 'teaching_staff') return visit.patient_type === 'Teaching Staff';
+                                if (dept === 'non_teaching_staff') return visit.patient_type === 'Non-Teaching Staff';
+                                if (dept === 'visitors') return visit.patient_type === 'Visitor';
+                                // Student departments
+                                if (dept === 'beed') return visit.patient_type === 'Student' && visit.course && visit.course.includes('BEED');
+                                if (dept === 'bsed') return visit.patient_type === 'Student' && visit.course && visit.course.includes('BSED');
+                                if (dept === 'computer_science') return visit.patient_type === 'Student' && visit.course && visit.course.includes('Computer');
+                                if (dept === 'hm') return visit.patient_type === 'Student' && visit.course && visit.course.includes('HM');
+                                return true;
+                            });
+                        }
+                        
+                        console.log('📊 Filtered visits:', filteredVisits.length);
+                        
+                        // Aggregate by time period
+                        let aggregatedData;
+                        switch (this.monthlyVisitsPeriod) {
+                            case 'week':
+                                aggregatedData = this.aggregateByWeek(filteredVisits, 'visit_date');
+                                break;
+                            case 'month':
+                                aggregatedData = this.aggregateByMonth(filteredVisits, 'visit_date');
+                                break;
+                            case 'quarter':
+                                aggregatedData = this.aggregateByQuarter(filteredVisits, 'visit_date');
+                                break;
+                            case 'year':
+                                aggregatedData = this.aggregateByYear(filteredVisits, 'visit_date');
+                                break;
+                            default:
+                                aggregatedData = this.aggregateByMonth(filteredVisits, 'visit_date');
+                        }
+                        
+                        // Get canvas element
+                        const canvas = document.getElementById('monthlyVisitsChart');
+                        if (!canvas) {
+                            console.error('❌ Canvas element not found');
+                            return;
+                        }
+                        
+                        // Safely destroy existing chart
+                        if (this.monthlyVisitsChart) {
+                            try {
+                                // Stop all animations first
+                                this.monthlyVisitsChart.stop();
+                                // Then destroy
+                                this.monthlyVisitsChart.destroy();
+                            } catch (e) {
+                                console.warn('⚠️ Error destroying chart:', e);
+                            }
+                            this.monthlyVisitsChart = null;
+                        }
+                        
+                        // Wait for Chart.js to fully clean up
+                        await new Promise(resolve => setTimeout(resolve, 100));
+                        
+                        // Verify canvas still exists after delay
+                        const canvasCheck = document.getElementById('monthlyVisitsChart');
+                        if (!canvasCheck) {
+                            console.error('❌ Canvas disappeared after destroy');
+                            return;
+                        }
+                        
+                        // Clear any existing context
+                        const ctx = canvasCheck.getContext('2d');
+                        if (ctx) {
+                            ctx.clearRect(0, 0, canvasCheck.width, canvasCheck.height);
+                        }
+                        
+                        // Recreate with new data and chart type
+                        this.monthlyVisitsChart = new Chart(canvas, {
+                            type: this.monthlyVisitsChartType || 'line',
+                            data: {
+                                labels: aggregatedData.labels,
+                                datasets: [{
+                                    label: 'Patient Visits',
+                                    data: aggregatedData.data,
+                                    borderColor: 'rgb(59, 130, 246)',
+                                    backgroundColor: 'rgba(59, 130, 246, 0.6)',
+                                    tension: 0.4,
+                                    fill: true,
+                                    borderWidth: 3,
+                                    pointRadius: 5,
+                                    pointHoverRadius: 7,
+                                    pointBackgroundColor: 'rgb(59, 130, 246)',
+                                    pointBorderColor: '#fff',
+                                    pointBorderWidth: 2
+                                }]
+                            },
+                            options: {
+                                responsive: true,
+                                maintainAspectRatio: false,
+                                plugins: {
+                                    legend: { display: true, position: 'top' },
+                                    title: { display: false }
+                                },
+                                scales: {
+                                    y: {
+                                        beginAtZero: true,
+                                        ticks: { font: { size: 12 } }
+                                    },
+                                    x: {
+                                        ticks: { font: { size: 12 } }
+                                    }
+                                }
+                            }
+                        });
+                        
+                        console.log('✅ Chart updated');
+                    } catch (error) {
+                        console.error('❌ Error updating chart:', error);
+                    }
+                },
+                
+                // Helper: Aggregate by month
+                aggregateByMonth(data, dateField) {
+                    const now = new Date();
+                    const monthsData = {};
+                    const labels = [];
+                    
+                    // Generate last 6 months
+                    for (let i = 5; i >= 0; i--) {
+                        const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
+                        const key = date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+                        labels.push(key);
+                        monthsData[key] = 0;
+                    }
+
+                    // Count data per month
+                    if (Array.isArray(data)) {
+                        data.forEach(item => {
+                            const dateValue = item[dateField];
+                            if (dateValue) {
+                                const itemDate = new Date(dateValue);
+                                const key = itemDate.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+                                if (monthsData.hasOwnProperty(key)) {
+                                    monthsData[key]++;
+                                }
+                            }
+                        });
+                    }
+
+                    return {
+                        labels: labels,
+                        data: labels.map(label => monthsData[label])
+                    };
+                },
+
+                // Helper: Aggregate by week
+                aggregateByWeek(data, dateField) {
+                    const now = new Date();
+                    const weeksData = {};
+                    const labels = [];
+                    
+                    // Generate last 12 weeks
+                    for (let i = 11; i >= 0; i--) {
+                        const date = new Date(now);
+                        date.setDate(date.getDate() - (i * 7));
+                        const weekStart = new Date(date);
+                        weekStart.setDate(date.getDate() - date.getDay());
+                        const key = weekStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                        labels.push(key);
+                        weeksData[key] = 0;
+                    }
+                    
+                    // Count data per week
+                    if (Array.isArray(data)) {
+                        data.forEach(item => {
+                            const dateValue = item[dateField];
+                            if (dateValue) {
+                                const itemDate = new Date(dateValue);
+                                const weekStart = new Date(itemDate);
+                                weekStart.setDate(itemDate.getDate() - itemDate.getDay());
+                                const key = weekStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                                if (weeksData.hasOwnProperty(key)) {
+                                    weeksData[key]++;
+                                }
+                            }
+                        });
+                    }
+                    
+                    return {
+                        labels: labels,
+                        data: labels.map(label => weeksData[label])
+                    };
+                },
+                
+                // Helper: Aggregate by quarter
+                aggregateByQuarter(data, dateField) {
+                    const now = new Date();
+                    const quartersData = {};
+                    const labels = [];
+                    
+                    // Generate last 4 quarters
+                    for (let i = 3; i >= 0; i--) {
+                        const quarterDate = new Date(now.getFullYear(), now.getMonth() - (i * 3), 1);
+                        const quarter = Math.floor(quarterDate.getMonth() / 3) + 1;
+                        const key = `Q${quarter} ${quarterDate.getFullYear()}`;
+                        labels.push(key);
+                        quartersData[key] = 0;
+                    }
+                    
+                    // Count data per quarter
+                    if (Array.isArray(data)) {
+                        data.forEach(item => {
+                            const dateValue = item[dateField];
+                            if (dateValue) {
+                                const itemDate = new Date(dateValue);
+                                const quarter = Math.floor(itemDate.getMonth() / 3) + 1;
+                                const key = `Q${quarter} ${itemDate.getFullYear()}`;
+                                if (quartersData.hasOwnProperty(key)) {
+                                    quartersData[key]++;
+                                }
+                            }
+                        });
+                    }
+                    
+                    return {
+                        labels: labels,
+                        data: labels.map(label => quartersData[label])
+                    };
+                },
+                
+                // Helper: Aggregate by year
+                aggregateByYear(data, dateField) {
+                    const now = new Date();
+                    const yearsData = {};
+                    const labels = [];
+                    
+                    // Generate last 5 years
+                    for (let i = 4; i >= 0; i--) {
+                        const year = now.getFullYear() - i;
+                        const key = year.toString();
+                        labels.push(key);
+                        yearsData[key] = 0;
+                    }
+                    
+                    // Count data per year
+                    if (Array.isArray(data)) {
+                        data.forEach(item => {
+                            const dateValue = item[dateField];
+                            if (dateValue) {
+                                const itemDate = new Date(dateValue);
+                                const key = itemDate.getFullYear().toString();
+                                if (yearsData.hasOwnProperty(key)) {
+                                    yearsData[key]++;
+                                }
+                            }
+                        });
+                    }
+                    
+                    return {
+                        labels: labels,
+                        data: labels.map(label => yearsData[label])
+                    };
+                },
+                
+                // Initialize Medical Records Chart
+                async initMedicalRecordsChart() {
+                    console.log('🏥 Initializing Medical Records Chart...');
+                    const canvas = document.getElementById('medicalRecordsChart');
+                    if (!canvas) {
+                        console.warn('⚠️ Canvas not found');
+                        return;
+                    }
+
+                    try {
+                        // Destroy existing chart if it exists
+                        if (this.medicalRecordsChart) {
+                            console.log('🗑️ Destroying existing Medical Records Chart...');
+                            this.medicalRecordsChart.destroy();
+                            this.medicalRecordsChart = null;
+                        }
+                        
+                        // Use visits data for medical records
+                        let medicalData = [];
+                        
+                        if (this.rawData?.visits && this.rawData.visits.length > 0) {
+                            console.log('🏥 Using visits data for medical records');
+                            medicalData = this.rawData.visits;
+                        }
+                        
+                        console.log('🏥 Processing', medicalData.length, 'medical records');
+                        
+                        // Analyze common chief complaints
+                        const complaintCount = {};
+                        medicalData.forEach(record => {
+                            const complaint = record.chief_complaint || record.diagnosis || record.symptoms || 'General Checkup';
+                            complaintCount[complaint] = (complaintCount[complaint] || 0) + 1;
+                        });
+
+                        // Get top 6 chief complaints
+                        const topComplaints = Object.entries(complaintCount)
+                            .sort(([,a], [,b]) => b - a)
+                            .slice(0, 6);
+                            
+                        console.log('📊 Top chief complaints:', topComplaints);
+
+                        this.medicalRecordsChart = new Chart(canvas, {
+                            type: 'bar',
+                            data: {
+                                labels: topComplaints.map(([name]) => name.length > 15 ? name.substring(0, 15) + '...' : name),
+                                datasets: [{
+                                    label: 'Number of Cases',
+                                    data: topComplaints.map(([,count]) => count),
+                                    backgroundColor: 'rgba(16, 185, 129, 0.8)',
+                                    borderColor: '#10B981',
+                                    borderWidth: 2
+                                }]
+                            },
+                            options: {
+                                responsive: true,
+                                maintainAspectRatio: false,
+                                plugins: {
+                                    legend: { display: false },
+                                    tooltip: {
+                                        backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                                        padding: 12,
+                                        titleFont: { size: 14 },
+                                        bodyFont: { size: 13 }
+                                    }
+                                },
+                                scales: {
+                                    y: {
+                                        beginAtZero: true,
+                                        grid: { color: 'rgba(0, 0, 0, 0.05)' },
+                                        ticks: { font: { size: 12 } }
+                                    },
+                                    x: {
+                                        grid: { display: false },
+                                        ticks: { font: { size: 12 } }
+                                    }
+                                }
+                            }
+                        });
+                        
+                        console.log('✅ Medical Records Chart initialized');
+                    } catch (error) {
+                        console.error('❌ Error initializing medical records chart:', error);
+                    }
+                },
+
+                // Update Medical Records Chart with new chart type
+                async updateMedicalRecordsChart() {
+                    console.log('🔄 Updating Medical Records Chart...');
+                    
+                    if (!this.rawData) {
+                        console.warn('⚠️ Data not ready');
+                        return;
+                    }
+                    
+                    try {
+                        // Use visits data
+                        const medicalData = this.rawData.visits || [];
+                        
+                        // Analyze common chief complaints
+                        const complaintCount = {};
+                        medicalData.forEach(record => {
+                            const complaint = record.chief_complaint || record.diagnosis || record.symptoms || 'General Checkup';
+                            complaintCount[complaint] = (complaintCount[complaint] || 0) + 1;
+                        });
+
+                        // Get top 6 chief complaints
+                        const topComplaints = Object.entries(complaintCount)
+                            .sort(([,a], [,b]) => b - a)
+                            .slice(0, 6);
+                        
+                        // Get canvas element
+                        const canvas = document.getElementById('medicalRecordsChart');
+                        if (!canvas) {
+                            console.error('❌ Canvas element not found');
+                            return;
+                        }
+                        
+                        // Safely destroy existing chart
+                        if (this.medicalRecordsChart) {
+                            try {
+                                // Stop all animations first
+                                this.medicalRecordsChart.stop();
+                                // Then destroy
+                                this.medicalRecordsChart.destroy();
+                            } catch (e) {
+                                console.warn('⚠️ Error destroying chart:', e);
+                            }
+                            this.medicalRecordsChart = null;
+                        }
+                        
+                        // Wait for Chart.js to fully clean up
+                        await new Promise(resolve => setTimeout(resolve, 100));
+                        
+                        // Verify canvas still exists after delay
+                        const canvasCheck = document.getElementById('medicalRecordsChart');
+                        if (!canvasCheck) {
+                            console.error('❌ Canvas disappeared after destroy');
+                            return;
+                        }
+                        
+                        // Clear any existing context
+                        const ctx = canvasCheck.getContext('2d');
+                        if (ctx) {
+                            ctx.clearRect(0, 0, canvasCheck.width, canvasCheck.height);
+                        }
+                        
+                        // Recreate with new chart type
+                        this.medicalRecordsChart = new Chart(canvas, {
+                            type: this.medicalRecordsChartType || 'bar',
+                            data: {
+                                labels: topComplaints.map(([name]) => name.length > 15 ? name.substring(0, 15) + '...' : name),
+                                datasets: [{
+                                    label: 'Number of Cases',
+                                    data: topComplaints.map(([,count]) => count),
+                                    backgroundColor: 'rgba(16, 185, 129, 0.8)',
+                                    borderColor: '#10B981',
+                                    borderWidth: 2
+                                }]
+                            },
+                            options: {
+                                responsive: true,
+                                maintainAspectRatio: false,
+                                plugins: {
+                                    legend: { display: true, position: 'top' },
+                                    tooltip: {
+                                        backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                                        padding: 12
+                                    }
+                                },
+                                scales: {
+                                    y: {
+                                        beginAtZero: true,
+                                        ticks: { font: { size: 12 } }
+                                    },
+                                    x: {
+                                        ticks: { font: { size: 12 } }
+                                    }
+                                }
+                            }
+                        });
+                        
+                        console.log('✅ Medical Records Chart updated');
+                    } catch (error) {
+                        console.error('❌ Error updating medical records chart:', error);
+                    }
+                },
+                
+                // Export chart (Print functionality - same as Dean's Reports)
+                exportChart(chartId, filename) {
+                    // Store which chart to print
+                    this.selectedChartForPrint = chartId;
+                    this.selectedChartTitle = filename;
+                    
+                    // Generate summary data for this specific chart
+                    this.generateChartSummary(chartId);
+                    
+                    // Initialize print charts before printing
+                    this.initializePrintCharts(chartId);
+                    
+                    // Small delay to ensure charts render
+                    setTimeout(() => {
+                        window.print();
+                    }, 500);
+                },
+                
+                generateChartSummary(chartId) {
+                    const sourceChart = this[chartId];
+                    if (!sourceChart) return;
+                    
+                    const chartData = sourceChart.data;
+                    const labels = chartData.labels || [];
+                    const datasets = chartData.datasets || [];
+                    
+                    // Generate summary based on chart data
+                    this.chartSummaryData = [];
+                    
+                    if (datasets.length > 0) {
+                        const data = datasets[0].data || [];
+                        
+                        // Get top 5 items with highest values
+                        const items = labels.map((label, index) => ({
+                            label: label,
+                            value: data[index] || 0
+                        })).sort((a, b) => b.value - a.value).slice(0, 5);
+                        
+                        this.chartSummaryData = items;
+                    }
+                },
+                
+                initializePrintCharts(chartId) {
+                    const printChartCtx = document.getElementById('printDynamicChart');
+                    if (!printChartCtx) return;
+                    
+                    // Destroy previous chart if exists
+                    if (window.printChartInstance) {
+                        window.printChartInstance.destroy();
+                        window.printChartInstance = null;
+                    }
+                    
+                    const sourceChart = this[chartId];
+                    if (!sourceChart) {
+                        console.warn('Chart not found:', chartId);
+                        return;
+                    }
+                    
+                    // Create new print chart
+                    window.printChartInstance = new Chart(printChartCtx, {
+                        type: sourceChart.config.type,
+                        data: JSON.parse(JSON.stringify(sourceChart.data)),
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            animation: false,
+                            plugins: {
+                                legend: {
+                                    display: true,
+                                    position: 'bottom'
+                                }
+                            },
+                            scales: sourceChart.config.type === 'line' || sourceChart.config.type === 'bar' ? {
+                                y: { beginAtZero: true }
+                            } : undefined
+                        }
+                    });
+                }
+            }
+        }
+    </script>
+
+    <!-- Logout Confirmation Modal -->
+    <div x-show="showLogoutConfirm" x-cloak
+         x-transition:enter="transition ease-out duration-300"
+         x-transition:enter-start="opacity-0"
+         x-transition:enter-end="opacity-100"
+         x-transition:leave="transition ease-in duration-200"
+         x-transition:leave-start="opacity-100"
+         x-transition:leave-end="opacity-0"
+         class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+         @click.self="showLogoutConfirm = false">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-md mx-4">
+            <div class="p-6">
+                <div class="flex items-center mb-4">
+                    <div class="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mr-4">
+                        <i data-feather="log-out" class="w-6 h-6 text-red-600"></i>
+                    </div>
+                    <h3 class="text-lg font-semibold text-gray-900">Confirm Logout</h3>
+                </div>
+                
+                <p class="text-gray-600 mb-6">Are you sure you want to logout? You will need to login again to access the system.</p>
+                
+                <div class="flex justify-end gap-3">
+                    <button @click="showLogoutConfirm = false"
+                            class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors">
+                        Cancel
+                    </button>
+                    <button @click="window.location.href = '{{ url_for('logout') }}'"
+                            class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors">
+                        Yes, Logout
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- HIDDEN PRINT SECTION - Only shows when printing -->
+    <div class="print-only" style="position: absolute; left: -9999px; width: 210mm; padding: 40px;">
+        <!-- Official Header -->
+        <div style="text-align: center; margin-bottom: 40px;">
+            <div style="display: flex; align-items: center; justify-content: center; gap: 40px; margin-bottom: 20px;">
+                <img src="{{ url_for('static', filename='img/iclinic-logo.png') }}" alt="Norzagaray College Logo" style="width: 80px; height: 80px; object-fit: contain;">
+                <div>
+                    <h1 style="font-size: 16px; font-weight: 900; color: black; margin: 0; letter-spacing: 1px;">NORZAGARAY COLLEGE</h1>
+                    <p style="font-size: 12px; font-weight: 600; color: black; margin: 2px 0;">Municipal Compound, Brgy. Poblacion</p>
+                    <p style="font-size: 12px; font-weight: 600; color: black; margin: 2px 0;">Norzagaray, Bulacan</p>
+                </div>
+                <img src="{{ url_for('static', filename='img/Picture1.jpg') }}" alt="School Building" style="width: 80px; height: 80px; object-fit: contain;">
+            </div>
+            <h2 style="font-size: 20px; font-weight: 900; color: black; margin: 30px 0; letter-spacing: 2px;">
+                SYSTEM ADMINISTRATION REPORTS
+            </h2>
+        </div>
+        
+        <!-- Main Table Layout -->
+        <table style="width: 100%; border-collapse: collapse; border: 2px solid black;">
+            <tr>
+                <!-- SUMMARY Column -->
+                <td style="width: 40%; border: 2px solid black; vertical-align: top; padding: 0;">
+                    <div style="background: black; color: white; text-align: center; padding: 8px; font-weight: 700; font-size: 14px;">
+                        SUMMARY
+                    </div>
+                    <div style="padding: 20px;">
+                        <!-- Chart Summary Data -->
+                        <div style="margin-bottom: 20px;">
+                            <h4 style="font-size: 12px; font-weight: 700; color: black; margin-bottom: 15px; text-align: center;">Top Data Points</h4>
+                            <template x-for="(item, index) in chartSummaryData" :key="index">
+                                <div style="border-bottom: 1px solid #e5e7eb; padding: 12px 0; display: flex; justify-content: space-between; align-items: center;">
+                                    <div style="flex: 1;">
+                                        <div style="font-size: 10px; color: #6b7280; margin-bottom: 2px;" x-text="'#' + (index + 1)"></div>
+                                        <div style="font-size: 11px; font-weight: 600; color: #1f2937;" x-text="item.label"></div>
+                                    </div>
+                                    <div style="font-size: 20px; font-weight: 900; color: #2563eb;" x-text="item.value"></div>
+                                </div>
+                            </template>
+                            
+                            <!-- Fallback if no data -->
+                            <template x-if="chartSummaryData.length === 0">
+                                <div style="text-align: center; padding: 20px; color: #9ca3af;">
+                                    <p style="font-size: 11px; margin: 0;">No data available</p>
+                                </div>
+                            </template>
+                        </div>
+                        
+                        <!-- Additional Info -->
+                        <div style="margin-top: 30px; padding-top: 20px; border-top: 2px solid black;">
+                            <div style="font-size: 10px; color: #666; margin-bottom: 5px;">
+                                <strong>Report Date:</strong><br>
+                                <span x-text="new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })"></span>
+                            </div>
+                            <div style="font-size: 10px; color: #666; margin-top: 10px;">
+                                <strong>Generated By:</strong><br>
+                                System Administrator
+                            </div>
+                            <div style="font-size: 10px; color: #666; margin-top: 10px;">
+                                <strong>Academic Year:</strong><br>
+                                <span x-text="reportPeriod">2024-2025</span>
+                            </div>
+                        </div>
+                    </div>
+                </td>
+                
+                <!-- REPORTS Column -->
+                <td style="width: 60%; border: 2px solid black; vertical-align: top; padding: 0;">
+                    <div style="background: black; color: white; text-align: center; padding: 8px; font-weight: 700; font-size: 14px;">
+                        REPORTS
+                    </div>
+                    <div style="padding: 20px;">
+                        <!-- Dynamic Chart Title -->
+                        <h4 style="font-size: 14px; font-weight: 700; color: black; margin-bottom: 20px; text-align: center; text-transform: uppercase;" x-text="selectedChartTitle || 'Clinic Statistics'"></h4>
+                        
+                        <!-- Dynamic Chart -->
+                        <div style="margin: 20px 0;">
+                            <canvas id="printDynamicChart" style="max-height: 200px; height: 200px;"></canvas>
+                        </div>
+                    </div>
+                </td>
+            </tr>
+        </table>
+        
+        <!-- Signature -->
+        <div style="margin-top: 60px; text-align: center;">
+            <div style="display: inline-block; width: 300px;">
+                <div style="border-bottom: 2px solid black; margin-bottom: 5px; padding-bottom: 20px;"></div>
+                <p style="font-weight: 700; font-size: 11px; margin: 0;">
+                    System Administrator
+                </p>
+                <p style="font-size: 10px; color: #666; margin: 2px 0;">Prepared By</p>
+            </div>
+        </div>
+    </div>
+
+</body>
+</html>
