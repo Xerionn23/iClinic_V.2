@@ -86,3 +86,10 @@ temp/
 # Server-specific files
 .htaccess
 web.config
+
+
+__pycache__/
+*.pyc
+*.bak2
+config/__pycache__/
+patch-onsite-ticket*.ps1
