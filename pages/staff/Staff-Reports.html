@@ -366,6 +366,13 @@
             padding-left: 12px;
         }
         
+        /* AI interpretation pill style */
+        .ai-interpretation {
+            margin-top: 0.25rem;
+            border-left-width: 3px;
+            border-left-style: solid;
+        }
+        
         /* Mobile responsive adjustments */
         @media (max-width: 768px) {
             .sidebar-collapsed {
@@ -910,134 +917,7 @@
                             <p class="text-gray-600 mt-2">Visual insights into clinic performance and patient care</p>
                         </div>
 
-                        <!-- AI Insights Panel -->
-                        <div class="mb-6">
-                            <div class="bg-gradient-to-r from-sky-50 via-white to-indigo-50 border border-sky-200 rounded-2xl shadow-md p-6 md:p-8 flex flex-col gap-4">
-                                <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                                    <div>
-                                        <div class="flex items-center gap-2">
-                                            <span class="inline-flex items-center justify-center w-9 h-9 rounded-xl bg-sky-600 text-white shadow-sm">
-                                                <i data-feather="cpu" class="w-5 h-5"></i>
-                                            </span>
-                                            <div>
-                                                <h3 class="text-lg md:text-xl font-bold text-sky-900">AI Report Insights</h3>
-                                                <p class="text-xs md:text-sm text-sky-700">
-                                                    Smart interpretation of recent clinic data to support nursing decisions.
-                                                </p>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div class="flex flex-wrap items-center gap-2">
-                                        <select x-model="aiInsightsPeriod"
-                                                class="px-3 py-2 border border-sky-200 rounded-lg text-xs md:text-sm bg-white text-sky-900 focus:outline-none focus:ring-2 focus:ring-sky-500">
-                                            <option value="week">📆 Last 7 days</option>
-                                            <option value="month">📊 Last 30 days</option>
-                                        </select>
-                                        <button @click="loadAiInsights(aiInsightsPeriod)"
-                                                class="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-xs md:text-sm font-semibold text-white bg-sky-600 hover:bg-sky-700 shadow-sm transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
-                                                :disabled="aiInsightsLoading">
-                                            <svg x-show="aiInsightsLoading" class="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4l3-3-3-3v4a12 12 0 00-12 12h4z"></path>
-                                            </svg>
-                                            <i x-show="!aiInsightsLoading" data-feather="sparkles" class="w-4 h-4"></i>
-                                            <span x-text="aiInsightsLoading ? 'Analyzing data…' : (aiInsightsLoaded ? 'Refresh insights' : 'Generate insights')"></span>
-                                        </button>
-                                    </div>
-                                </div>
-
-                                <!-- Error / Empty states -->
-                                <template x-if="aiInsightsError">
-                                    <div class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-xs md:text-sm text-red-700">
-                                        <div class="flex items-start gap-2">
-                                            <i data-feather="alert-triangle" class="w-4 h-4 mt-0.5"></i>
-                                            <p x-text="aiInsightsError"></p>
-                                        </div>
-                                    </div>
-                                </template>
-
-                                <div x-show="aiInsights && !aiInsightsError" class="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6">
-                                    <!-- Narrative summary -->
-                                    <div class="lg:col-span-2 space-y-3">
-                                        <div>
-                                            <h4 class="text-sm font-semibold text-sky-900 mb-1">Summary</h4>
-                                            <p class="text-xs md:text-sm text-sky-800 leading-relaxed" x-text="aiInsights.summary || 'Insights will appear here after analysis.'"></p>
-                                        </div>
-                                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                                            <div class="bg-white/80 rounded-xl border border-sky-100 px-3 py-2">
-                                                <p class="text-[11px] font-medium text-sky-700 uppercase tracking-wide">Peak Hours</p>
-                                                <p class="mt-1 text-xs md:text-sm text-sky-900" x-text="aiInsights.peak_hours || 'No pattern detected yet.'"></p>
-                                            </div>
-                                            <div class="bg-white/80 rounded-xl border border-sky-100 px-3 py-2 sm:col-span-2">
-                                                <p class="text-[11px] font-medium text-sky-700 uppercase tracking-wide">Demographics</p>
-                                                <p class="mt-1 text-xs md:text-sm text-sky-900" x-text="aiInsights.demographics || 'No demographic summary available yet.'"></p>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <!-- Alerts & recommendations -->
-                                    <div class="space-y-3">
-                                        <div>
-                                            <div class="flex items-center justify-between mb-1">
-                                                <h4 class="text-sm font-semibold text-sky-900">Key Alerts</h4>
-                                                <span class="text-[11px] text-sky-700" x-text="(aiInsights.chart_data?.active_alerts || aiInsights.alerts?.length || 0) + ' alerts'"></span>
-                                            </div>
-                                            <div class="space-y-2 max-h-32 overflow-y-auto pr-1">
-                                                <template x-if="!aiInsights.alerts || aiInsights.alerts.length === 0">
-                                                    <p class="text-xs text-sky-700">No urgent alerts detected from recent records.</p>
-                                                </template>
-                                                <template x-for="alert in aiInsights.alerts || []" :key="alert.title + alert.level">
-                                                    <div class="flex items-start gap-2 rounded-md px-2 py-1.5"
-                                                         :class="{
-                                                            'bg-red-50 border border-red-200': alert.level === 'critical',
-                                                            'bg-amber-50 border border-amber-200': alert.level === 'warning',
-                                                            'bg-emerald-50 border border-emerald-200': alert.level === 'info'
-                                                         }">
-                                                        <span class="mt-0.5">
-                                                            <span class="inline-block w-2 h-2 rounded-full"
-                                                                  :class="{
-                                                                    'bg-red-500': alert.level === 'critical',
-                                                                    'bg-amber-500': alert.level === 'warning',
-                                                                    'bg-emerald-500': alert.level === 'info'
-                                                                  }"></span>
-                                                        </span>
-                                                        <div class="text-[11px] md:text-xs">
-                                                            <p class="font-semibold" x-text="alert.title"></p>
-                                                            <p class="text-slate-700" x-text="alert.description"></p>
-                                                            <p class="mt-0.5 text-[10px] text-slate-500" x-text="alert.action"></p>
-                                                        </div>
-                                                    </div>
-                                                </template>
-                                            </div>
-                                        </div>
-
-                                        <div>
-                                            <h4 class="text-sm font-semibold text-sky-900 mb-1">Nurse Recommendations</h4>
-                                            <div class="space-y-1.5 max-h-28 overflow-y-auto pr-1">
-                                                <template x-if="!aiInsights.recommendations || aiInsights.recommendations.length === 0">
-                                                    <p class="text-xs text-sky-700">Recommendations will appear here based on current clinic activity.</p>
-                                                </template>
-                                                <template x-for="rec in aiInsights.recommendations || []" :key="rec.title">
-                                                    <div class="flex items-start gap-2">
-                                                        <span class="mt-0.5">
-                                                            <i data-feather="check-circle" class="w-3 h-3 text-emerald-600"></i>
-                                                        </span>
-                                                        <div class="text-[11px] md:text-xs">
-                                                            <p class="font-semibold text-slate-900" x-text="rec.title"></p>
-                                                            <p class="text-slate-700" x-text="rec.description"></p>
-                                                        </div>
-                                                    </div>
-                                                </template>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <p class="mt-1 text-[10px] text-slate-500">
-                                    These insights are decision-support only and do not replace professional clinical judgment.
-                                </p>
-                            </div>
-                        </div>
+                        
 
                         <div class="grid grid-cols-1 xl:grid-cols-2 gap-8">
                             <!-- Medicine Usage Chart -->
@@ -1067,11 +947,11 @@
                                         </button>
                                     </div>
                                 </div>
-                                <div class="h-72 bg-gray-50 rounded-xl p-4 flex flex-col space-y-3">
+                                <div class="bg-gray-50 rounded-xl p-4 flex flex-col space-y-3 min-h-[18rem]">
                                     <div class="flex-1 flex items-center justify-center">
                                         <canvas id="revenueChart"></canvas>
                                     </div>
-                                    <div x-show="chartInsights['revenueChart'] || chartInsightsError['revenueChart']" class="text-[11px] md:text-xs bg-purple-50 border border-purple-100 text-purple-900 rounded-lg px-3 py-2 leading-relaxed">
+                                    <div x-show="chartInsights['revenueChart'] || chartInsightsError['revenueChart']" class="ai-interpretation text-[11px] sm:text-xs md:text-[13px] bg-purple-50 border border-purple-100 text-purple-900 rounded-lg px-3 py-2 leading-relaxed border-l-purple-400 whitespace-pre-line">
                                         <p class="font-semibold mb-0.5">AI Interpretation</p>
                                         <p x-text="chartInsightsError['revenueChart'] || chartInsights['revenueChart']"></p>
                                     </div>
@@ -1092,6 +972,14 @@
                                                 <option value="bar">📊 Bar</option>
                                                 <option value="pie">🥧 Pie</option>
                                             </select>
+                                            <button @click="generateChartInsight('monthlyVisitsChart', 'Monthly Patient Visits')" :disabled="chartInsightsLoading['monthlyVisitsChart']" class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg text-sm flex items-center space-x-1 transition-colors disabled:opacity-60 disabled:cursor-not-allowed">
+                                                <svg x-show="chartInsightsLoading['monthlyVisitsChart']" class="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4l3-3-3-3v4a8 8 0 100 16v-4l-3 3 3 3v-4a8 8 0 01-8-8z"></path>
+                                                </svg>
+                                                <i x-show="!chartInsightsLoading['monthlyVisitsChart']" data-feather="sparkles" class="w-4 h-4"></i>
+                                                <span x-text="chartInsightsLoading['monthlyVisitsChart'] ? 'Analyzing…' : 'AI Explain'"></span>
+                                            </button>
                                             <button @click="exportChart('monthlyVisitsChart', 'Monthly_Visits')" class="bg-blue-50 hover:bg-blue-100 text-blue-700 px-4 py-2 rounded-lg text-sm flex items-center space-x-2 transition-colors border border-blue-200">
                                                 <i data-feather="download" class="w-4 h-4"></i>
                                                 <span>Export</span>
@@ -1137,8 +1025,14 @@
                                         </div>
                                     </div>
                                 </div>
-                                <div class="h-72 bg-gray-50 rounded-xl p-4">
-                                    <canvas id="monthlyVisitsChart"></canvas>
+                                <div class="bg-gray-50 rounded-xl p-4 flex flex-col space-y-3 min-h-[18rem]">
+                                    <div class="flex-1">
+                                        <canvas id="monthlyVisitsChart"></canvas>
+                                    </div>
+                                    <div x-show="chartInsights['monthlyVisitsChart'] || chartInsightsError['monthlyVisitsChart']" class="ai-interpretation text-[11px] sm:text-xs md:text-[13px] bg-blue-50 border border-blue-100 text-blue-900 rounded-lg px-3 py-2 leading-relaxed border-l-blue-400 whitespace-pre-line">
+                                        <p class="font-semibold mb-0.5">AI Interpretation</p>
+                                        <p x-text="chartInsightsError['monthlyVisitsChart'] || chartInsights['monthlyVisitsChart']"></p>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -1148,7 +1042,7 @@
                     <div class="mb-8">
                         
                         <!-- Unified Grid Layout for All Charts -->
-                        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                                <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
                             <!-- Patient Demographics Chart -->
                             <div class="bg-white rounded-2xl shadow-lg border border-gray-100 p-8" data-chart-container>
                                 <div class="flex items-center justify-between mb-6">
@@ -1162,14 +1056,28 @@
                                             <option value="bar">📊 Bar</option>
                                             <option value="doughnut">🍩 Doughnut</option>
                                         </select>
+                                        <button @click="generateChartInsight('patientDemographicsChart', 'Patient Demographics')" :disabled="chartInsightsLoading['patientDemographicsChart']" class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg text-sm flex items-center space-x-1 transition-colors disabled:opacity-60 disabled:cursor-not-allowed">
+                                            <svg x-show="chartInsightsLoading['patientDemographicsChart']" class="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4l3-3-3-3v4a8 8 0 100 16v-4l-3 3 3 3v-4a8 8 0 01-8-8z"></path>
+                                            </svg>
+                                            <i x-show="!chartInsightsLoading['patientDemographicsChart']" data-feather="sparkles" class="w-4 h-4"></i>
+                                            <span x-text="chartInsightsLoading['patientDemographicsChart'] ? 'Analyzing…' : 'AI Explain'"></span>
+                                        </button>
                                         <button @click="exportChart('patientDemographicsChart', 'Patient_Demographics')" class="bg-blue-50 hover:bg-blue-100 text-blue-700 px-4 py-2 rounded-lg text-sm flex items-center space-x-2 transition-colors border border-blue-200">
                                             <i data-feather="download" class="w-4 h-4"></i>
                                             <span>Export</span>
                                         </button>
                                     </div>
                                 </div>
-                                <div class="h-72 bg-gray-50 rounded-xl p-4">
-                                    <canvas id="patientDemographicsChart"></canvas>
+                                <div class="bg-gray-50 rounded-xl p-4 flex flex-col space-y-3 min-h-[18rem]">
+                                    <div class="flex-1 flex items-center justify-center">
+                                        <canvas id="patientDemographicsChart"></canvas>
+                                    </div>
+                                    <div x-show="chartInsights['patientDemographicsChart'] || chartInsightsError['patientDemographicsChart']" class="ai-interpretation text-[11px] sm:text-xs md:text-[13px] bg-blue-50 border border-blue-100 text-blue-900 rounded-lg px-3 py-2 leading-relaxed border-l-blue-400 whitespace-pre-line">
+                                        <p class="font-semibold mb-0.5">AI Interpretation</p>
+                                        <p x-text="chartInsightsError['patientDemographicsChart'] || chartInsights['patientDemographicsChart']"></p>
+                                    </div>
                                 </div>
                             </div>
 
@@ -1186,14 +1094,28 @@
                                             <option value="line">📈 Line</option>
                                             <option value="pie">🥧 Pie</option>
                                         </select>
+                                        <button @click="generateChartInsight('medicalRecordsChart', 'Medical Records Trends')" :disabled="chartInsightsLoading['medicalRecordsChart']" class="bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded-lg text-sm flex items-center space-x-1 transition-colors disabled:opacity-60 disabled:cursor-not-allowed">
+                                            <svg x-show="chartInsightsLoading['medicalRecordsChart']" class="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4l3-3-3-3v4a8 8 0 100 16v-4l-3 3 3 3v-4a8 8 0 01-8-8z"></path>
+                                            </svg>
+                                            <i x-show="!chartInsightsLoading['medicalRecordsChart']" data-feather="sparkles" class="w-4 h-4"></i>
+                                            <span x-text="chartInsightsLoading['medicalRecordsChart'] ? 'Analyzing…' : 'AI Explain'"></span>
+                                        </button>
                                         <button @click="exportChart('medicalRecordsChart', 'Medical_Records_Trends')" class="bg-green-50 hover:bg-green-100 text-green-700 px-4 py-2 rounded-lg text-sm flex items-center space-x-2 transition-colors border border-green-200">
                                             <i data-feather="download" class="w-4 h-4"></i>
                                             <span>Export</span>
                                         </button>
                                     </div>
                                 </div>
-                                <div class="h-72 bg-gray-50 rounded-xl p-4">
-                                    <canvas id="medicalRecordsChart"></canvas>
+                                <div class="bg-gray-50 rounded-xl p-4 flex flex-col space-y-3 min-h-[18rem]">
+                                    <div class="flex-1 flex items-center justify-center">
+                                        <canvas id="medicalRecordsChart"></canvas>
+                                    </div>
+                                    <div x-show="chartInsights['medicalRecordsChart'] || chartInsightsError['medicalRecordsChart']" class="ai-interpretation text-[11px] sm:text-xs md:text-[13px] bg-green-50 border border-green-100 text-green-900 rounded-lg px-3 py-2 leading-relaxed border-l-green-400 whitespace-pre-line">
+                                        <p class="font-semibold mb-0.5">AI Interpretation</p>
+                                        <p x-text="chartInsightsError['medicalRecordsChart'] || chartInsights['medicalRecordsChart']"></p>
+                                    </div>
                                 </div>
                             </div>
 
@@ -1224,11 +1146,11 @@
                                         </button>
                                     </div>
                                 </div>
-                                <div class="h-72 bg-gray-50 rounded-xl p-4 flex flex-col space-y-3">
+                                <div class="bg-gray-50 rounded-xl p-4 flex flex-col space-y-3 min-h-[18rem]">
                                     <div class="flex-1 flex items-center justify-center">
                                         <canvas id="stockLevelsChart"></canvas>
                                     </div>
-                                    <div x-show="chartInsights['stockLevelsChart'] || chartInsightsError['stockLevelsChart']" class="text-[11px] md:text-xs bg-orange-50 border border-orange-100 text-orange-900 rounded-lg px-3 py-2 leading-relaxed">
+                                    <div x-show="chartInsights['stockLevelsChart'] || chartInsightsError['stockLevelsChart']" class="ai-interpretation text-[11px] sm:text-xs md:text-[13px] bg-orange-50 border border-orange-100 text-orange-900 rounded-lg px-3 py-2 leading-relaxed border-l-orange-400 whitespace-pre-line">
                                         <p class="font-semibold mb-0.5">AI Interpretation</p>
                                         <p x-text="chartInsightsError['stockLevelsChart'] || chartInsights['stockLevelsChart']"></p>
                                     </div>
@@ -1262,11 +1184,11 @@
                                         </button>
                                     </div>
                                 </div>
-                                <div class="h-72 bg-gray-50 rounded-xl p-4 flex flex-col space-y-3">
+                                <div class="bg-gray-50 rounded-xl p-4 flex flex-col space-y-3 min-h-[18rem]">
                                     <div class="flex-1 flex items-center justify-center">
                                         <canvas id="suppliesStatusChart"></canvas>
                                     </div>
-                                    <div x-show="chartInsights['suppliesStatusChart'] || chartInsightsError['suppliesStatusChart']" class="text-[11px] md:text-xs bg-teal-50 border border-teal-100 text-teal-900 rounded-lg px-3 py-2 leading-relaxed">
+                                    <div x-show="chartInsights['suppliesStatusChart'] || chartInsightsError['suppliesStatusChart']" class="ai-interpretation text-[11px] sm:text-xs md:text-[13px] bg-teal-50 border border-teal-100 text-teal-900 rounded-lg px-3 py-2 leading-relaxed border-l-teal-400 whitespace-pre-line">
                                         <p class="font-semibold mb-0.5">AI Interpretation</p>
                                         <p x-text="chartInsightsError['suppliesStatusChart'] || chartInsights['suppliesStatusChart']"></p>
                                     </div>
@@ -1274,7 +1196,6 @@
                             </div>
                         </div>
                     </div>
-
                     </div>
 
             </main>
@@ -1350,6 +1271,13 @@
                 announcementCategoriesChartType: 'pie',
                 priorityAnalysisChartType: 'bar',
                 chartDataCache: {}, // Store chart data for type switching
+
+                // Shared filters and AI planning state (keep in sync with advanced module)
+                selectedChartFilter: 'all',
+                reportPeriod: '2024-2025',
+                selectedChartTitle: '',
+                illnessPlan: null,
+                selectedIllnessMonthIndex: 0,
                 
                 // Data
                 stats: {
@@ -2279,6 +2207,7 @@
                 suppliesStatusChartType: 'doughnut',
                 announcementCategoriesChartType: 'bar',
                 priorityAnalysisChartType: 'pie',
+                illnessForecastChart: null,
                 
                 // Chart filter
                 selectedChartFilter: 'all',
@@ -2370,6 +2299,10 @@
                         waitTime: '12 minutes'
                     }
                 },
+
+                // AI illness forecast planning (per-month details)
+                illnessPlan: null,
+                selectedIllnessMonthIndex: 0,
 
                 // AI insights from backend analytics
                 aiInsights: {
@@ -3666,6 +3599,7 @@
                         this.initSuppliesStatusChart();
                         this.initAnnouncementCategoriesChart();
                         this.initPriorityAnalysisChart();
+                        this.initIllnessForecastChart();
                         
                         // Initialize MONTHLY TREND charts with database connectivity
                         console.log('📊 Initializing Monthly Trend Charts...');
@@ -4434,7 +4368,6 @@
                     if (!canvas) return;
 
                     try {
-                        // Use correct supplies endpoint from memory  
                         const response = await fetch('/api/supplies');
                         
                         if (!response.ok) {
@@ -4496,6 +4429,106 @@
                         });
                     } catch (error) {
                         console.error('Error loading supplies data:', error);
+                    }
+                },
+
+                async initIllnessForecastChart() {
+                    console.log('🩺 Initializing Illness Forecast Chart...');
+                    const canvas = this.validateCanvas('illnessForecastChart');
+                    if (!canvas) return;
+
+                    try {
+                        const response = await fetch('/api/illness-forecast?months=6');
+                        const payload = await response.json();
+
+                        if (!payload.success || !payload.labels || !payload.values) {
+                            console.warn('⚠️ Illness forecast API returned no data');
+                            const ctx = canvas.getContext('2d');
+                            ctx.clearRect(0, 0, canvas.width, canvas.height);
+                            ctx.fillStyle = '#6B7280';
+                            ctx.font = '14px Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+                            ctx.textAlign = 'center';
+                            ctx.fillText('No forecast data available', canvas.width / 2, canvas.height / 2);
+                            return;
+                        }
+
+                        const labels = payload.labels;
+                        const values = payload.values;
+                        const illnesses = payload.illnesses || [];
+                        const plan = payload.plan || null;
+
+                        // Prefer AI-generated planning summary from backend if available
+                        if (plan && typeof plan === 'object') {
+                            const summary =
+                                plan.overall_summary ||
+                                (Array.isArray(plan.per_month) && plan.per_month.length
+                                    ? `Forecast focus: ${plan.per_month[0].primary_illness} around ${plan.per_month[0].month}.`
+                                    : null);
+
+                            if (summary) {
+                                this.chartInsights['illnessForecastChart'] = summary;
+                            } else {
+                                this.chartInsightsError['illnessForecastChart'] =
+                                    'AI forecast loaded, but no planning summary was returned.';
+                            }
+
+                            // Store full AI planning JSON so UI can show per-month details
+                            if (Array.isArray(plan.per_month) && plan.per_month.length) {
+                                this.illnessPlan = plan;
+                                this.selectedIllnessMonthIndex = 0;
+                            }
+                        } else {
+                            // Graceful fallback so the nurse sees why no AI text is shown
+                            this.chartInsightsError['illnessForecastChart'] =
+                                'Illness forecast chart is available, but AI planning text is not. ' +
+                                'Configure the OpenAI API key on the server or try again later.';
+                        }
+
+                        this.illnessForecastChart = this.createChartSafely(canvas, {
+                            type: 'bar',
+                            data: {
+                                labels,
+                                datasets: [{
+                                    label: 'Relative expected cases',
+                                    data: values,
+                                    backgroundColor: 'rgba(16, 185, 129, 0.85)',
+                                    borderColor: '#10B981',
+                                    borderWidth: 2,
+                                    borderRadius: 6
+                                }]
+                            },
+                            options: {
+                                responsive: true,
+                                maintainAspectRatio: false,
+                                plugins: {
+                                    legend: { display: false },
+                                    tooltip: {
+                                        callbacks: {
+                                            label: function(context) {
+                                                const idx = context.dataIndex;
+                                                const illness = illnesses[idx] || 'Likely complaint';
+                                                const value = context.parsed.y;
+                                                return `${illness}: relative score ${value}`;
+                                            }
+                                        }
+                                    }
+                                },
+                                scales: {
+                                    y: {
+                                        beginAtZero: true,
+                                        ticks: { precision: 0 }
+                                    }
+                                }
+                            }
+                        });
+                    } catch (error) {
+                        console.error('❌ Error initializing illness forecast chart:', error);
+                        const ctx = canvas.getContext('2d');
+                        ctx.clearRect(0, 0, canvas.width, canvas.height);
+                        ctx.fillStyle = '#6B7280';
+                        ctx.font = '14px Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+                        ctx.textAlign = 'center';
+                        ctx.fillText('Unable to load forecast data', canvas.width / 2, canvas.height / 2);
                     }
                 },
 
@@ -5384,7 +5417,7 @@
                             'revenueChart', 'patientDemographicsChart', 'medicalRecordsChart',
                             'appointmentStatusChart', 'bookingPatternsChart', 'consultationMetricsChart',
                             'consultationPatientTypesChart', 'stockLevelsChart', 'suppliesStatusChart',
-                            'announcementCategoriesChart', 'priorityAnalysisChart'
+                            'announcementCategoriesChart', 'priorityAnalysisChart', 'illnessForecastChart'
                         ];
 
                         chartRefs.forEach(chartRef => {

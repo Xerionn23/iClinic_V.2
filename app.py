@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, session, jsonify, flash, send_file
+﻿from flask import Flask, render_template, request, redirect, url_for, session, jsonify, flash, send_file
 from flask_cors import CORS
 import mysql.connector
 from mysql.connector import Error
@@ -8,6 +8,7 @@ import os
 import json
 import smtplib
 import secrets
+import random
 import uuid
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
@@ -74,7 +75,7 @@ def send_verification_email(to_email, verification_token, user_name):
         <body>
             <div class="container">
                 <div class="header">
-                    <h1>🏥 iClinic Healthcare System</h1>
+                    <h1>ðŸ¥ iClinic Healthcare System</h1>
                     <p>Email Verification Required</p>
                 </div>
                 <div class="content">
@@ -96,7 +97,7 @@ def send_verification_email(to_email, verification_token, user_name):
                     <p>If you didn't request this registration, please ignore this email.</p>
                 </div>
                 <div class="footer">
-                    <p>© 2024 iClinic Healthcare Management System<br>
+                    <p>Â© 2024 iClinic Healthcare Management System<br>
                     Norzagaray College</p>
                 </div>
             </div>
@@ -122,7 +123,7 @@ def send_verification_email(to_email, verification_token, user_name):
         
         return True
     except Exception as e:
-        print(f"❌ Failed to send verification email: {str(e)}")
+        print(f"âŒ Failed to send verification email: {str(e)}")
         return False
 
 def send_password_reset_email(to_email, reset_token, user_name):
@@ -172,7 +173,7 @@ def send_password_reset_email(to_email, reset_token, user_name):
                 </div>
                 
                 <div style="background: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin: 20px 0; border-radius: 4px;">
-                    <p style="margin: 0; color: #856404;"><strong>⚠️ Important:</strong></p>
+                    <p style="margin: 0; color: #856404;"><strong>âš ï¸ Important:</strong></p>
                     <ul style="margin: 10px 0 0 0; padding-left: 20px; color: #856404;">
                         <li>This link will expire in <strong>1 hour</strong> for security reasons</li>
                         <li>If you didn't request this password reset, please ignore this email</li>
@@ -215,7 +216,7 @@ def send_password_reset_email(to_email, reset_token, user_name):
         
         return True
     except Exception as e:
-        print(f"❌ Failed to send verification email: {str(e)}")
+        print(f"âŒ Failed to send verification email: {str(e)}")
         return False
 
 def validate_id_and_get_info(cursor, role, id_number, full_name, email):
@@ -471,7 +472,7 @@ def validate_id_and_get_info(cursor, role, id_number, full_name, email):
             }
             
     except Exception as e:
-        print(f"❌ ID validation error: {str(e)}")
+        print(f"âŒ ID validation error: {str(e)}")
         return {
             'valid': False,
             'message': 'Validation failed. Please try again.'
@@ -577,10 +578,10 @@ def init_db():
             ALTER TABLE students 
             ADD COLUMN is_active BOOLEAN DEFAULT TRUE
         """)
-        print("✅ Added is_active column to students table")
+        print("âœ… Added is_active column to students table")
     except Exception as e:
         if "Duplicate column name" not in str(e):
-            print(f"ℹ️  is_active column check: {e}")
+            print(f"â„¹ï¸  is_active column check: {e}")
     
     # Clinic stays table for monitoring patients staying in clinic
     cursor.execute('''
@@ -771,7 +772,7 @@ def init_db():
     try:
         cursor.execute("SHOW COLUMNS FROM visitors LIKE 'full_name'")
         if cursor.fetchone():
-            print("🔄 Migrating visitors table to new structure...")
+            print("ðŸ”„ Migrating visitors table to new structure...")
             # Add new columns
             cursor.execute("ALTER TABLE visitors ADD COLUMN first_name VARCHAR(50) AFTER id")
             cursor.execute("ALTER TABLE visitors ADD COLUMN middle_name VARCHAR(50) AFTER first_name")
@@ -781,9 +782,9 @@ def init_db():
             # Drop old columns
             cursor.execute("ALTER TABLE visitors DROP COLUMN full_name")
             cursor.execute("ALTER TABLE visitors DROP COLUMN purpose_of_visit")
-            print("✅ Visitors table migration complete")
+            print("âœ… Visitors table migration complete")
     except Exception as migration_error:
-        print(f"ℹ️ Visitors table migration: {migration_error}")
+        print(f"â„¹ï¸ Visitors table migration: {migration_error}")
         pass
     
     # Visitor medical records table (similar to medical_records but for visitors)
@@ -1125,6 +1126,44 @@ def init_db():
             FOREIGN KEY (created_by) REFERENCES users(id)
         )
     ''')
+
+    # Consultation tickets table for onsite queueing
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS consultation_tickets (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            ticket_number VARCHAR(10),
+            patient_type VARCHAR(30) NOT NULL,                 -- student / teaching_staff / non_teaching_staff / visitor
+            patient_identifier VARCHAR(50),                    -- e.g. student_number or employee_id
+            full_name VARCHAR(100),
+            priority VARCHAR(2) NOT NULL DEFAULT 'P3',         -- P1 emergency, P2 urgent, P3 routine, P4 admin
+            status VARCHAR(20) NOT NULL DEFAULT 'waiting',     -- waiting, called, in_consultation, completed, cancelled, no_show
+            chief_complaint VARCHAR(255),
+            severity_score TINYINT,
+            triage_notes TEXT,
+            vitals JSON,
+            arrival_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            called_at DATETIME,
+            completed_at DATETIME,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            INDEX idx_status_priority (status, priority, arrival_time),
+            INDEX idx_arrival_time (arrival_time)
+        )
+    ''')
+
+    try:
+        cursor.execute("SHOW COLUMNS FROM consultation_tickets LIKE 'ticket_number'")
+        if not cursor.fetchone():
+            cursor.execute("ALTER TABLE consultation_tickets ADD COLUMN ticket_number VARCHAR(10) AFTER id")
+            conn.commit()
+    except Exception as e:
+        print(f"Note: Could not add ticket_number column to consultation_tickets (may already exist): {e}")
+
+    try:
+        cursor.execute("ALTER TABLE consultation_tickets MODIFY chief_complaint VARCHAR(255) NULL")
+        conn.commit()
+    except Exception as e:
+        print(f"Note: Could not modify chief_complaint column in consultation_tickets (may already be compatible): {e}")
     
     # Add sample clinic events data if table is empty
     try:
@@ -1220,7 +1259,7 @@ def init_db():
             cursor.execute('ALTER TABLE students ADD COLUMN insurance_payment_date DATE NULL')
             cursor.execute('ALTER TABLE students ADD COLUMN insurance_notes TEXT NULL')
             conn.commit()
-            print("✅ Added insurance payment columns: insurance_paid, insurance_amount, insurance_payment_date, insurance_notes")
+            print("âœ… Added insurance payment columns: insurance_paid, insurance_amount, insurance_payment_date, insurance_notes")
         else:
             print("Insurance payment columns already exist")
     except Exception as e:
@@ -1253,7 +1292,7 @@ def init_db():
         cursor.execute("SHOW COLUMNS FROM teaching LIKE 'age'")
         if not cursor.fetchone():
             cursor.execute('ALTER TABLE teaching ADD COLUMN age INT')
-            print("✅ Added age column to teaching table")
+            print("âœ… Added age column to teaching table")
     except Exception as e:
         print(f"Note: {e}")
     
@@ -1261,7 +1300,7 @@ def init_db():
         cursor.execute("SHOW COLUMNS FROM teaching LIKE 'gender'")
         if not cursor.fetchone():
             cursor.execute("ALTER TABLE teaching ADD COLUMN gender ENUM('Male', 'Female', 'Other') DEFAULT 'Male'")
-            print("✅ Added gender column to teaching table")
+            print("âœ… Added gender column to teaching table")
     except Exception as e:
         print(f"Note: {e}")
     
@@ -1269,7 +1308,7 @@ def init_db():
         cursor.execute("SHOW COLUMNS FROM teaching LIKE 'contact_number'")
         if not cursor.fetchone():
             cursor.execute('ALTER TABLE teaching ADD COLUMN contact_number VARCHAR(20)')
-            print("✅ Added contact_number column to teaching table")
+            print("âœ… Added contact_number column to teaching table")
     except Exception as e:
         print(f"Note: {e}")
     
@@ -1486,9 +1525,9 @@ def init_db():
         cursor.execute("SHOW COLUMNS FROM deans LIKE 'status'")
         if not cursor.fetchone():
             cursor.execute("ALTER TABLE deans ADD COLUMN status ENUM('Active', 'Inactive', 'On Leave') DEFAULT 'Active' AFTER department")
-            print("✅ Added 'status' column to deans table")
+            print("âœ… Added 'status' column to deans table")
     except Exception as e:
-        print(f"⚠️ Could not add status column to deans: {e}")
+        print(f"âš ï¸ Could not add status column to deans: {e}")
     
     try:
         cursor.execute("SHOW COLUMNS FROM deans LIKE 'appointment_date'")
@@ -1871,7 +1910,7 @@ def init_db():
             ''')
             
             conn.commit()
-            print("✅ Added nurse: Green Lloyd Lapig (NURSE-001)")
+            print("âœ… Added nurse: Green Lloyd Lapig (NURSE-001)")
             
     except Exception as e:
         print(f"Note: Could not add sample nurse data: {e}")
@@ -1902,7 +1941,7 @@ def init_db():
             ''')
             
             conn.commit()
-            print("✅ Added admin: System Administrator (ADMIN-001)")
+            print("âœ… Added admin: System Administrator (ADMIN-001)")
             
     except Exception as e:
         print(f"Note: Could not add sample admin data: {e}")
@@ -1938,9 +1977,9 @@ def init_db():
                 ''', staff)
             
             conn.commit()
-            print(f"✅ Added {len(sample_non_teaching)} sample non-teaching staff records")
+            print(f"âœ… Added {len(sample_non_teaching)} sample non-teaching staff records")
     except Exception as e:
-        print(f"⚠️ Error adding sample non-teaching staff: {e}")
+        print(f"âš ï¸ Error adding sample non-teaching staff: {e}")
     
     # Add sample deans data if table is empty
     try:
@@ -1967,9 +2006,9 @@ def init_db():
                 ''', dean)
             
             conn.commit()
-            print(f"✅ Added {len(sample_deans)} sample deans records")
+            print(f"âœ… Added {len(sample_deans)} sample deans records")
     except Exception as e:
-        print(f"⚠️ Error adding sample deans: {e}")
+        print(f"âš ï¸ Error adding sample deans: {e}")
     
     # Add sample president data if table is empty
     try:
@@ -1993,9 +2032,9 @@ def init_db():
                 ''', president)
             
             conn.commit()
-            print(f"✅ Added {len(sample_president)} sample president record")
+            print(f"âœ… Added {len(sample_president)} sample president record")
     except Exception as e:
-        print(f"⚠️ Error adding sample president: {e}")
+        print(f"âš ï¸ Error adding sample president: {e}")
     
     # Add emergency contact columns to students table if they don't exist
     try:
@@ -2008,9 +2047,9 @@ def init_db():
             ADD COLUMN IF NOT EXISTS allergies TEXT,
             ADD COLUMN IF NOT EXISTS medical_conditions TEXT
         ''')
-        print("✅ Emergency contact columns added to students table")
+        print("âœ… Emergency contact columns added to students table")
     except Exception as e:
-        print(f"⚠️ Emergency contact columns may already exist: {e}")
+        print(f"âš ï¸ Emergency contact columns may already exist: {e}")
     
     # Populate emergency contact data for all students
     try:
@@ -2061,9 +2100,9 @@ def init_db():
             ''', (contact_name, relationship, contact_number, blood_type, allergies, medical_conditions, student_number))
         
         conn.commit()
-        print(f"✅ Emergency contact data populated for {len(students)} students")
+        print(f"âœ… Emergency contact data populated for {len(students)} students")
     except Exception as e:
-        print(f"⚠️ Error populating emergency contact data: {e}")
+        print(f"âš ï¸ Error populating emergency contact data: {e}")
     
     # Create medicine_batches table for batch/lot tracking
     try:
@@ -2088,9 +2127,9 @@ def init_db():
             )
         ''')
         conn.commit()
-        print("✅ Medicine batches table created successfully!")
+        print("âœ… Medicine batches table created successfully!")
     except Exception as e:
-        print(f"⚠️ Error creating medicine_batches table: {e}")
+        print(f"âš ï¸ Error creating medicine_batches table: {e}")
     
     cursor.close()
     conn.close()
@@ -2168,7 +2207,7 @@ def login():
     user_id = request.form.get('username')  # This now contains User ID (student_number or staff identifier)
     password = request.form.get('password')
     
-    print(f"🔐 Login attempt with User ID: {user_id}")  # Debug log
+    print(f"ðŸ” Login attempt with User ID: {user_id}")  # Debug log
     
     if not user_id or not password:
         flash('Please enter both User ID and password', 'error')
@@ -2179,71 +2218,71 @@ def login():
     
     conn = DatabaseConfig.get_connection()
     if not conn:
-        print("❌ Database connection failed!")  # Debug log
+        print("âŒ Database connection failed!")  # Debug log
         flash('Database connection error', 'error')
         if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.accept_mimetypes.accept_json:
             return jsonify({'success': False, 'message': 'Database connection error. Please try again.'}), 500
         return redirect(url_for('login_page'))
     
-    print("✅ Database connected successfully")  # Debug log
+    print("âœ… Database connected successfully")  # Debug log
     
     cursor = conn.cursor()
     user = None
     
-    # 🆕 PRIORITY: Try to find user directly by user_id column first (fastest and most direct)
-    print(f"🔍 Step 1: Checking user_id column in users table...")
+    # ðŸ†• PRIORITY: Try to find user directly by user_id column first (fastest and most direct)
+    print(f"ðŸ” Step 1: Checking user_id column in users table...")
     cursor.execute('SELECT id, username, password_hash, role, first_name, last_name, position, email FROM users WHERE user_id = %s', (user_id,))
     user = cursor.fetchone()
     if user:
-        print(f"✅ Found user by user_id: {user[1]}, role: {user[3]}, email: {user[7]}")
+        print(f"âœ… Found user by user_id: {user[1]}, role: {user[3]}, email: {user[7]}")
     
     # Try to find user by student_number (for students without user_id populated)
     if not user:
-        print(f"🔍 Step 2: Checking if User ID is a student number...")
+        print(f"ðŸ” Step 2: Checking if User ID is a student number...")
         cursor.execute('SELECT student_number, std_Firstname, std_Surname, std_EmailAdd FROM students WHERE student_number = %s AND is_active = TRUE', (user_id,))
         student = cursor.fetchone()
         
         if student:
-            print(f"✅ Found student: {student[1]} {student[2]} (Student Number: {student[0]})")
+            print(f"âœ… Found student: {student[1]} {student[2]} (Student Number: {student[0]})")
             # Student found, now check if they have a user account
             cursor.execute('SELECT id, username, password_hash, role, first_name, last_name, position, email FROM users WHERE email = %s', (student[3],))
             user = cursor.fetchone()
             if user:
-                print(f"✅ Student has user account with role: {user[3]}, email: {user[7]}")
+                print(f"âœ… Student has user account with role: {user[3]}, email: {user[7]}")
     
     # If not found as student, try to find by nurse_id (for nurses)
     if not user:
-        print(f"🔍 Step 3: Checking if User ID is a nurse ID...")
+        print(f"ðŸ” Step 3: Checking if User ID is a nurse ID...")
         cursor.execute('SELECT nurse_id, first_name, last_name, email FROM nurses WHERE nurse_id = %s AND status = "Active"', (user_id,))
         nurse = cursor.fetchone()
         if nurse:
-            print(f"✅ Found nurse: {nurse[1]} {nurse[2]} (Nurse ID: {nurse[0]})")
+            print(f"âœ… Found nurse: {nurse[1]} {nurse[2]} (Nurse ID: {nurse[0]})")
             # Nurse found, now check if they have a user account
             cursor.execute('SELECT id, username, password_hash, role, first_name, last_name, position, email FROM users WHERE email = %s', (nurse[3],))
             user = cursor.fetchone()
             if user:
-                print(f"✅ Nurse has user account with role: {user[3]}, email: {user[7]}")
+                print(f"âœ… Nurse has user account with role: {user[3]}, email: {user[7]}")
     
     # If not found as nurse, try to find by admin_id (for admins)
     if not user:
-        print(f"🔍 Step 4: Checking if User ID is an admin ID...")
+        print(f"ðŸ” Step 4: Checking if User ID is an admin ID...")
         cursor.execute('SELECT admin_id, first_name, last_name, email FROM admins WHERE admin_id = %s AND status = "Active"', (user_id,))
         admin = cursor.fetchone()
         if admin:
-            print(f"✅ Found admin: {admin[1]} {admin[2]} (Admin ID: {admin[0]})")
+            print(f"âœ… Found admin: {admin[1]} {admin[2]} (Admin ID: {admin[0]})")
             # Admin found, now check if they have a user account
             cursor.execute('SELECT id, username, password_hash, role, first_name, last_name, position, email FROM users WHERE email = %s', (admin[3],))
             user = cursor.fetchone()
             if user:
-                print(f"✅ Admin has user account with role: {user[3]}, email: {user[7]}")
+                print(f"âœ… Admin has user account with role: {user[3]}, email: {user[7]}")
     
     # If not found as student/nurse/admin, try to find by username or email in users table (for other staff)
     if not user:
-        print(f"🔍 Step 5: Checking if User ID is a staff username/email...")
+        print(f"ðŸ” Step 5: Checking if User ID is a staff username/email...")
         cursor.execute('SELECT id, username, password_hash, role, first_name, last_name, position, email FROM users WHERE username = %s OR email = %s', (user_id, user_id))
         user = cursor.fetchone()
         if user:
-            print(f"✅ Found staff/admin user: {user[1]}, role: {user[3]}, email: {user[7]}")
+            print(f"âœ… Found staff/admin user: {user[1]}, role: {user[3]}, email: {user[7]}")
     
     print(f"User found: {user is not None}")  # Debug log
     if user:
@@ -2257,9 +2296,9 @@ def login():
         session['first_name'] = user[4]
         session['last_name'] = user[5]
         session['position'] = user[6]
-        session['email'] = user[7]  # ✅ ADD EMAIL TO SESSION!
+        session['email'] = user[7]  # âœ… ADD EMAIL TO SESSION!
         
-        print(f"✅ Session created - Email: {user[7]}")  # Debug log
+        print(f"âœ… Session created - Email: {user[7]}")  # Debug log
         
         # Fetch President ID or Dean ID if applicable (before closing connection)
         if user[3] == 'president':
@@ -2269,7 +2308,7 @@ def login():
                 session['identifier_id'] = president_data[0]  # Store president_id (e.g., PRES-001)
                 session['first_name'] = president_data[1]  # Override with actual first name from president table
                 session['last_name'] = president_data[2]  # Override with actual last name from president table
-                print(f"✅ President ID stored: {president_data[0]}, Name: {president_data[1]} {president_data[2]}")
+                print(f"âœ… President ID stored: {president_data[0]}, Name: {president_data[1]} {president_data[2]}")
         elif user[3] == 'deans':
             cursor.execute('SELECT dean_id, first_name, last_name FROM deans WHERE email = %s LIMIT 1', (user[1],))
             dean_data = cursor.fetchone()
@@ -2277,7 +2316,7 @@ def login():
                 session['identifier_id'] = dean_data[0]  # Store dean_id (e.g., DEAN-001)
                 session['first_name'] = dean_data[1]  # Override with actual first name from deans table
                 session['last_name'] = dean_data[2]  # Override with actual last name from deans table
-                print(f"✅ Dean ID stored: {dean_data[0]}, Name: {dean_data[1]} {dean_data[2]}")
+                print(f"âœ… Dean ID stored: {dean_data[0]}, Name: {dean_data[1]} {dean_data[2]}")
         
         flash(f'Welcome back, {user[4]} {user[5]}!', 'success')
     
@@ -2287,23 +2326,23 @@ def login():
     if user and check_password_hash(user[2], password):
         
         # Determine redirect URL based on user role
-        print(f"🔍 User role from database: '{user[3]}'")  # Debug: Check exact role value
+        print(f"ðŸ” User role from database: '{user[3]}'")  # Debug: Check exact role value
         
         if user[3] in ['student', 'teaching_staff', 'non_teaching_staff']:
             redirect_url = url_for('student_dashboard')
-            print(f"✅ Redirecting to student dashboard")
+            print(f"âœ… Redirecting to student dashboard")
         elif user[3] == 'admin':
             redirect_url = url_for('admin_dashboard')
-            print(f"✅ Redirecting to admin dashboard")
+            print(f"âœ… Redirecting to admin dashboard")
         elif user[3] in ['staff', 'Nurse']:
             redirect_url = url_for('staff_dashboard')
-            print(f"✅ Redirecting to staff dashboard")
+            print(f"âœ… Redirecting to staff dashboard")
         elif user[3] in ['president', 'deans']:
             redirect_url = url_for('deans_president_dashboard')
-            print(f"✅ Redirecting to deans/president dashboard")
+            print(f"âœ… Redirecting to deans/president dashboard")
         else:
             redirect_url = url_for('student_dashboard')
-            print(f"⚠️ Unknown role, defaulting to student dashboard")
+            print(f"âš ï¸ Unknown role, defaulting to student dashboard")
         
         # Return JSON for AJAX requests, redirect for normal form submissions
         if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.accept_mimetypes.accept_json:
@@ -2311,7 +2350,7 @@ def login():
         
         return redirect(redirect_url)
     else:
-        print("❌ Login failed: Invalid credentials")  # Debug log
+        print("âŒ Login failed: Invalid credentials")  # Debug log
         flash('Invalid User ID or password', 'error')
         
         # Return JSON error for AJAX requests
@@ -2342,6 +2381,7 @@ def forgot_password():
             return jsonify({'success': False, 'message': 'Database connection error. Please try again.'}), 500
         
         cursor = conn.cursor()
+        ticket_number = generate_unique_ticket_number(conn)
         user_email = None
         user_name = None
         
@@ -2502,8 +2542,8 @@ def forgot_password():
         
         # FOR TESTING: Return success even if email fails (show reset link in console)
         if not email_sent:
-            print(f"⚠️ Email failed to send, but here's the reset link for testing:")
-            print(f"🔗 http://127.0.0.1:5000/reset-password?token={reset_token}")
+            print(f"âš ï¸ Email failed to send, but here's the reset link for testing:")
+            print(f"ðŸ”— http://127.0.0.1:5000/reset-password?token={reset_token}")
         
         return jsonify({
             'success': True,
@@ -2513,7 +2553,7 @@ def forgot_password():
         }), 200
             
     except Exception as e:
-        print(f"❌ Forgot password error: {str(e)}")
+        print(f"âŒ Forgot password error: {str(e)}")
         return jsonify({'success': False, 'message': 'An error occurred. Please try again later.'}), 500
 
 @app.route('/reset-password', methods=['POST'])
@@ -2535,6 +2575,7 @@ def reset_password():
             return jsonify({'success': False, 'message': 'Database connection error. Please try again.'}), 500
         
         cursor = conn.cursor()
+        ticket_number = generate_unique_ticket_number(conn)
         
         # Verify token
         cursor.execute('''
@@ -2591,7 +2632,7 @@ def reset_password():
         }), 200
         
     except Exception as e:
-        print(f"❌ Reset password error: {str(e)}")
+        print(f"âŒ Reset password error: {str(e)}")
         return jsonify({'success': False, 'message': 'An error occurred. Please try again later.'}), 500
 
 @app.route('/register/student', methods=['POST'])
@@ -2620,6 +2661,7 @@ def register_student():
             return jsonify({'success': False, 'message': 'Database connection failed'}), 500
         
         cursor = conn.cursor()
+        ticket_number = generate_unique_ticket_number(conn)
         
         # Validate ID number based on role and check if it exists in database FIRST
         validation_result = validate_id_and_get_info(cursor, role, id_number, full_name, email)
@@ -2714,6 +2756,7 @@ def verify_email():
                                  message='Database connection failed')
         
         cursor = conn.cursor()
+        ticket_number = generate_unique_ticket_number(conn)
         
         # Get verification record
         cursor.execute('''
@@ -2813,7 +2856,7 @@ def verify_email():
                              message=f'Account created successfully! You can now log in with your email: {user_data["email"]}')
         
     except Exception as e:
-        print(f"❌ Email verification error: {str(e)}")
+        print(f"âŒ Email verification error: {str(e)}")
         if 'cursor' in locals():
             cursor.close()
         if 'conn' in locals():
@@ -2862,6 +2905,7 @@ def request_account():
             return jsonify({'success': False, 'message': 'Database connection failed'}), 500
         
         cursor = conn.cursor()
+        ticket_number = generate_unique_ticket_number(conn)
         
         # Validate ID number based on role and get Gmail from database
         user_gmail = get_institutional_email(cursor, role, id_number)
@@ -2876,7 +2920,7 @@ def request_account():
         if existing_verification:
             # Delete existing pending verification to allow new request
             cursor.execute('DELETE FROM email_verifications WHERE email = %s AND verified = FALSE', (user_gmail,))
-            print(f"🔄 Deleted existing pending verification for {user_gmail} to allow new request")
+            print(f"ðŸ”„ Deleted existing pending verification for {user_gmail} to allow new request")
         
         # Check if email already registered
         cursor.execute('SELECT id FROM users WHERE email = %s', (user_gmail,))
@@ -2919,9 +2963,9 @@ def request_account():
         }
         role_display = role_names.get(role, role)
         
-        print(f"🚀 About to send verification email to: {user_gmail}")
+        print(f"ðŸš€ About to send verification email to: {user_gmail}")
         email_sent = send_verification_email(user_gmail, verification_link, role_display, id_number)
-        print(f"📧 Email sending result: {email_sent}")
+        print(f"ðŸ“§ Email sending result: {email_sent}")
         
         if email_sent:
             message = f'Verification email sent to your registered Gmail: {user_gmail}. Please check your email to complete registration.'
@@ -3153,7 +3197,7 @@ def complete_registration():
             role_mapping = {
                 'student': ('student', 'Student'),
                 'nurse': ('staff', 'Nurse Staff'),
-                'admin': ('admin', 'System Admin'),  # ✨ FIXED: Admin position = System Admin
+                'admin': ('admin', 'System Admin'),  # âœ¨ FIXED: Admin position = System Admin
                 'teaching_staff': ('teaching_staff', 'Teaching Staff'),  # Fixed: Keep as teaching_staff
                 'non_teaching_staff': ('non_teaching_staff', 'Non-Teaching Staff'),  # Fixed: Keep as non_teaching_staff
                 'president': ('president', 'President'),  # Fixed: Keep as president
@@ -3162,14 +3206,14 @@ def complete_registration():
             
             user_role, position = role_mapping.get(user_data['role'], ('user', 'User'))
             
-            # 🆕 Store the actual User ID (id_number) in user_id column
+            # ðŸ†• Store the actual User ID (id_number) in user_id column
             user_id = user_data.get('id_number', email)  # Use id_number as user_id, fallback to email
             
             cursor.execute('''
                 INSERT INTO users (user_id, username, email, password_hash, role, first_name, last_name, position, created_at)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, NOW())
             ''', (
-                user_id,  # ✨ Store actual User ID (ADMIN-002, FAC-CS-003, 2022-0186, etc.)
+                user_id,  # âœ¨ Store actual User ID (ADMIN-002, FAC-CS-003, 2022-0186, etc.)
                 email,  # Use email as username
                 email,
                 hashed_password,
@@ -3336,35 +3380,35 @@ def send_verification_email(email, verification_link, role, id_number):
         msg.attach(html_part)
         
         # Send email via Gmail SMTP
-        print(f"📧 Sending verification email to: {email}")
-        print(f"🔗 Verification link: {verification_link}")
+        print(f"ðŸ“§ Sending verification email to: {email}")
+        print(f"ðŸ”— Verification link: {verification_link}")
         
         try:
-            print(f"📧 Connecting to Gmail SMTP server...")
+            print(f"ðŸ“§ Connecting to Gmail SMTP server...")
             server = smtplib.SMTP(smtp_server, smtp_port)
             server.starttls()
-            print(f"🔐 Logging in with: {sender_email}")
+            print(f"ðŸ” Logging in with: {sender_email}")
             server.login(sender_email, sender_password)
-            print(f"📤 Sending email to: {email}")
+            print(f"ðŸ“¤ Sending email to: {email}")
             server.send_message(msg)
             server.quit()
-            print(f"✅ Email sent successfully to: {email}")
+            print(f"âœ… Email sent successfully to: {email}")
             return True
         except smtplib.SMTPAuthenticationError as auth_error:
-            print(f"❌ Gmail Authentication Failed: {auth_error}")
-            print(f"⚠️  Please set up Gmail App Password:")
+            print(f"âŒ Gmail Authentication Failed: {auth_error}")
+            print(f"âš ï¸  Please set up Gmail App Password:")
             print(f"   1. Go to https://myaccount.google.com/security")
             print(f"   2. Enable 2-Step Verification")
             print(f"   3. Generate App Password for 'Mail'")
             print(f"   4. Update sender_password in app.py")
-            print(f"🔗 FOR TESTING - Copy this link to complete registration:")
+            print(f"ðŸ”— FOR TESTING - Copy this link to complete registration:")
             print(f"   {verification_link}")
             # Return True so system still works during testing
             return True
         except Exception as email_error:
-            print(f"❌ Failed to send email: {email_error}")
-            print(f"📧 Email would have been sent to: {email}")
-            print(f"🔗 FOR TESTING - Copy this link to complete registration:")
+            print(f"âŒ Failed to send email: {email_error}")
+            print(f"ðŸ“§ Email would have been sent to: {email}")
+            print(f"ðŸ”— FOR TESTING - Copy this link to complete registration:")
             print(f"   {verification_link}")
             # Return True anyway so the system still works even if email fails
             return True
@@ -3407,7 +3451,7 @@ def send_appointment_notification(patient_email, patient_name, appointment_date,
         </head>
         <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
             <div style="background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
-                <h1 style="color: white; margin: 0; font-size: 28px;">✅ Appointment Confirmed</h1>
+                <h1 style="color: white; margin: 0; font-size: 28px;">âœ… Appointment Confirmed</h1>
                 <p style="color: rgba(255,255,255,0.9); margin: 10px 0 0 0;">iClinic Healthcare System</p>
             </div>
             
@@ -3419,7 +3463,7 @@ def send_appointment_notification(patient_email, patient_name, appointment_date,
                 <p>Your appointment has been successfully scheduled with the iClinic Healthcare System.</p>
                 
                 <div style="background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%); padding: 25px; border-radius: 12px; margin: 25px 0; border-left: 4px solid #3b82f6;">
-                    <h3 style="color: #1e40af; margin-top: 0; margin-bottom: 15px;">📅 Appointment Details</h3>
+                    <h3 style="color: #1e40af; margin-top: 0; margin-bottom: 15px;">ðŸ“… Appointment Details</h3>
                     <p style="margin: 8px 0; font-size: 16px;"><strong>Date:</strong> {formatted_date}</p>
                     <p style="margin: 8px 0; font-size: 16px;"><strong>Time:</strong> {appointment_time}</p>
                     <p style="margin: 8px 0; font-size: 16px;"><strong>Type:</strong> {appointment_type}</p>
@@ -3427,12 +3471,12 @@ def send_appointment_notification(patient_email, patient_name, appointment_date,
                 
                 <div style="background: #fef3c7; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #f59e0b;">
                     <p style="margin: 0; color: #92400e;">
-                        <strong>⏰ Important Reminder:</strong><br>
+                        <strong>â° Important Reminder:</strong><br>
                         Please arrive 10 minutes before your scheduled appointment time. Bring a valid ID and any relevant medical documents.
                     </p>
                 </div>
                 
-                <h3 style="color: #1e40af; margin-top: 30px;">📞 Need to Reschedule?</h3>
+                <h3 style="color: #1e40af; margin-top: 30px;">ðŸ“ž Need to Reschedule?</h3>
                 <p>If you need to cancel or reschedule your appointment, please contact the clinic at least 24 hours in advance:</p>
                 <ul style="color: #6b7280;">
                     <li>Visit the iClinic portal: <a href="http://127.0.0.1:5000" style="color: #3b82f6;">iClinic Dashboard</a></li>
@@ -3456,8 +3500,8 @@ def send_appointment_notification(patient_email, patient_name, appointment_date,
         msg.attach(html_part)
         
         # Send email via Gmail SMTP
-        print(f"📧 Sending appointment notification to: {patient_email}")
-        print(f"📅 Appointment: {formatted_date} at {appointment_time}")
+        print(f"ðŸ“§ Sending appointment notification to: {patient_email}")
+        print(f"ðŸ“… Appointment: {formatted_date} at {appointment_time}")
         
         try:
             server = smtplib.SMTP(smtp_server, smtp_port)
@@ -3465,15 +3509,15 @@ def send_appointment_notification(patient_email, patient_name, appointment_date,
             server.login(sender_email, sender_password)
             server.send_message(msg)
             server.quit()
-            print(f"✅ Appointment notification sent successfully to: {patient_email}")
+            print(f"âœ… Appointment notification sent successfully to: {patient_email}")
             return True
         except smtplib.SMTPAuthenticationError as auth_error:
-            print(f"❌ Gmail Authentication Failed: {auth_error}")
-            print(f"⚠️  Email notification not sent, but appointment is still confirmed")
+            print(f"âŒ Gmail Authentication Failed: {auth_error}")
+            print(f"âš ï¸  Email notification not sent, but appointment is still confirmed")
             return False
         except Exception as email_error:
-            print(f"❌ Failed to send appointment notification: {email_error}")
-            print(f"⚠️  Email notification not sent, but appointment is still confirmed")
+            print(f"âŒ Failed to send appointment notification: {email_error}")
+            print(f"âš ï¸  Email notification not sent, but appointment is still confirmed")
             return False
         
     except Exception as e:
@@ -3493,6 +3537,7 @@ def clear_consultations():
     
     try:
         cursor = conn.cursor()
+        ticket_number = generate_unique_ticket_number(conn)
         
         # Delete all chat messages first (foreign key constraint)
         cursor.execute('DELETE FROM chat_messages')
@@ -3504,7 +3549,7 @@ def clear_consultations():
         cursor.close()
         conn.close()
         
-        print("✅ All consultations and messages deleted")
+        print("âœ… All consultations and messages deleted")
         return jsonify({'success': True, 'message': 'All consultations cleared'})
         
     except Exception as e:
@@ -3520,6 +3565,7 @@ def debug_users():
     
     try:
         cursor = conn.cursor()
+        ticket_number = generate_unique_ticket_number(conn)
         
         # Get all users
         cursor.execute('SELECT id, username, first_name, last_name, role FROM users')
@@ -3551,13 +3597,14 @@ def get_dashboard_stats():
     try:
         conn = DatabaseConfig.get_connection()
         if not conn:
-            print("❌ Database connection failed")
+            print("âŒ Database connection failed")
             return jsonify({'error': 'Database connection failed'}), 500
         
         cursor = conn.cursor()
+        ticket_number = generate_unique_ticket_number(conn)
         today = datetime.now().date()
         
-        print(f"📊 Dashboard stats requested by user: {session.get('username')}")
+        print(f"ðŸ“Š Dashboard stats requested by user: {session.get('username')}")
         
         # Initialize all variables with defaults
         total_patients = 0
@@ -3608,9 +3655,9 @@ def get_dashboard_stats():
                 president_count = cursor.fetchone()[0] or 0
             
             total_patients = student_count + visitor_count + teaching_count + non_teaching_count + deans_count + president_count
-            print(f"✅ Total patients: {total_patients} (Students: {student_count}, Visitors: {visitor_count}, Teaching: {teaching_count}, Non-Teaching: {non_teaching_count}, Deans: {deans_count}, President: {president_count})")
+            print(f"âœ… Total patients: {total_patients} (Students: {student_count}, Visitors: {visitor_count}, Teaching: {teaching_count}, Non-Teaching: {non_teaching_count}, Deans: {deans_count}, President: {president_count})")
         except Exception as e:
-            print(f"⚠️ Error counting patients: {e}")
+            print(f"âš ï¸ Error counting patients: {e}")
         
         # Appointments Today
         try:
@@ -3619,9 +3666,9 @@ def get_dashboard_stats():
                 WHERE DATE(date) = %s
             ''', (today,))
             appointments_today = cursor.fetchone()[0] or 0
-            print(f"✅ Appointments today: {appointments_today}")
+            print(f"âœ… Appointments today: {appointments_today}")
         except Exception as e:
-            print(f"⚠️ Error counting appointments: {e}")
+            print(f"âš ï¸ Error counting appointments: {e}")
         
         # Pending Appointment Requests
         try:
@@ -3630,9 +3677,9 @@ def get_dashboard_stats():
                 WHERE status = 'pending'
             ''')
             pending_requests = cursor.fetchone()[0] or 0
-            print(f"✅ Pending requests: {pending_requests}")
+            print(f"âœ… Pending requests: {pending_requests}")
         except Exception as e:
-            print(f"⚠️ Error counting pending requests: {e}")
+            print(f"âš ï¸ Error counting pending requests: {e}")
         
         # Completed Appointments Today
         try:
@@ -3641,9 +3688,9 @@ def get_dashboard_stats():
                 WHERE DATE(date) = %s AND status = 'Completed'
             ''', (today,))
             completed_today = cursor.fetchone()[0] or 0
-            print(f"✅ Completed today: {completed_today}")
+            print(f"âœ… Completed today: {completed_today}")
         except Exception as e:
-            print(f"⚠️ Error counting completed: {e}")
+            print(f"âš ï¸ Error counting completed: {e}")
         
         # Active Consultations
         try:
@@ -3652,9 +3699,9 @@ def get_dashboard_stats():
                 WHERE status = 'active'
             ''')
             active_consultations = cursor.fetchone()[0] or 0
-            print(f"✅ Active consultations: {active_consultations}")
+            print(f"âœ… Active consultations: {active_consultations}")
         except Exception as e:
-            print(f"⚠️ Error counting consultations: {e}")
+            print(f"âš ï¸ Error counting consultations: {e}")
         
         # Patients in Clinic (Currently Staying)
         try:
@@ -3663,9 +3710,9 @@ def get_dashboard_stats():
                 WHERE stay_status = 'staying'
             ''')
             patients_in_clinic = cursor.fetchone()[0] or 0
-            print(f"✅ Patients in clinic: {patients_in_clinic}")
+            print(f"âœ… Patients in clinic: {patients_in_clinic}")
         except Exception as e:
-            print(f"⚠️ Error counting patients in clinic: {e}")
+            print(f"âš ï¸ Error counting patients in clinic: {e}")
         
         # Low Stock Medicines (quantity < 20)
         try:
@@ -3674,9 +3721,9 @@ def get_dashboard_stats():
                 WHERE quantity < 20
             ''')
             low_stock_medicines = cursor.fetchone()[0] or 0
-            print(f"✅ Low stock medicines: {low_stock_medicines}")
+            print(f"âœ… Low stock medicines: {low_stock_medicines}")
         except Exception as e:
-            print(f"⚠️ Error counting low stock: {e}")
+            print(f"âš ï¸ Error counting low stock: {e}")
         
         # Recent Activities (Last 10)
         recent_activities = []
@@ -3756,7 +3803,7 @@ def get_dashboard_stats():
         cursor.close()
         conn.close()
         
-        print(f"✅ Dashboard stats loaded successfully: {len(recent_activities)} activities")
+        print(f"âœ… Dashboard stats loaded successfully: {len(recent_activities)} activities")
         
         return jsonify({
             'total_patients': total_patients,
@@ -3770,7 +3817,7 @@ def get_dashboard_stats():
         })
         
     except Exception as e:
-        print(f"❌ Dashboard stats error: {e}")
+        print(f"âŒ Dashboard stats error: {e}")
         import traceback
         traceback.print_exc()
         
@@ -3800,6 +3847,7 @@ def get_monthly_visits():
             return jsonify({'error': 'Database connection failed'}), 500
         
         cursor = conn.cursor()
+        ticket_number = generate_unique_ticket_number(conn)
         
         # Get medical records count per month for the last 6 months (ALL patient types)
         cursor.execute("""
@@ -3842,7 +3890,7 @@ def get_monthly_visits():
         cursor.close()
         conn.close()
         
-        print(f"✅ Monthly visits data: {len(months)} months")
+        print(f"âœ… Monthly visits data: {len(months)} months")
         
         return jsonify({
             'months': months,
@@ -3850,7 +3898,7 @@ def get_monthly_visits():
         })
         
     except Exception as e:
-        print(f"❌ Error loading monthly visits: {e}")
+        print(f"âŒ Error loading monthly visits: {e}")
         if cursor:
             cursor.close()
         if conn:
@@ -3872,6 +3920,7 @@ def get_common_illnesses():
             return jsonify({'error': 'Database connection failed'}), 500
         
         cursor = conn.cursor()
+        ticket_number = generate_unique_ticket_number(conn)
         
         # Get top 6 diagnoses for current month (ALL patient types)
         try:
@@ -3914,7 +3963,7 @@ def get_common_illnesses():
             illnesses = [row[0] for row in results] if results else []
             counts = [row[1] for row in results] if results else []
         except Exception as query_error:
-            print(f"⚠️ Query error (using fallback data): {query_error}")
+            print(f"âš ï¸ Query error (using fallback data): {query_error}")
             illnesses = []
             counts = []
         
@@ -3926,7 +3975,7 @@ def get_common_illnesses():
         cursor.close()
         conn.close()
         
-        print(f"✅ Common illnesses data: {len(illnesses)} illnesses")
+        print(f"âœ… Common illnesses data: {len(illnesses)} illnesses")
         
         return jsonify({
             'illnesses': illnesses,
@@ -3934,7 +3983,7 @@ def get_common_illnesses():
         })
         
     except Exception as e:
-        print(f"❌ Error loading common illnesses: {e}")
+        print(f"âŒ Error loading common illnesses: {e}")
         if cursor:
             cursor.close()
         if conn:
@@ -4033,6 +4082,7 @@ def api_deans_president_dashboard_stats():
             return jsonify({'error': 'Database connection failed'}), 500
         
         cursor = conn.cursor()
+        ticket_number = generate_unique_ticket_number(conn)
         
         # Total Students
         cursor.execute('SELECT COUNT(*) FROM students WHERE is_active = TRUE')
@@ -4132,6 +4182,7 @@ def api_deans_president_recent_reports():
             return jsonify({'error': 'Database connection failed'}), 500
         
         cursor = conn.cursor()
+        ticket_number = generate_unique_ticket_number(conn)
         
         # Get ALL medical records from all patient types
         cursor.execute('''
@@ -4195,6 +4246,7 @@ def api_deans_president_monthly_department_reports():
             return jsonify({'error': 'Database connection failed'}), 500
         
         cursor = conn.cursor()
+        ticket_number = generate_unique_ticket_number(conn)
         
         # Get visits by department for the selected month
         cursor.execute('''
@@ -4248,6 +4300,7 @@ def api_deans_president_common_illnesses():
             return jsonify({'error': 'Database connection failed'}), 500
         
         cursor = conn.cursor()
+        ticket_number = generate_unique_ticket_number(conn)
         
         # Build query based on filters
         if month and year:
@@ -4313,6 +4366,7 @@ def api_deans_president_gender_distribution():
             return jsonify({'error': 'Database connection failed'}), 500
         
         cursor = conn.cursor()
+        ticket_number = generate_unique_ticket_number(conn)
         
         # Get gender distribution of clinic visitors
         if month and year:
@@ -4377,6 +4431,7 @@ def api_deans_president_monthly_visits_data():
             return jsonify({'error': 'Database connection failed'}), 500
         
         cursor = conn.cursor()
+        ticket_number = generate_unique_ticket_number(conn)
         
         # Get daily visit counts for the month
         cursor.execute('''
@@ -4751,6 +4806,7 @@ def api_students():
     
     try:
         cursor = conn.cursor()
+        ticket_number = generate_unique_ticket_number(conn)
         cursor.execute('''
             SELECT student_number, std_Firstname, std_Surname, std_Middlename, std_Suffix, 
                    std_Gender, std_Age, std_EmailAdd, std_ContactNum, std_Course, std_Level, 
@@ -4785,6 +4841,301 @@ def api_students():
         cursor.close()
         conn.close()
         return jsonify({'error': f'Database error: {str(e)}'}), 500
+
+
+# ============================
+# Consultation ticketing APIs
+# ============================
+
+PRIORITY_LEVELS = {'P1', 'P2', 'P3', 'P4'}
+STATUS_VALUES = {'waiting', 'called', 'in_consultation', 'completed', 'cancelled', 'no_show'}
+
+
+def priority_order_case_expr(alias: str = "priority") -> str:
+    """
+    Helper to build a CASE expression for ordering by priority.
+    P1 (emergency) first, then P2, P3, P4.
+    """
+    return f"""
+        CASE {alias}
+            WHEN 'P1' THEN 1
+            WHEN 'P2' THEN 2
+            WHEN 'P3' THEN 3
+            ELSE 4
+        END
+    """
+
+
+
+def generate_unique_ticket_number(conn, max_attempts: int = 25) -> str:
+    cursor = conn.cursor()
+    try:
+        for _ in range(max_attempts):
+            candidate = str(random.randint(1000, 9999))
+            cursor.execute(
+                "SELECT COUNT(*) FROM consultation_tickets WHERE ticket_number = %s",
+                (candidate,),
+            )
+            row = cursor.fetchone()
+            count = row[0] if row else 0
+            if count == 0:
+                return candidate
+    finally:
+        try:
+            cursor.close()
+        except Exception:
+            pass
+
+    return str(random.randint(1000, 9999))
+
+@app.route('/api/consultation/tickets', methods=['POST'])
+def create_consultation_ticket():
+    """
+    Create a new onsite consultation ticket.
+    This can be used by staff at the triage desk or a self-service kiosk.
+    """
+    data = request.get_json() or {}
+
+    chief_complaint = (data.get('chief_complaint') or '').strip() or None
+
+    patient_type = (data.get('patient_type') or 'student').strip().lower()
+    patient_identifier = (data.get('patient_identifier') or '').strip() or None
+    full_name = (data.get('full_name') or '').strip() or None
+
+    requested_priority = (data.get('priority') or '').upper().strip()
+    priority = requested_priority if requested_priority in PRIORITY_LEVELS else 'P3'
+
+    severity_score = data.get('severity_score')
+    if severity_score is not None:
+        try:
+            severity_score = int(severity_score)
+        except (TypeError, ValueError):
+            severity_score = None
+
+    triage_notes = (data.get('triage_notes') or '').strip() or None
+    vitals = data.get('vitals') if isinstance(data.get('vitals'), dict) else None
+
+    conn = DatabaseConfig.get_connection()
+    if not conn:
+        return jsonify({'error': 'Database connection failed'}), 500
+
+    try:
+        cursor = conn.cursor()
+        ticket_number = generate_unique_ticket_number(conn)
+        cursor.execute(
+            '''
+            INSERT INTO consultation_tickets (
+                ticket_number,
+                patient_type, patient_identifier, full_name,
+                priority, status, chief_complaint,
+                severity_score, triage_notes, vitals, arrival_time
+            ) VALUES (
+                %s,
+                %s, %s, %s,
+                %s, %s, %s,
+                %s, %s, %s, NOW()
+            )
+            ''',
+            (
+                ticket_number,
+                patient_type,
+                patient_identifier,
+                full_name,
+                priority,
+                'waiting',
+                chief_complaint,
+                severity_score,
+                triage_notes,
+                json.dumps(vitals) if vitals is not None else None,
+            ),
+        )
+        conn.commit()
+        ticket_id = cursor.lastrowid
+
+        return jsonify(
+            {
+                'success': True,
+                'ticket': {
+                    'id': ticket_id,
+                    'ticket_number': ticket_number,
+                    'patient_type': patient_type,
+                    'patient_identifier': patient_identifier,
+                    'full_name': full_name,
+                    'priority': priority,
+                    'status': 'waiting',
+                    'chief_complaint': chief_complaint,
+                    'severity_score': severity_score,
+                    'triage_notes': triage_notes,
+                },
+            }
+        ), 201
+    except Exception as e:
+        print(f"âŒ Error creating consultation ticket: {e}")
+        return jsonify({'error': 'Failed to create ticket'}), 500
+    finally:
+        try:
+            cursor.close()
+            conn.close()
+        except Exception:
+            pass
+
+
+@app.route('/api/consultation/tickets', methods=['GET'])
+def list_consultation_tickets():
+    """
+    List active consultation tickets, ordered by priority and arrival time.
+    Optional query params:
+      - status: comma-separated statuses to include (default waiting,called,in_consultation)
+    """
+    status_param = request.args.get('status')
+    if status_param:
+        requested_statuses = {s.strip() for s in status_param.split(',') if s.strip()}
+        statuses = [s for s in requested_statuses if s in STATUS_VALUES]
+        if not statuses:
+            statuses = ['waiting', 'called', 'in_consultation']
+    else:
+        statuses = ['waiting', 'called', 'in_consultation']
+
+    conn = DatabaseConfig.get_connection()
+    if not conn:
+        return jsonify({'error': 'Database connection failed'}), 500
+
+    try:
+        cursor = conn.cursor(dictionary=True)
+        placeholders = ','.join(['%s'] * len(statuses))
+        order_expr = priority_order_case_expr('priority')
+        query = f"""
+            SELECT
+                id, ticket_number, patient_type, patient_identifier, full_name,
+                priority, status, chief_complaint,
+                severity_score, triage_notes, vitals,
+                arrival_time, called_at, completed_at
+            FROM consultation_tickets
+            WHERE status IN ({placeholders})
+            ORDER BY {order_expr}, arrival_time ASC
+        """
+        cursor.execute(query, statuses)
+        rows = cursor.fetchall()
+
+        tickets = []
+        for row in rows:
+            try:
+                vitals = json.loads(row['vitals']) if row.get('vitals') else None
+            except Exception:
+                vitals = None
+
+            tickets.append(
+                {
+                    'id': row['id'],
+                    'ticket_number': row.get('ticket_number') or row['id'],
+                    'patient_type': row['patient_type'],
+                    'patient_identifier': row['patient_identifier'],
+                    'full_name': row['full_name'],
+                    'priority': row['priority'],
+                    'status': row['status'],
+                    'chief_complaint': row['chief_complaint'],
+                    'severity_score': row['severity_score'],
+                    'triage_notes': row['triage_notes'],
+                    'vitals': vitals,
+                    'arrival_time': row['arrival_time'].isoformat() if row['arrival_time'] else None,
+                    'called_at': row['called_at'].isoformat() if row['called_at'] else None,
+                    'completed_at': row['completed_at'].isoformat() if row['completed_at'] else None,
+                }
+            )
+
+        return jsonify({'success': True, 'tickets': tickets}), 200
+    except Exception as e:
+        print(f"âŒ Error listing consultation tickets: {e}")
+        return jsonify({'error': 'Failed to list tickets'}), 500
+    finally:
+        try:
+            cursor.close()
+            conn.close()
+        except Exception:
+            pass
+
+
+@app.route('/api/consultation/tickets/<int:ticket_id>', methods=['PATCH'])
+def update_consultation_ticket(ticket_id: int):
+    """
+    Update priority, status, or notes for an existing consultation ticket.
+    """
+    data = request.get_json() or {}
+
+    fields = []
+    params = []
+
+    new_priority = data.get('priority')
+    if new_priority:
+        new_priority = new_priority.upper().strip()
+        if new_priority in PRIORITY_LEVELS:
+            fields.append('priority = %s')
+            params.append(new_priority)
+
+    new_status = data.get('status')
+    if new_status:
+        new_status = new_status.strip()
+        if new_status in STATUS_VALUES:
+            fields.append('status = %s')
+            params.append(new_status)
+
+    triage_notes = data.get('triage_notes')
+    if triage_notes is not None:
+        fields.append('triage_notes = %s')
+        params.append(triage_notes.strip() or None)
+
+    severity_score = data.get('severity_score')
+    if severity_score is not None:
+        try:
+            severity_score_int = int(severity_score)
+        except (TypeError, ValueError):
+            severity_score_int = None
+        fields.append('severity_score = %s')
+        params.append(severity_score_int)
+
+    vitals = data.get('vitals')
+    if vitals is not None:
+        fields.append('vitals = %s')
+        params.append(json.dumps(vitals))
+
+    # Auto-set timestamps based on status transitions
+    if new_status == 'called':
+        fields.append('called_at = NOW()')
+    if new_status == 'completed':
+        fields.append('completed_at = NOW()')
+
+    if not fields:
+        return jsonify({'error': 'No valid fields to update'}), 400
+
+    conn = DatabaseConfig.get_connection()
+    if not conn:
+        return jsonify({'error': 'Database connection failed'}), 500
+
+    try:
+        cursor = conn.cursor()
+        ticket_number = generate_unique_ticket_number(conn)
+        params.append(ticket_id)
+        query = f"""
+            UPDATE consultation_tickets
+            SET {', '.join(fields)}
+            WHERE id = %s
+        """
+        cursor.execute(query, params)
+        conn.commit()
+
+        if cursor.rowcount == 0:
+            return jsonify({'error': 'Ticket not found'}), 404
+
+        return jsonify({'success': True}), 200
+    except Exception as e:
+        print(f"âŒ Error updating consultation ticket {ticket_id}: {e}")
+        return jsonify({'error': 'Failed to update ticket'}), 500
+    finally:
+        try:
+            cursor.close()
+            conn.close()
+        except Exception:
+            pass
 
 @app.route('/api/public/patient-count')
 def api_public_patient_count():
@@ -4843,7 +5194,7 @@ def api_public_patient_count():
         
         total_count = student_count + visitor_count + teaching_count + non_teaching_count + dean_count + president_count
         
-        print(f"📊 Patient Count Breakdown:")
+        print(f"ðŸ“Š Patient Count Breakdown:")
         print(f"   Students: {student_count}")
         print(f"   Visitors: {visitor_count}")
         print(f"   Teaching Staff: {teaching_count}")
@@ -4868,7 +5219,7 @@ def api_public_patient_count():
         }), 200
         
     except Exception as e:
-        print(f"❌ Error counting patients: {str(e)}")
+        print(f"âŒ Error counting patients: {str(e)}")
         if cursor:
             cursor.close()
         if conn:
@@ -4939,7 +5290,7 @@ def api_all_patients():
             }
             # Debug log for first student to check emergency contact data
             if len(all_patients) == 0:
-                print(f"🔍 Sample student data: {s[1]} {s[2]}")
+                print(f"ðŸ” Sample student data: {s[1]} {s[2]}")
                 print(f"   Emergency Contact Name: {s[14]}")
                 print(f"   Emergency Contact Relationship: {s[15]}")
                 print(f"   Emergency Contact Number: {s[16]}")
@@ -5180,11 +5531,11 @@ def api_all_patients():
         cursor.close()
         conn.close()
         
-        print(f"✅ /api/all-patients: Returning {len(all_patients)} patients")
+        print(f"âœ… /api/all-patients: Returning {len(all_patients)} patients")
         return jsonify(all_patients)
         
     except Exception as e:
-        print(f"❌ Error in /api/all-patients: {str(e)}")
+        print(f"âŒ Error in /api/all-patients: {str(e)}")
         import traceback
         print(f"Full traceback: {traceback.format_exc()}")
         try:
@@ -5398,11 +5749,11 @@ def api_archived_patients():
         cursor.close()
         conn.close()
         
-        print(f"📦 /api/archived-patients: Returning {len(archived_patients)} archived patients")
+        print(f"ðŸ“¦ /api/archived-patients: Returning {len(archived_patients)} archived patients")
         return jsonify(archived_patients)
         
     except Exception as e:
-        print(f"❌ Error in /api/archived-patients: {str(e)}")
+        print(f"âŒ Error in /api/archived-patients: {str(e)}")
         try:
             cursor.close()
             conn.close()
@@ -5453,11 +5804,11 @@ def api_archive_patient(patient_id):
         cursor.close()
         conn.close()
         
-        print(f"📦 Archived patient: {patient_id}")
+        print(f"ðŸ“¦ Archived patient: {patient_id}")
         return jsonify({'success': True, 'message': 'Patient archived successfully'})
         
     except Exception as e:
-        print(f"❌ Error archiving patient: {str(e)}")
+        print(f"âŒ Error archiving patient: {str(e)}")
         try:
             cursor.close()
             conn.close()
@@ -5487,6 +5838,7 @@ def api_add_visitor():
     
     try:
         cursor = conn.cursor()
+        ticket_number = generate_unique_ticket_number(conn)
         
         # Check for EXACT FULL NAME duplicate (first_name + middle_name + last_name)
         # Same surname with different first name is ALLOWED
@@ -5528,7 +5880,7 @@ def api_add_visitor():
         cursor.close()
         conn.close()
         
-        print(f"✅ Visitor added: {data['first_name']} {data['last_name']} (ID: {visitor_id})")
+        print(f"âœ… Visitor added: {data['first_name']} {data['last_name']} (ID: {visitor_id})")
         
         return jsonify({
             'success': True,
@@ -5540,7 +5892,7 @@ def api_add_visitor():
         conn.rollback()
         cursor.close()
         conn.close()
-        print(f"❌ Error adding visitor: {str(e)}")
+        print(f"âŒ Error adding visitor: {str(e)}")
         return jsonify({'error': f'Database error: {str(e)}'}), 500
 
 @app.route('/api/visitors', methods=['GET'])
@@ -5668,6 +6020,7 @@ def api_add_medical_record():
     
     try:
         cursor = conn.cursor()
+        ticket_number = generate_unique_ticket_number(conn)
         cursor.execute('''
             INSERT INTO medical_records (student_id, visit_date, symptoms,
                                        treatment, prescribed_medicine, notes, staff_id)
@@ -5733,7 +6086,7 @@ def api_medicine():
                 batches = cursor.fetchall()
             except Error as batch_error:
                 # Table doesn't exist yet, use medicine's own quantity
-                print(f"⚠️ medicine_batches table not found, using medicine quantity")
+                print(f"âš ï¸ medicine_batches table not found, using medicine quantity")
                 batches = []
             
             # Calculate total quantity from ALL batches (including expired for display)
@@ -5786,7 +6139,7 @@ def api_medicine():
         cursor.close()
         conn.close()
         
-        print(f"✅ Returning {len(medicine_list)} medicines with batch information")
+        print(f"âœ… Returning {len(medicine_list)} medicines with batch information")
         return jsonify(medicine_list)
         
     except Error as e:
@@ -5835,7 +6188,7 @@ def api_expired_medicine():
                 ''', (medicine_id,))
                 batches = cursor.fetchall()
             except Error as batch_error:
-                print(f"⚠️ medicine_batches table not found")
+                print(f"âš ï¸ medicine_batches table not found")
                 batches = []
             
             # Find EXPIRED batches (expiry_date <= today)
@@ -5902,7 +6255,7 @@ def api_expired_medicine():
         cursor.close()
         conn.close()
         
-        print(f"🗄️ Returning {len(expired_list)} expired medicines")
+        print(f"ðŸ—„ï¸ Returning {len(expired_list)} expired medicines")
         return jsonify(expired_list)
         
     except Error as e:
@@ -5951,7 +6304,7 @@ def api_available_medicine_for_prescription():
                 ''', (medicine_id,))
                 batches = cursor.fetchall()
             except Error as batch_error:
-                print(f"⚠️ medicine_batches table not found, using medicine quantity")
+                print(f"âš ï¸ medicine_batches table not found, using medicine quantity")
                 batches = []
             
             # Calculate total quantity from NON-EXPIRED batches only
@@ -6020,7 +6373,7 @@ def api_available_medicine_for_prescription():
         cursor.close()
         conn.close()
         
-        print(f"✅ Returning {len(available_list)} AVAILABLE (non-expired) medicines for prescription")
+        print(f"âœ… Returning {len(available_list)} AVAILABLE (non-expired) medicines for prescription")
         return jsonify(available_list)
         
     except Error as e:
@@ -6041,6 +6394,7 @@ def api_teaching():
     
     try:
         cursor = conn.cursor()
+        ticket_number = generate_unique_ticket_number(conn)
         cursor.execute('''
             SELECT id, faculty_id, faculty_number, first_name, last_name, email, 
                    rank, status, hire_date, specialization, is_archived, 
@@ -6107,7 +6461,7 @@ def api_add_medicine():
         if existing_medicine:
             # Medicine exists, just add a new batch
             medicine_id = existing_medicine[0]
-            print(f"📦 Medicine exists (ID: {medicine_id}), adding new batch...")
+            print(f"ðŸ“¦ Medicine exists (ID: {medicine_id}), adding new batch...")
         else:
             # Create new medicine record
             cursor.execute('''
@@ -6125,7 +6479,7 @@ def api_add_medicine():
                 data.get('status', 'Available')
             ))
             medicine_id = cursor.lastrowid
-            print(f"✅ New medicine created (ID: {medicine_id})")
+            print(f"âœ… New medicine created (ID: {medicine_id})")
         
         # Add batch if batch information is provided
         batches_added = []
@@ -6243,7 +6597,7 @@ def api_add_medicine_batch():
                 batch.get('notes', '')
             ))
             batches_added.append(cursor.lastrowid)
-            print(f"✅ Added batch ID: {cursor.lastrowid} to medicine ID: {medicine_id}")
+            print(f"âœ… Added batch ID: {cursor.lastrowid} to medicine ID: {medicine_id}")
         
         # Update medicine total quantity
         cursor.execute('''
@@ -6268,7 +6622,7 @@ def api_add_medicine_batch():
         }), 201
         
     except Error as e:
-        print(f"❌ Database error: {e}")
+        print(f"âŒ Database error: {e}")
         if conn:
             conn.rollback()
             cursor.close()
@@ -6309,7 +6663,7 @@ def api_delete_medicine(medicine_id):
         cursor.close()
         conn.close()
         
-        print(f"🗑️ Deleted medicine ID {medicine_id} ({medicine_name}) and {batches_deleted} batch(es)")
+        print(f"ðŸ—‘ï¸ Deleted medicine ID {medicine_id} ({medicine_name}) and {batches_deleted} batch(es)")
         
         return jsonify({
             'success': True,
@@ -6319,7 +6673,7 @@ def api_delete_medicine(medicine_id):
         }), 200
         
     except Error as e:
-        print(f"❌ Database error deleting medicine: {e}")
+        print(f"âŒ Database error deleting medicine: {e}")
         if conn:
             conn.rollback()
             cursor.close()
@@ -6457,6 +6811,7 @@ def create_expired_test_data():
         from datetime import datetime, timedelta
         conn = DatabaseConfig.get_connection()
         cursor = conn.cursor()
+        ticket_number = generate_unique_ticket_number(conn)
         
         # Create expired medicines (dates in the past)
         expired_medicines = [
@@ -6479,7 +6834,7 @@ def create_expired_test_data():
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW())
             ''', med)
         
-        print(f"✅ Created {len(expired_medicines)} expired medicines")
+        print(f"âœ… Created {len(expired_medicines)} expired medicines")
         
         # Create damaged/expired supplies
         damaged_supplies = [
@@ -6510,7 +6865,7 @@ def create_expired_test_data():
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             ''', supply)
         
-        print(f"✅ Created {len(damaged_supplies)} damaged/expired supplies")
+        print(f"âœ… Created {len(damaged_supplies)} damaged/expired supplies")
         
         conn.commit()
         cursor.close()
@@ -6524,7 +6879,7 @@ def create_expired_test_data():
         }), 200
         
     except Exception as e:
-        print(f"❌ Error creating test data: {e}")
+        print(f"âŒ Error creating test data: {e}")
         if conn:
             conn.rollback()
             cursor.close()
@@ -6544,6 +6899,7 @@ def api_student_medical_records(student_number):
             return jsonify({'error': 'Database connection failed'}), 500
         
         cursor = conn.cursor()
+        ticket_number = generate_unique_ticket_number(conn)
         
         # Get medical records for specific student - use student_number as identifier
         cursor.execute('''
@@ -6660,6 +7016,7 @@ def api_add_student_medical_record():
             return jsonify({'error': 'Database connection failed'}), 500
         
         cursor = conn.cursor()
+        ticket_number = generate_unique_ticket_number(conn)
         
         # Log the data being saved for debugging
         print(f"Saving medical record for student_number: {data.get('student_number')}")
@@ -6755,6 +7112,7 @@ def api_update_student_medical_record(record_id):
             return jsonify({'error': 'Database connection failed'}), 500
         
         cursor = conn.cursor()
+        ticket_number = generate_unique_ticket_number(conn)
         
         print(f"Updating medical record ID: {record_id}")
         
@@ -6829,6 +7187,7 @@ def api_update_visitor_medical_record(record_id):
             return jsonify({'error': 'Database connection failed'}), 500
         
         cursor = conn.cursor()
+        ticket_number = generate_unique_ticket_number(conn)
         
         print(f"Updating visitor medical record ID: {record_id}")
         
@@ -6879,6 +7238,7 @@ def api_update_president_medical_record(record_id):
             return jsonify({'error': 'Database connection failed'}), 500
         
         cursor = conn.cursor()
+        ticket_number = generate_unique_ticket_number(conn)
         
         print(f"Updating president medical record ID: {record_id}")
         
@@ -6953,6 +7313,7 @@ def api_update_dean_medical_record(record_id):
             return jsonify({'error': 'Database connection failed'}), 500
         
         cursor = conn.cursor()
+        ticket_number = generate_unique_ticket_number(conn)
         
         print(f"Updating dean medical record ID: {record_id}")
         
@@ -7027,6 +7388,7 @@ def api_update_teaching_medical_record(record_id):
             return jsonify({'error': 'Database connection failed'}), 500
         
         cursor = conn.cursor()
+        ticket_number = generate_unique_ticket_number(conn)
         
         print(f"Updating teaching staff medical record ID: {record_id}")
         
@@ -7101,6 +7463,7 @@ def api_update_non_teaching_medical_record(record_id):
             return jsonify({'error': 'Database connection failed'}), 500
         
         cursor = conn.cursor()
+        ticket_number = generate_unique_ticket_number(conn)
         
         print(f"Updating non-teaching staff medical record ID: {record_id}")
         
@@ -7171,22 +7534,23 @@ def api_student_profile():
             return jsonify({'error': 'Database connection failed'}), 500
         
         cursor = conn.cursor()
+        ticket_number = generate_unique_ticket_number(conn)
         
         # Get current user's information
         user_id = session['user_id']
         
         # First try to get from users table (for students who registered)
-        print(f"🔍 Looking for user_id: {user_id}")
+        print(f"ðŸ” Looking for user_id: {user_id}")
         
         # Get user info first
         cursor.execute('SELECT id, username, first_name, last_name, role, created_at FROM users WHERE id = %s', (user_id,))
         user_info = cursor.fetchone()
         
         if not user_info:
-            print(f"❌ User not found with ID: {user_id}")
+            print(f"âŒ User not found with ID: {user_id}")
             return jsonify({'error': 'User not found'}), 404
         
-        print(f"👤 Found user: {user_info[2]} {user_info[3]} ({user_info[1]})")
+        print(f"ðŸ‘¤ Found user: {user_info[2]} {user_info[3]} ({user_info[1]})")
         
         # Try multiple ways to find the student record
         student_data = None
@@ -7204,9 +7568,9 @@ def api_student_profile():
             # Method 3: Get any student record for demo (first student)
             cursor.execute('SELECT * FROM students WHERE emergency_contact_name IS NOT NULL LIMIT 1')
             student_data = cursor.fetchone()
-            print(f"⚠️ Using demo student data for user: {user_info[2]} {user_info[3]}")
+            print(f"âš ï¸ Using demo student data for user: {user_info[2]} {user_info[3]}")
         
-        print(f"📋 Student data found: {student_data is not None}")
+        print(f"ðŸ“‹ Student data found: {student_data is not None}")
         
         student_dict = {}
         if student_data:
@@ -7217,7 +7581,7 @@ def api_student_profile():
             
             # Create a dictionary for easier access
             student_dict = dict(zip(column_names, student_data))
-            print(f"🎯 Emergency contact: {student_dict.get('emergency_contact_name', 'None')}")
+            print(f"ðŸŽ¯ Emergency contact: {student_dict.get('emergency_contact_name', 'None')}")
         
         user_data = list(user_info) + [
             student_dict.get('std_Course'),
@@ -7297,13 +7661,14 @@ def api_current_student_medical_records():
             return jsonify({'error': 'Database connection failed'}), 500
         
         cursor = conn.cursor()
+        ticket_number = generate_unique_ticket_number(conn)
         
         # Get current user's information to find their student record
         user_id = session['user_id']
         username = session.get('username', '')
         first_name = session.get('first_name', '')
         
-        print(f"🔍 Looking for student: user_id={user_id}, username={username}, first_name={first_name}")
+        print(f"ðŸ” Looking for student: user_id={user_id}, username={username}, first_name={first_name}")
         
         # Try to find student record by email or name
         cursor.execute('''
@@ -7313,15 +7678,15 @@ def api_current_student_medical_records():
         ''', (username, first_name, f'%{username.split("@")[0] if "@" in username else username}%'))
         
         student_result = cursor.fetchone()
-        print(f"🔍 Student lookup result: {student_result}")
+        print(f"ðŸ” Student lookup result: {student_result}")
         
         if not student_result:
             # Return empty records if student not found
-            print(f"⚠️ No student found for user_id={user_id}, username={username}")
+            print(f"âš ï¸ No student found for user_id={user_id}, username={username}")
             return jsonify({'records': [], 'message': 'No student record found'})
         
         student_number = student_result[0]
-        print(f"✅ Found student: {student_number}")
+        print(f"âœ… Found student: {student_number}")
         
         # Get medical records for this student - only select columns that exist
         cursor.execute('''
@@ -7334,7 +7699,7 @@ def api_current_student_medical_records():
         ''', (student_number,))
         
         records = cursor.fetchall()
-        print(f"📋 Found {len(records)} medical records for student {student_number}")
+        print(f"ðŸ“‹ Found {len(records)} medical records for student {student_number}")
         
         # Format records for frontend - simplified structure
         formatted_records = []
@@ -7375,10 +7740,11 @@ def api_user_profile():
             return jsonify({'error': 'Database connection failed'}), 500
         
         cursor = conn.cursor()
+        ticket_number = generate_unique_ticket_number(conn)
         user_id = session['user_id']
         role = session.get('role', '')
         
-        print(f"🔍 Getting profile for user_id: {user_id}, role: {role}")
+        print(f"ðŸ” Getting profile for user_id: {user_id}, role: {role}")
         
         # Get basic user info from users table
         cursor.execute('SELECT id, username, first_name, last_name, role, position, created_at FROM users WHERE id = %s', (user_id,))
@@ -7501,7 +7867,7 @@ def api_user_profile():
         cursor.close()
         conn.close()
         
-        print(f"✅ Profile retrieved for {profile['first_name']} {profile['last_name']} ({role})")
+        print(f"âœ… Profile retrieved for {profile['first_name']} {profile['last_name']} ({role})")
         return jsonify(profile)
         
     except Exception as e:
@@ -7520,12 +7886,13 @@ def api_user_medical_records():
             return jsonify({'error': 'Database connection failed'}), 500
         
         cursor = conn.cursor()
+        ticket_number = generate_unique_ticket_number(conn)
         user_id = session['user_id']
         role = session.get('role', '')
         username = session.get('username', '')
         first_name = session.get('first_name', '')
         
-        print(f"🔍 Getting medical records for user_id: {user_id}, role: {role}")
+        print(f"ðŸ” Getting medical records for user_id: {user_id}, role: {role}")
         
         formatted_records = []
         
@@ -7650,7 +8017,7 @@ def api_user_medical_records():
         cursor.close()
         conn.close()
         
-        print(f"✅ Found {len(formatted_records)} medical records for {role}")
+        print(f"âœ… Found {len(formatted_records)} medical records for {role}")
         return jsonify({'records': formatted_records})
         
     except Exception as e:
@@ -7671,6 +8038,7 @@ def api_all_medical_records():
             return jsonify([])
         
         cursor = conn.cursor()
+        ticket_number = generate_unique_ticket_number(conn)
         
         # Select ALL columns from medical_records table + student info
         print("Executing comprehensive medical records query...")
@@ -7862,6 +8230,7 @@ def api_visits():
             return jsonify([])
         
         cursor = conn.cursor()
+        ticket_number = generate_unique_ticket_number(conn)
         result = []
         
         # 1. Get STUDENT medical records
@@ -7992,11 +8361,11 @@ def api_visits():
         # Sort all results by visit_date descending
         result.sort(key=lambda x: x['visit_date'] if x['visit_date'] else '', reverse=True)
         
-        print(f"✅ Total visits fetched: {len(result)}")
+        print(f"âœ… Total visits fetched: {len(result)}")
         return jsonify(result)
         
     except Exception as e:
-        print(f"❌ Error in visits API: {e}")
+        print(f"âŒ Error in visits API: {e}")
         import traceback
         traceback.print_exc()
         return jsonify([])
@@ -8013,6 +8382,7 @@ def api_medical_records():
             return jsonify([])
         
         cursor = conn.cursor()
+        ticket_number = generate_unique_ticket_number(conn)
         cursor.execute('''
             SELECT mr.id, mr.visit_date, mr.visit_time, mr.chief_complaint, mr.symptoms, 
                    mr.treatment, mr.prescribed_medicine, mr.staff_name,
@@ -8089,6 +8459,7 @@ def api_online_consultations():
             return jsonify([])
         
         cursor = conn.cursor()
+        ticket_number = generate_unique_ticket_number(conn)
         
         # First, ensure the online_consultations table has proper structure
         try:
@@ -8174,7 +8545,7 @@ def api_online_consultations():
         
         # Debug: Show what we got from the query
         print(f"\n{'='*60}")
-        print(f"📊 QUERY RESULTS: Found {len(consultations)} consultations")
+        print(f"ðŸ“Š QUERY RESULTS: Found {len(consultations)} consultations")
         print(f"{'='*60}")
         
         result = []
@@ -8217,7 +8588,7 @@ def api_online_consultations():
                 display_id = str(c[0])  # consultation_id as last resort
             
             # Debug logging with all ID fields
-            print(f"\n🔍 Consultation ID: {c[0]}")
+            print(f"\nðŸ” Consultation ID: {c[0]}")
             print(f"   Patient Name: '{c[1]}'")
             print(f"   Patient Type: '{c[2]}'")
             print(f"   Patient Role: '{c[10]}'")
@@ -8229,7 +8600,7 @@ def api_online_consultations():
             print(f"   user_id (c[14]): {c[14]}")
             print(f"   ---")
             print(f"   Final Role: {patient_role}")
-            print(f"   ✅ Display ID: {display_id}")
+            print(f"   âœ… Display ID: {display_id}")
             print(f"{'='*60}")
             
             result.append({
@@ -8273,6 +8644,7 @@ def api_test_db():
             return jsonify({'error': 'Database connection failed'}), 500
         
         cursor = conn.cursor()
+        ticket_number = generate_unique_ticket_number(conn)
         cursor.execute('SELECT 1 as test')
         result = cursor.fetchone()
         cursor.close()
@@ -8292,6 +8664,7 @@ def api_test_all_records():
             return jsonify({'error': 'Database connection failed'}), 500
         
         cursor = conn.cursor()
+        ticket_number = generate_unique_ticket_number(conn)
         
         cursor.execute('''
             SELECT mr.*, s.std_Firstname, s.std_Surname, s.std_Course, s.std_Level
@@ -8360,6 +8733,7 @@ def api_get_clinic_stays():
     
     try:
         cursor = conn.cursor()
+        ticket_number = generate_unique_ticket_number(conn)
         cursor.execute('''
             SELECT cs.*, s.std_Firstname, s.std_Surname, s.std_Course,
                    mr.chief_complaint
@@ -8409,7 +8783,7 @@ def api_create_clinic_stay():
     data = request.get_json()
     
     # Debug logging
-    print(f"🏥 Creating clinic stay with data: {data}")
+    print(f"ðŸ¥ Creating clinic stay with data: {data}")
     
     # Validate required fields
     if not data.get('stay_reason') or not data.get('patient_name'):
@@ -8421,6 +8795,7 @@ def api_create_clinic_stay():
     
     try:
         cursor = conn.cursor()
+        ticket_number = generate_unique_ticket_number(conn)
         
         # Insert clinic stay record (simplified - only reason required)
         # Note: Using actual table column names: patient_id, reason (not medical_record_id, stay_reason)
@@ -8452,7 +8827,7 @@ def api_create_clinic_stay():
                     SET stay_status = 'staying', stay_reason = %s, admission_time = %s
                     WHERE id = %s
                 ''', (data.get('stay_reason'), admission_time, data.get('medical_record_id')))
-                print(f"🏥 Updated teaching medical record {data.get('medical_record_id')}")
+                print(f"ðŸ¥ Updated teaching medical record {data.get('medical_record_id')}")
             elif patient_id.startswith('NT'):
                 # Non-Teaching Staff
                 cursor.execute('''
@@ -8460,7 +8835,7 @@ def api_create_clinic_stay():
                     SET stay_status = 'staying', stay_reason = %s, admission_time = %s
                     WHERE id = %s
                 ''', (data.get('stay_reason'), admission_time, data.get('medical_record_id')))
-                print(f"🏥 Updated non-teaching medical record {data.get('medical_record_id')}")
+                print(f"ðŸ¥ Updated non-teaching medical record {data.get('medical_record_id')}")
             elif patient_id.startswith('D'):
                 # Dean
                 cursor.execute('''
@@ -8468,7 +8843,7 @@ def api_create_clinic_stay():
                     SET stay_status = 'staying', stay_reason = %s, admission_time = %s
                     WHERE id = %s
                 ''', (data.get('stay_reason'), admission_time, data.get('medical_record_id')))
-                print(f"🏥 Updated dean medical record {data.get('medical_record_id')}")
+                print(f"ðŸ¥ Updated dean medical record {data.get('medical_record_id')}")
             elif patient_id.startswith('P'):
                 # President
                 cursor.execute('''
@@ -8476,7 +8851,7 @@ def api_create_clinic_stay():
                     SET stay_status = 'staying', stay_reason = %s, admission_time = %s
                     WHERE id = %s
                 ''', (data.get('stay_reason'), admission_time, data.get('medical_record_id')))
-                print(f"🏥 Updated president medical record {data.get('medical_record_id')}")
+                print(f"ðŸ¥ Updated president medical record {data.get('medical_record_id')}")
             elif patient_id.startswith('V'):
                 # Visitor
                 cursor.execute('''
@@ -8484,7 +8859,7 @@ def api_create_clinic_stay():
                     SET stay_status = 'staying', stay_reason = %s, admission_time = %s
                     WHERE id = %s
                 ''', (data.get('stay_reason'), admission_time, data.get('medical_record_id')))
-                print(f"🏥 Updated visitor medical record {data.get('medical_record_id')}")
+                print(f"ðŸ¥ Updated visitor medical record {data.get('medical_record_id')}")
             else:
                 # Student (default)
                 cursor.execute('''
@@ -8492,15 +8867,15 @@ def api_create_clinic_stay():
                     SET stay_status = 'staying', stay_reason = %s, admission_time = %s
                     WHERE id = %s
                 ''', (data.get('stay_reason'), admission_time, data.get('medical_record_id')))
-                print(f"🏥 Updated student medical record {data.get('medical_record_id')}")
+                print(f"ðŸ¥ Updated student medical record {data.get('medical_record_id')}")
             
-            print(f"🏥 Set stay_status to 'staying' with admission_time: {admission_time}")
+            print(f"ðŸ¥ Set stay_status to 'staying' with admission_time: {admission_time}")
         
         conn.commit()
         cursor.close()
         conn.close()
         
-        print(f"✅ Clinic stay created successfully with ID: {stay_id}")
+        print(f"âœ… Clinic stay created successfully with ID: {stay_id}")
         return jsonify({
             'success': True,
             'stay_id': stay_id,
@@ -8508,7 +8883,7 @@ def api_create_clinic_stay():
         })
         
     except Exception as e:
-        print(f"❌ Error creating clinic stay: {str(e)}")
+        print(f"âŒ Error creating clinic stay: {str(e)}")
         cursor.close()
         conn.close()
         return jsonify({'error': f'Database error: {str(e)}'}), 500
@@ -8526,6 +8901,7 @@ def api_checkout_clinic_stay(stay_id):
     
     try:
         cursor = conn.cursor()
+        ticket_number = generate_unique_ticket_number(conn)
         
         # Update clinic stay with checkout time
         cursor.execute('''
@@ -8564,6 +8940,7 @@ def api_checkout_medical_record(record_id):
     
     try:
         cursor = conn.cursor()
+        ticket_number = generate_unique_ticket_number(conn)
         
         # Update medical record with checkout time, discharge time, and notes
         from datetime import datetime
@@ -8582,7 +8959,7 @@ def api_checkout_medical_record(record_id):
             record_id
         ))
         
-        print(f"🏥 Patient discharged from medical record {record_id} at {discharge_time}")
+        print(f"ðŸ¥ Patient discharged from medical record {record_id} at {discharge_time}")
         
         conn.commit()
         cursor.close()
@@ -8612,9 +8989,10 @@ def api_checkout_teaching_medical_record(record_id):
     
     try:
         cursor = conn.cursor()
+        ticket_number = generate_unique_ticket_number(conn)
         
-        print(f"🏥 Discharging teaching medical record ID: {record_id}")
-        print(f"📋 Checkout data: {data}")
+        print(f"ðŸ¥ Discharging teaching medical record ID: {record_id}")
+        print(f"ðŸ“‹ Checkout data: {data}")
         
         # Update teaching medical record with checkout time, discharge time, and notes
         from datetime import datetime
@@ -8638,7 +9016,7 @@ def api_checkout_teaching_medical_record(record_id):
             conn.close()
             return jsonify({'error': 'Teaching medical record not found'}), 404
         
-        print(f"🏥 Teaching staff discharged from medical record {record_id} at {discharge_time}")
+        print(f"ðŸ¥ Teaching staff discharged from medical record {record_id} at {discharge_time}")
         
         conn.commit()
         cursor.close()
@@ -8668,6 +9046,7 @@ def api_checkout_visitor_medical_record(record_id):
     
     try:
         cursor = conn.cursor()
+        ticket_number = generate_unique_ticket_number(conn)
         
         # Update visitor medical record with checkout time, discharge time, and notes
         from datetime import datetime
@@ -8691,7 +9070,7 @@ def api_checkout_visitor_medical_record(record_id):
             conn.close()
             return jsonify({'error': 'Visitor medical record not found'}), 404
         
-        print(f"🏥 Visitor discharged from medical record {record_id} at {discharge_time}")
+        print(f"ðŸ¥ Visitor discharged from medical record {record_id} at {discharge_time}")
         
         conn.commit()
         cursor.close()
@@ -8721,6 +9100,7 @@ def api_checkout_non_teaching_medical_record(record_id):
     
     try:
         cursor = conn.cursor()
+        ticket_number = generate_unique_ticket_number(conn)
         
         from datetime import datetime
         discharge_time = datetime.now()
@@ -8743,7 +9123,7 @@ def api_checkout_non_teaching_medical_record(record_id):
             conn.close()
             return jsonify({'error': 'Non-teaching medical record not found'}), 404
         
-        print(f"🏥 Non-teaching staff discharged from medical record {record_id} at {discharge_time}")
+        print(f"ðŸ¥ Non-teaching staff discharged from medical record {record_id} at {discharge_time}")
         
         conn.commit()
         cursor.close()
@@ -8773,6 +9153,7 @@ def api_checkout_dean_medical_record(record_id):
     
     try:
         cursor = conn.cursor()
+        ticket_number = generate_unique_ticket_number(conn)
         
         from datetime import datetime
         discharge_time = datetime.now()
@@ -8795,7 +9176,7 @@ def api_checkout_dean_medical_record(record_id):
             conn.close()
             return jsonify({'error': 'Dean medical record not found'}), 404
         
-        print(f"🏥 Dean discharged from medical record {record_id} at {discharge_time}")
+        print(f"ðŸ¥ Dean discharged from medical record {record_id} at {discharge_time}")
         
         conn.commit()
         cursor.close()
@@ -8825,6 +9206,7 @@ def api_checkout_president_medical_record(record_id):
     
     try:
         cursor = conn.cursor()
+        ticket_number = generate_unique_ticket_number(conn)
         
         from datetime import datetime
         discharge_time = datetime.now()
@@ -8847,7 +9229,7 @@ def api_checkout_president_medical_record(record_id):
             conn.close()
             return jsonify({'error': 'President medical record not found'}), 404
         
-        print(f"🏥 President discharged from medical record {record_id} at {discharge_time}")
+        print(f"ðŸ¥ President discharged from medical record {record_id} at {discharge_time}")
         
         conn.commit()
         cursor.close()
@@ -8873,8 +9255,9 @@ def api_get_teaching_medical_record(record_id):
     
     try:
         cursor = conn.cursor()
+        ticket_number = generate_unique_ticket_number(conn)
         
-        print(f"🔍 Fetching teaching medical record ID: {record_id}")
+        print(f"ðŸ” Fetching teaching medical record ID: {record_id}")
         
         cursor.execute('''
             SELECT tmr.id, tmr.teaching_id, tmr.visit_date, tmr.visit_time, tmr.chief_complaint, 
@@ -8890,12 +9273,12 @@ def api_get_teaching_medical_record(record_id):
         ''', (record_id,))
         
         record = cursor.fetchone()
-        print(f"📋 Raw record data: {record}")
+        print(f"ðŸ“‹ Raw record data: {record}")
         cursor.close()
         conn.close()
         
         if not record:
-            print(f"❌ Teaching medical record {record_id} not found")
+            print(f"âŒ Teaching medical record {record_id} not found")
             return jsonify({'error': 'Teaching medical record not found'}), 404
         
         # Format the record data
@@ -8921,11 +9304,11 @@ def api_get_teaching_medical_record(record_id):
             'stay_reason': record[10] or ''
         }
         
-        print(f"✅ Successfully formatted teaching medical record: {record_data['id']}")
+        print(f"âœ… Successfully formatted teaching medical record: {record_data['id']}")
         return jsonify(record_data)
         
     except Exception as e:
-        print(f"❌ Error in api_get_teaching_medical_record: {str(e)}")
+        print(f"âŒ Error in api_get_teaching_medical_record: {str(e)}")
         import traceback
         traceback.print_exc()
         return jsonify({'error': f'Error: {str(e)}'}), 500
@@ -8942,6 +9325,7 @@ def api_get_visitor_medical_record(record_id):
     
     try:
         cursor = conn.cursor()
+        ticket_number = generate_unique_ticket_number(conn)
         
         cursor.execute('''
             SELECT mr.id, mr.visitor_id, mr.visit_date, mr.visit_time, mr.chief_complaint, 
@@ -9006,6 +9390,7 @@ def api_get_non_teaching_medical_record(record_id):
     
     try:
         cursor = conn.cursor()
+        ticket_number = generate_unique_ticket_number(conn)
         
         cursor.execute('''
             SELECT mr.id, mr.non_teaching_id, mr.visit_date, mr.visit_time, mr.chief_complaint, 
@@ -9062,6 +9447,7 @@ def api_get_dean_medical_record(record_id):
     
     try:
         cursor = conn.cursor()
+        ticket_number = generate_unique_ticket_number(conn)
         
         cursor.execute('''
             SELECT mr.id, mr.dean_id, mr.visit_date, mr.visit_time, mr.chief_complaint, 
@@ -9148,6 +9534,7 @@ def api_get_president_medical_record(record_id):
     
     try:
         cursor = conn.cursor()
+        ticket_number = generate_unique_ticket_number(conn)
         
         cursor.execute('''
             SELECT mr.id, mr.president_id, mr.visit_date, mr.visit_time, mr.chief_complaint, 
@@ -9234,6 +9621,7 @@ def api_delete_teaching_medical_record(record_id):
     
     try:
         cursor = conn.cursor()
+        ticket_number = generate_unique_ticket_number(conn)
         
         # Check if record exists
         cursor.execute('SELECT id FROM teaching_medical_records WHERE id = %s', (record_id,))
@@ -9246,7 +9634,7 @@ def api_delete_teaching_medical_record(record_id):
         conn.commit()
         cursor.close()
         
-        print(f"🗑️ Deleted teaching medical record {record_id}")
+        print(f"ðŸ—‘ï¸ Deleted teaching medical record {record_id}")
         
         return jsonify({'success': True, 'message': 'Teaching medical record deleted successfully'})
         
@@ -9265,6 +9653,7 @@ def api_delete_visitor_medical_record(record_id):
     
     try:
         cursor = conn.cursor()
+        ticket_number = generate_unique_ticket_number(conn)
         
         # Check if record exists
         cursor.execute('SELECT id FROM visitor_medical_records WHERE id = %s', (record_id,))
@@ -9277,7 +9666,7 @@ def api_delete_visitor_medical_record(record_id):
         conn.commit()
         cursor.close()
         
-        print(f"🗑️ Deleted visitor medical record {record_id}")
+        print(f"ðŸ—‘ï¸ Deleted visitor medical record {record_id}")
         
         return jsonify({'success': True, 'message': 'Visitor medical record deleted successfully'})
         
@@ -9296,6 +9685,7 @@ def api_delete_medical_record(record_id):
     
     try:
         cursor = conn.cursor()
+        ticket_number = generate_unique_ticket_number(conn)
         
         # Check if record exists
         cursor.execute('SELECT id FROM medical_records WHERE id = %s', (record_id,))
@@ -9308,7 +9698,7 @@ def api_delete_medical_record(record_id):
         conn.commit()
         cursor.close()
         
-        print(f"🗑️ Deleted student medical record {record_id}")
+        print(f"ðŸ—‘ï¸ Deleted student medical record {record_id}")
         
         return jsonify({'success': True, 'message': 'Medical record deleted successfully'})
         
@@ -9327,6 +9717,7 @@ def api_delete_non_teaching_medical_record(record_id):
     
     try:
         cursor = conn.cursor()
+        ticket_number = generate_unique_ticket_number(conn)
         
         # Check if record exists
         cursor.execute('SELECT id FROM non_teaching_medical_records WHERE id = %s', (record_id,))
@@ -9339,7 +9730,7 @@ def api_delete_non_teaching_medical_record(record_id):
         conn.commit()
         cursor.close()
         
-        print(f"🗑️ Deleted non-teaching staff medical record {record_id}")
+        print(f"ðŸ—‘ï¸ Deleted non-teaching staff medical record {record_id}")
         
         return jsonify({'success': True, 'message': 'Non-teaching staff medical record deleted successfully'})
         
@@ -9358,6 +9749,7 @@ def api_delete_dean_medical_record(record_id):
     
     try:
         cursor = conn.cursor()
+        ticket_number = generate_unique_ticket_number(conn)
         
         # Check if record exists
         cursor.execute('SELECT id FROM dean_medical_records WHERE id = %s', (record_id,))
@@ -9370,7 +9762,7 @@ def api_delete_dean_medical_record(record_id):
         conn.commit()
         cursor.close()
         
-        print(f"🗑️ Deleted dean medical record {record_id}")
+        print(f"ðŸ—‘ï¸ Deleted dean medical record {record_id}")
         
         return jsonify({'success': True, 'message': 'Dean medical record deleted successfully'})
         
@@ -9389,6 +9781,7 @@ def api_delete_president_medical_record(record_id):
     
     try:
         cursor = conn.cursor()
+        ticket_number = generate_unique_ticket_number(conn)
         
         # Check if record exists
         cursor.execute('SELECT id FROM president_medical_records WHERE id = %s', (record_id,))
@@ -9401,7 +9794,7 @@ def api_delete_president_medical_record(record_id):
         conn.commit()
         cursor.close()
         
-        print(f"🗑️ Deleted president medical record {record_id}")
+        print(f"ðŸ—‘ï¸ Deleted president medical record {record_id}")
         
         return jsonify({'success': True, 'message': 'President medical record deleted successfully'})
         
@@ -9420,6 +9813,7 @@ def api_get_current_clinic_stays():
     
     try:
         cursor = conn.cursor()
+        ticket_number = generate_unique_ticket_number(conn)
         result = []
         
         # Get students staying in clinic
@@ -9434,7 +9828,7 @@ def api_get_current_clinic_stays():
                 ORDER BY mr.created_at DESC
             ''')
         except Exception as e:
-            print(f"⚠️ Error querying students: {str(e)}")
+            print(f"âš ï¸ Error querying students: {str(e)}")
             
         for stay in cursor.fetchall():
             patient_name = f"{stay[8]} {stay[9]}" if stay[8] and stay[9] else 'Unknown Patient'
@@ -9510,9 +9904,9 @@ def api_get_current_clinic_stays():
                     'check_in_time': stay[7].strftime('%Y-%m-%d %H:%M:%S') if stay[7] else None,
                     'status': 'staying'
                 })
-                print(f"✅ Added non-teaching staff stay: {patient_name}")
+                print(f"âœ… Added non-teaching staff stay: {patient_name}")
         except Exception as e:
-            print(f"⚠️ Error querying non-teaching staff: {str(e)}")
+            print(f"âš ï¸ Error querying non-teaching staff: {str(e)}")
             import traceback
             traceback.print_exc()
         
@@ -9605,7 +9999,7 @@ def api_get_current_clinic_stays():
         return jsonify(result)
         
     except Exception as e:
-        print(f"❌ ERROR in /api/current-clinic-stays: {str(e)}")
+        print(f"âŒ ERROR in /api/current-clinic-stays: {str(e)}")
         import traceback
         traceback.print_exc()
         return jsonify({'error': f'Error: {str(e)}'}), 500
@@ -9619,6 +10013,7 @@ def api_debug_medical_records():
     try:
         conn = DatabaseConfig.get_connection()
         cursor = conn.cursor()
+        ticket_number = generate_unique_ticket_number(conn)
         
         # Get first few records with detailed info
         cursor.execute('''
@@ -9667,6 +10062,7 @@ def api_create_test_consultation():
             return jsonify({'error': 'Database connection failed'}), 500
         
         cursor = conn.cursor()
+        ticket_number = generate_unique_ticket_number(conn)
         
         # First, check what columns exist in the table
         try:
@@ -9735,6 +10131,7 @@ def api_start_online_consultation():
     
     try:
         cursor = conn.cursor()
+        ticket_number = generate_unique_ticket_number(conn)
         
         patient_name = data.get('patient_name', 'Unknown')
         patient_type = data.get('patient_type', 'student')
@@ -9746,8 +10143,8 @@ def api_start_online_consultation():
         patient_role = None
         actual_patient_name = None  # Will be set from database lookup
         
-        print(f"🔍 Starting patient identification for: {patient_name} (Type: {patient_type})")
-        print(f"🔍 Session data: user_id={session.get('user_id')}, role={session.get('role')}")
+        print(f"ðŸ” Starting patient identification for: {patient_name} (Type: {patient_type})")
+        print(f"ðŸ” Session data: user_id={session.get('user_id')}, role={session.get('role')}")
         
         # AGGRESSIVE DUPLICATE PREVENTION - Check multiple ways to prevent any duplicates
         existing_consultation = None
@@ -9757,8 +10154,8 @@ def api_start_online_consultation():
             session_first_name = session.get('first_name', '')
             session_last_name = session.get('last_name', '')
             
-            print(f"🔍 Checking for existing consultations for user_id: {user_id}")
-            print(f"🔍 Session name: {session_first_name} {session_last_name}")
+            print(f"ðŸ” Checking for existing consultations for user_id: {user_id}")
+            print(f"ðŸ” Session name: {session_first_name} {session_last_name}")
             
             # Method 1: Check by exact session name match
             if session_first_name and session_last_name:
@@ -9770,7 +10167,7 @@ def api_start_online_consultation():
                 ''', (session_full_name,))
                 existing_consultation = cursor.fetchone()
                 if existing_consultation:
-                    print(f"🚫 Found duplicate by name: {existing_consultation}")
+                    print(f"ðŸš« Found duplicate by name: {existing_consultation}")
             
             # Method 2: Check by user_id (for user accounts)
             if not existing_consultation:
@@ -9781,7 +10178,7 @@ def api_start_online_consultation():
                 ''', (user_id,))
                 existing_consultation = cursor.fetchone()
                 if existing_consultation:
-                    print(f"🚫 Found duplicate by user_id: {existing_consultation}")
+                    print(f"ðŸš« Found duplicate by user_id: {existing_consultation}")
             
             # Method 3: Check by student_id (if we can find the student record)
             if not existing_consultation and session_first_name and session_last_name:
@@ -9801,10 +10198,10 @@ def api_start_online_consultation():
                     ''', (student_number,))
                     existing_consultation = cursor.fetchone()
                     if existing_consultation:
-                        print(f"🚫 Found duplicate by student_number {student_number}: {existing_consultation}")
+                        print(f"ðŸš« Found duplicate by student_number {student_number}: {existing_consultation}")
         
         if existing_consultation:
-            print(f"⚠️ DUPLICATE PREVENTED! Using existing consultation ID {existing_consultation[0]} for {existing_consultation[1]} (Patient ID: {existing_consultation[2]})")
+            print(f"âš ï¸ DUPLICATE PREVENTED! Using existing consultation ID {existing_consultation[0]} for {existing_consultation[1]} (Patient ID: {existing_consultation[2]})")
             cursor.close()
             conn.close()
             return jsonify({
@@ -9819,8 +10216,8 @@ def api_start_online_consultation():
             user_id = session['user_id']
             user_role = session.get('role', '')
             
-            print(f"🔍 Session data - User ID: {user_id}, Role: {user_role}")
-            print(f"🔍 Session first_name: {session.get('first_name')}, last_name: {session.get('last_name')}")
+            print(f"ðŸ” Session data - User ID: {user_id}, Role: {user_role}")
+            print(f"ðŸ” Session first_name: {session.get('first_name')}, last_name: {session.get('last_name')}")
             
             if user_role == 'student':
                 # For students, we need to find their actual student ID in the students table
@@ -9844,12 +10241,12 @@ def api_start_online_consultation():
                         patient_id = student_result[0]  # Use actual student ID from students table
                         patient_role = 'Student'
                         actual_patient_name = student_result[1]  # Use name from students table
-                        print(f"✅ Found matching student record: {actual_patient_name} (Student ID: {patient_id}, User ID: {user_id})")
+                        print(f"âœ… Found matching student record: {actual_patient_name} (Student ID: {patient_id}, User ID: {user_id})")
                     else:
                         # If no matching student found, use user_id but with session name
                         patient_id = user_id
                         patient_role = 'Student'
-                        print(f"⚠️ No matching student record found, using user_id: {actual_patient_name} (User ID: {patient_id})")
+                        print(f"âš ï¸ No matching student record found, using user_id: {actual_patient_name} (User ID: {patient_id})")
                 else:
                     # Fallback to checking users table
                     cursor.execute('''
@@ -9863,12 +10260,12 @@ def api_start_online_consultation():
                         actual_patient_name = user_result[0]
                         patient_id = user_id
                         patient_role = 'Student'
-                        print(f"✅ Using logged-in student from users table: {actual_patient_name} (ID: {patient_id})")
+                        print(f"âœ… Using logged-in student from users table: {actual_patient_name} (ID: {patient_id})")
                     else:
                         actual_patient_name = data.get('patient_name', f'Student {user_id}')
                         patient_id = user_id
                         patient_role = 'Student'
-                        print(f"⚠️ Using fallback name: {actual_patient_name} (ID: {patient_id})")
+                        print(f"âš ï¸ Using fallback name: {actual_patient_name} (ID: {patient_id})")
             
             elif user_role == 'president':
                 # For President role
@@ -9883,7 +10280,7 @@ def api_start_online_consultation():
                     patient_id = president_result[0]
                     patient_role = 'President'  # Set role as President
                     actual_patient_name = president_result[1]
-                    print(f"✅ Using logged-in President: {actual_patient_name} (ID: {patient_id}, Role: President)")
+                    print(f"âœ… Using logged-in President: {actual_patient_name} (ID: {patient_id}, Role: President)")
             
             elif user_role == 'dean':
                 # For Dean role
@@ -9898,7 +10295,7 @@ def api_start_online_consultation():
                     patient_id = dean_result[0]
                     patient_role = 'Dean'  # Set role as Dean
                     actual_patient_name = dean_result[1]
-                    print(f"✅ Using logged-in Dean: {actual_patient_name} (ID: {patient_id}, Role: Dean)")
+                    print(f"âœ… Using logged-in Dean: {actual_patient_name} (ID: {patient_id}, Role: Dean)")
             
             elif user_role in ['staff', 'admin', 'teaching_staff', 'non_teaching_staff']:
                 cursor.execute('''
@@ -9912,11 +10309,11 @@ def api_start_online_consultation():
                     patient_id = staff_result[0]
                     patient_role = staff_result[2] if staff_result[2] else 'Staff'  # Use position field
                     actual_patient_name = staff_result[1]
-                    print(f"✅ Using logged-in user: {actual_patient_name} (ID: {patient_id}, Role: {patient_role})")
+                    print(f"âœ… Using logged-in user: {actual_patient_name} (ID: {patient_id}, Role: {patient_role})")
         
         # Fallback: If session lookup failed, try to find by name matching
         if not patient_id and patient_type.lower() == 'student':
-            print(f"⚠️ Session lookup failed, trying name matching for: {patient_name}")
+            print(f"âš ï¸ Session lookup failed, trying name matching for: {patient_name}")
             cursor.execute('''
                 SELECT student_number, CONCAT(std_Firstname, ' ', std_Surname) as full_name 
                 FROM students 
@@ -9935,9 +10332,9 @@ def api_start_online_consultation():
         # Ensure actual_patient_name is set (fallback to patient_name from request if not found in DB)
         if not actual_patient_name:
             actual_patient_name = patient_name
-            print(f"⚠️ Using fallback patient name: {actual_patient_name}")
+            print(f"âš ï¸ Using fallback patient name: {actual_patient_name}")
         
-        print(f"📝 Final consultation data:")
+        print(f"ðŸ“ Final consultation data:")
         print(f"   Patient ID: {patient_id}")
         print(f"   Patient Name: {actual_patient_name}")
         print(f"   Patient Type: {patient_type}")
@@ -9962,7 +10359,7 @@ def api_start_online_consultation():
             
             # If lastrowid is 0, it means the insert was ignored due to duplicate
             if consultation_id == 0:
-                print(f"🚫 Duplicate insert prevented by database constraint for {actual_patient_name}")
+                print(f"ðŸš« Duplicate insert prevented by database constraint for {actual_patient_name}")
                 # Find the existing consultation
                 cursor.execute('''
                     SELECT id FROM online_consultations 
@@ -9976,7 +10373,7 @@ def api_start_online_consultation():
             cursor.close()
             conn.close()
             
-            print(f"✅ Using consultation ID {consultation_id} for {actual_patient_name} (Patient ID: {patient_id}, Role: {patient_role})")
+            print(f"âœ… Using consultation ID {consultation_id} for {actual_patient_name} (Patient ID: {patient_id}, Role: {patient_role})")
             
             return jsonify({
                 'success': True,
@@ -9990,7 +10387,7 @@ def api_start_online_consultation():
         except Exception as insert_error:
             # Handle duplicate key error specifically
             if 'Duplicate entry' in str(insert_error) or 'unique_active_patient' in str(insert_error):
-                print(f"🚫 Database prevented duplicate consultation for {actual_patient_name}")
+                print(f"ðŸš« Database prevented duplicate consultation for {actual_patient_name}")
                 # Find the existing consultation
                 cursor.execute('''
                     SELECT id FROM online_consultations 
@@ -10157,12 +10554,12 @@ def api_mark_messages_read(consultation_id):
     
     # Only staff can mark messages as read (allow all staff roles)
     user_role = session.get('role', '').lower()
-    print(f"🔍 Mark-read check: user_role='{user_role}', original role='{session.get('role')}'")
+    print(f"ðŸ” Mark-read check: user_role='{user_role}', original role='{session.get('role')}'")
     # Allow: staff, admin, nurse, or any role that's not 'student'
     if user_role == 'student':
-        print(f"⚠️ Mark-read denied for role: {session.get('role')}")
+        print(f"âš ï¸ Mark-read denied for role: {session.get('role')}")
         return jsonify({'error': 'Only staff can mark messages as read'}), 403
-    print(f"✅ Mark-read allowed for role: {session.get('role')}")
+    print(f"âœ… Mark-read allowed for role: {session.get('role')}")
     
     conn = DatabaseConfig.get_connection()
     if not conn:
@@ -10185,7 +10582,7 @@ def api_mark_messages_read(consultation_id):
         cursor.close()
         conn.close()
         
-        print(f"✅ Marked {marked_count} messages as read for consultation {consultation_id}")
+        print(f"âœ… Marked {marked_count} messages as read for consultation {consultation_id}")
         
         return jsonify({
             'success': True,
@@ -10193,7 +10590,7 @@ def api_mark_messages_read(consultation_id):
         }), 200
         
     except Exception as e:
-        print(f"❌ Error marking messages as read: {e}")
+        print(f"âŒ Error marking messages as read: {e}")
         import traceback
         traceback.print_exc()
         if 'cursor' in locals():
@@ -10211,12 +10608,12 @@ def api_delete_consultation(consultation_id):
     
     # Only staff can delete consultations (allow all staff roles)
     user_role = session.get('role', '').lower()
-    print(f"🔍 Delete check: user_role='{user_role}', original role='{session.get('role')}'")
+    print(f"ðŸ” Delete check: user_role='{user_role}', original role='{session.get('role')}'")
     # Allow: staff, admin, nurse, or any role that's not 'student'
     if user_role == 'student':
-        print(f"⚠️ Delete denied for role: {session.get('role')}")
+        print(f"âš ï¸ Delete denied for role: {session.get('role')}")
         return jsonify({'error': 'Only staff can delete consultations'}), 403
-    print(f"✅ Delete allowed for role: {session.get('role')}")
+    print(f"âœ… Delete allowed for role: {session.get('role')}")
     
     conn = DatabaseConfig.get_connection()
     if not conn:
@@ -10247,7 +10644,7 @@ def api_delete_consultation(consultation_id):
         cursor.close()
         conn.close()
         
-        print(f"✅ Deleted consultation {consultation_id} ({patient_name}) and {deleted_messages} messages")
+        print(f"âœ… Deleted consultation {consultation_id} ({patient_name}) and {deleted_messages} messages")
         
         return jsonify({
             'success': True,
@@ -10256,7 +10653,7 @@ def api_delete_consultation(consultation_id):
         }), 200
         
     except Exception as e:
-        print(f"❌ Error deleting consultation: {e}")
+        print(f"âŒ Error deleting consultation: {e}")
         import traceback
         traceback.print_exc()
         if 'cursor' in locals():
@@ -10278,6 +10675,7 @@ def api_supplies():
     
     try:
         cursor = conn.cursor()
+        ticket_number = generate_unique_ticket_number(conn)
         cursor.execute('''
             SELECT id, item_name, category, quantity, condition_status, location, 
                    brand_model, last_maintenance, purchase_date, cost, supplier, notes,
@@ -10334,6 +10732,7 @@ def api_add_supply():
     
     try:
         cursor = conn.cursor()
+        ticket_number = generate_unique_ticket_number(conn)
         cursor.execute('''
             INSERT INTO clinic_supplies (item_name, category, quantity, condition_status, 
                                        location, brand_model, last_maintenance, purchase_date, 
@@ -10386,9 +10785,10 @@ def api_update_supply(supply_id):
     
     try:
         cursor = conn.cursor()
+        ticket_number = generate_unique_ticket_number(conn)
         
         # Debug logging
-        print(f"🔧 Updating supply ID {supply_id}")
+        print(f"ðŸ”§ Updating supply ID {supply_id}")
         print(f"   Condition received: {data.get('condition_status')}")
         
         cursor.execute('''
@@ -10413,7 +10813,7 @@ def api_update_supply(supply_id):
         ))
         
         conn.commit()
-        print(f"✅ Supply {supply_id} updated successfully with condition: {data.get('condition_status')}")
+        print(f"âœ… Supply {supply_id} updated successfully with condition: {data.get('condition_status')}")
         
         cursor.close()
         conn.close()
@@ -10443,6 +10843,7 @@ def api_delete_supply(supply_id):
     
     try:
         cursor = conn.cursor()
+        ticket_number = generate_unique_ticket_number(conn)
         cursor.execute('DELETE FROM clinic_supplies WHERE id = %s', (supply_id,))
         
         conn.commit()
@@ -10474,6 +10875,7 @@ def api_available_staff():
     
     try:
         cursor = conn.cursor()
+        ticket_number = generate_unique_ticket_number(conn)
         cursor.execute('''
             SELECT id, first_name, last_name, position, email
             FROM users
@@ -10513,6 +10915,7 @@ def api_print_history():
     
     try:
         cursor = conn.cursor()
+        ticket_number = generate_unique_ticket_number(conn)
         
         # Get print history with staff information
         cursor.execute('''
@@ -10569,7 +10972,7 @@ def generate_medical_letter():
         
         # Get data from request
         data = request.get_json()
-        print("📄 Received letter data:", data)  # Debug log
+        print("ðŸ“„ Received letter data:", data)  # Debug log
         
         # Extract patient information
         patient_name = data.get('name', '[Name patient]')
@@ -10578,13 +10981,13 @@ def generate_medical_letter():
         issued_date = data.get('issued_date', datetime.now().strftime('%B %d, %Y'))
         purpose = data.get('purpose', 'medical consultation and healthcare services')
         
-        print(f"📄 Extracted - Name: {patient_name}, Date: {visit_date}, Time: {visit_time}")  # Debug log
+        print(f"ðŸ“„ Extracted - Name: {patient_name}, Date: {visit_date}, Time: {visit_time}")  # Debug log
         
         # Path to your template
         template_path = os.path.join(os.path.dirname(__file__), 'medical aknowlegement letter.docx')
         
         if not os.path.exists(template_path):
-            print(f"❌ Template file not found at: {template_path}")
+            print(f"âŒ Template file not found at: {template_path}")
             return jsonify({'error': 'Template file not found'}), 404
         
         # Load the template
@@ -10599,7 +11002,7 @@ def generate_medical_letter():
             'purpose': purpose
         }
         
-        print(f"📄 Template context: {context}")
+        print(f"ðŸ“„ Template context: {context}")
         
         # Render the template with context
         doc.render(context)
@@ -10634,11 +11037,11 @@ def generate_medical_letter():
                 conn.commit()
                 cursor.close()
                 conn.close()
-                print(f"📝 Print history saved for {patient_name}")
+                print(f"ðŸ“ Print history saved for {patient_name}")
         except Exception as db_error:
-            print(f"⚠️ Failed to save print history: {db_error}")
+            print(f"âš ï¸ Failed to save print history: {db_error}")
         
-        print(f"✅ Letter generated successfully: {output_filename}")
+        print(f"âœ… Letter generated successfully: {output_filename}")
         
         # Return the file for download
         return send_file(
@@ -10649,10 +11052,10 @@ def generate_medical_letter():
         )
         
     except ImportError as e:
-        print(f"❌ Missing dependency: {str(e)}")
+        print(f"âŒ Missing dependency: {str(e)}")
         return jsonify({'error': 'Missing required library. Please install docxtpl: pip install docxtpl'}), 500
     except Exception as e:
-        print(f"❌ Error generating letter: {str(e)}")
+        print(f"âŒ Error generating letter: {str(e)}")
         import traceback
         traceback.print_exc()
         return jsonify({'error': f'Failed to generate letter: {str(e)}'}), 500
@@ -10671,7 +11074,7 @@ def generate_medical_letter_pdf():
         
         # Get data from request
         data = request.get_json()
-        print("📄 Received PDF letter data:", data)
+        print("ðŸ“„ Received PDF letter data:", data)
         
         # Extract patient information
         patient_name = data.get('name', '[Name patient]')
@@ -10714,7 +11117,7 @@ def generate_medical_letter_pdf():
         
         # Convert to PDF using optimized docx2pdf
         conversion_method = "docx2pdf"
-        print("📄 Converting DOCX to PDF...")
+        print("ðŸ“„ Converting DOCX to PDF...")
         
         import pythoncom
         from docx2pdf import convert
@@ -10754,12 +11157,12 @@ def generate_medical_letter_pdf():
                 conn.commit()
                 cursor.close()
                 conn.close()
-                print(f"📝 Print history saved for {patient_name} (PDF)")
+                print(f"ðŸ“ Print history saved for {patient_name} (PDF)")
         except Exception as db_error:
-            print(f"⚠️ Failed to save print history: {db_error}")
+            print(f"âš ï¸ Failed to save print history: {db_error}")
         
         elapsed_time = time.time() - start_time
-        print(f"✅ PDF generated in {elapsed_time:.2f}s using {conversion_method}: {pdf_filename}")
+        print(f"âœ… PDF generated in {elapsed_time:.2f}s using {conversion_method}: {pdf_filename}")
         
         # Return PDF for download
         return send_file(
@@ -10770,10 +11173,10 @@ def generate_medical_letter_pdf():
         )
         
     except ImportError as e:
-        print(f"❌ Missing dependency: {str(e)}")
+        print(f"âŒ Missing dependency: {str(e)}")
         return jsonify({'error': 'Missing required library. Please install docxtpl and docx2pdf'}), 500
     except Exception as e:
-        print(f"❌ Error generating PDF: {str(e)}")
+        print(f"âŒ Error generating PDF: {str(e)}")
         return jsonify({'error': f'Failed to generate PDF: {str(e)}'}), 500
 
 # ===== APPOINTMENTS API ENDPOINTS =====
@@ -10867,7 +11270,7 @@ def api_get_appointments():
                 ''', (appt_id,))
             conn.commit()
             update_cursor.close()
-            print(f"✅ Auto-completed {len(appointments_to_complete)} past appointments")
+            print(f"âœ… Auto-completed {len(appointments_to_complete)} past appointments")
         
         cursor.close()
         conn.close()
@@ -11137,7 +11540,7 @@ def api_create_appointment_request():
         cursor.close()
         conn.close()
         
-        print(f"✅ New appointment auto-confirmed: ID {appointment_id} for {data['patient_name']} on {data['preferred_date']} at {data['preferred_time']}")
+        print(f"âœ… New appointment auto-confirmed: ID {appointment_id} for {data['patient_name']} on {data['preferred_date']} at {data['preferred_time']}")
         
         # CHECK IF APPOINTMENT IS WITHIN 3 DAYS - SEND EMAIL NOTIFICATION
         from datetime import datetime, timedelta
@@ -11146,18 +11549,18 @@ def api_create_appointment_request():
             today = datetime.now()
             days_until_appointment = (appointment_date_obj - today).days
             
-            print(f"📅 Days until appointment: {days_until_appointment}")
+            print(f"ðŸ“… Days until appointment: {days_until_appointment}")
             
             # ONLY SEND EMAIL IF APPOINTMENT IS LESS THAN 3 DAYS AWAY
             if days_until_appointment < 3:
-                print(f"⚡ Appointment is within 3 days! Sending email notification...")
+                print(f"âš¡ Appointment is within 3 days! Sending email notification...")
                 
                 # Get user's email from session or database
                 user_email = session.get('email', None)
                 user_id = session.get('user_id', None)
                 
-                print(f"🔍 DEBUG - Session email: {user_email}")
-                print(f"🔍 DEBUG - Session user_id: {user_id}")
+                print(f"ðŸ” DEBUG - Session email: {user_email}")
+                print(f"ðŸ” DEBUG - Session user_id: {user_id}")
                 
                 if not user_email:
                     # Try to get email from database using user_id from session
@@ -11170,20 +11573,20 @@ def api_create_appointment_request():
                             cursor_email.execute('SELECT email FROM users WHERE id = %s', (user_id,))
                             user_data = cursor_email.fetchone()
                             
-                            print(f"🔍 DEBUG - User data from database: {user_data}")
+                            print(f"ðŸ” DEBUG - User data from database: {user_data}")
                             
                             if user_data and user_data.get('email'):
                                 user_email = user_data.get('email')
-                                print(f"🔍 DEBUG - Email found in users table: {user_email}")
+                                print(f"ðŸ” DEBUG - Email found in users table: {user_email}")
                             else:
                                 # Fallback: Try students table if user is a student
-                                print(f"🔍 DEBUG - No email in users table, trying students table...")
+                                print(f"ðŸ” DEBUG - No email in users table, trying students table...")
                                 cursor_email.execute('SELECT std_EmailAdd FROM students WHERE CONCAT(std_Firstname, " ", std_Surname) = %s', (data['patient_name'],))
                                 student_data = cursor_email.fetchone()
-                                print(f"🔍 DEBUG - Student data: {student_data}")
+                                print(f"ðŸ” DEBUG - Student data: {student_data}")
                                 if student_data:
                                     user_email = student_data.get('std_EmailAdd')
-                                    print(f"🔍 DEBUG - Email found in students table: {user_email}")
+                                    print(f"ðŸ” DEBUG - Email found in students table: {user_email}")
                             
                             cursor_email.close()
                             conn_email.close()
@@ -11197,13 +11600,13 @@ def api_create_appointment_request():
                         appointment_time=data['preferred_time'],
                         appointment_type=data['appointment_type']
                     )
-                    print(f"✅ Email notification sent to: {user_email}")
+                    print(f"âœ… Email notification sent to: {user_email}")
                 else:
-                    print(f"⚠️  No email found for patient: {data['patient_name']}")
+                    print(f"âš ï¸  No email found for patient: {data['patient_name']}")
             else:
-                print(f"📆 Appointment is {days_until_appointment} days away (≥3 days). No immediate email notification sent.")
+                print(f"ðŸ“† Appointment is {days_until_appointment} days away (â‰¥3 days). No immediate email notification sent.")
         except Exception as email_check_error:
-            print(f"⚠️  Email notification check failed: {email_check_error}")
+            print(f"âš ï¸  Email notification check failed: {email_check_error}")
             # Don't fail the appointment creation if email fails
         
         return jsonify({
@@ -11213,7 +11616,7 @@ def api_create_appointment_request():
         }), 201
         
     except Exception as e:
-        print(f"❌ Error creating appointment: {str(e)}")
+        print(f"âŒ Error creating appointment: {str(e)}")
         return jsonify({'error': 'Failed to create appointment'}), 500
 
 @app.route('/api/appointment-requests/<int:request_id>/approve', methods=['PUT'])
@@ -11286,7 +11689,7 @@ def api_approve_appointment_request(request_id):
         cursor.close()
         conn.close()
         
-        print(f"✅ Appointment request {request_id} approved and appointment {appointment_id} created")
+        print(f"âœ… Appointment request {request_id} approved and appointment {appointment_id} created")
         
         return jsonify({
             'success': True,
@@ -11295,7 +11698,7 @@ def api_approve_appointment_request(request_id):
         }), 200
         
     except Exception as e:
-        print(f"❌ Error approving appointment request: {str(e)}")
+        print(f"âŒ Error approving appointment request: {str(e)}")
         return jsonify({'error': 'Failed to approve appointment request'}), 500
 
 @app.route('/api/appointment-requests/<int:request_id>/reject', methods=['PUT'])
@@ -11314,6 +11717,7 @@ def api_reject_appointment_request(request_id):
             return jsonify({'error': 'Database connection failed'}), 500
         
         cursor = conn.cursor()
+        ticket_number = generate_unique_ticket_number(conn)
         
         # Update request status to rejected
         cursor.execute('''
@@ -11329,7 +11733,7 @@ def api_reject_appointment_request(request_id):
         cursor.close()
         conn.close()
         
-        print(f"❌ Appointment request {request_id} rejected")
+        print(f"âŒ Appointment request {request_id} rejected")
         
         return jsonify({
             'success': True,
@@ -11337,7 +11741,7 @@ def api_reject_appointment_request(request_id):
         }), 200
         
     except Exception as e:
-        print(f"❌ Error rejecting appointment request: {str(e)}")
+        print(f"âŒ Error rejecting appointment request: {str(e)}")
         return jsonify({'error': 'Failed to reject appointment request'}), 500
 
 @app.route('/api/appointments/<int:appointment_id>', methods=['PUT'])
@@ -11366,6 +11770,7 @@ def api_update_appointment(appointment_id):
             return jsonify({'error': 'Database connection failed'}), 500
         
         cursor = conn.cursor()
+        ticket_number = generate_unique_ticket_number(conn)
         
         # Update appointment status
         cursor.execute('''
@@ -11383,7 +11788,7 @@ def api_update_appointment(appointment_id):
         cursor.close()
         conn.close()
         
-        print(f"✅ Appointment {appointment_id} status updated to: {new_status}")
+        print(f"âœ… Appointment {appointment_id} status updated to: {new_status}")
         
         return jsonify({
             'success': True,
@@ -11393,7 +11798,7 @@ def api_update_appointment(appointment_id):
         }), 200
         
     except Exception as e:
-        print(f"❌ Error updating appointment: {str(e)}")
+        print(f"âŒ Error updating appointment: {str(e)}")
         return jsonify({'error': 'Failed to update appointment'}), 500
 
 @app.route('/api/clinic-events', methods=['GET'])
@@ -11526,6 +11931,7 @@ def api_create_clinic_event():
             return jsonify({'error': 'Database connection failed'}), 500
         
         cursor = conn.cursor()
+        ticket_number = generate_unique_ticket_number(conn)
         
         # Create clinic_events table if it doesn't exist
         cursor.execute('''
@@ -11638,7 +12044,7 @@ def api_create_clinic_event():
         cursor.close()
         conn.close()
         
-        print(f"✅ Clinic event created successfully: {data['title']} (ID: {event_id})")
+        print(f"âœ… Clinic event created successfully: {data['title']} (ID: {event_id})")
         return jsonify({
             'success': True, 
             'message': 'Clinic event created successfully',
@@ -11646,7 +12052,7 @@ def api_create_clinic_event():
         })
         
     except Exception as e:
-        print(f"❌ Error creating clinic event: {str(e)}")
+        print(f"âŒ Error creating clinic event: {str(e)}")
         return jsonify({'error': f'Failed to create clinic event: {str(e)}'}), 500
 
 @app.route('/api/clinic-events/<int:event_id>', methods=['DELETE'])
@@ -11661,6 +12067,7 @@ def api_delete_clinic_event(event_id):
             return jsonify({'error': 'Database connection failed'}), 500
         
         cursor = conn.cursor()
+        ticket_number = generate_unique_ticket_number(conn)
         
         # Delete the clinic event
         cursor.execute('DELETE FROM clinic_events WHERE id = %s', (event_id,))
@@ -11674,14 +12081,14 @@ def api_delete_clinic_event(event_id):
         cursor.close()
         conn.close()
         
-        print(f"✅ Clinic event deleted successfully: ID {event_id}")
+        print(f"âœ… Clinic event deleted successfully: ID {event_id}")
         return jsonify({
             'success': True, 
             'message': 'Clinic event deleted successfully'
         })
         
     except Exception as e:
-        print(f"❌ Error deleting clinic event: {str(e)}")
+        print(f"âŒ Error deleting clinic event: {str(e)}")
         return jsonify({'error': f'Failed to delete clinic event: {str(e)}'}), 500
 
 @app.route('/api/check-appointment-availability', methods=['POST'])
@@ -11771,7 +12178,7 @@ def api_check_appointment_availability():
         })
         
     except Exception as e:
-        print(f"❌ Error checking appointment availability: {str(e)}")
+        print(f"âŒ Error checking appointment availability: {str(e)}")
         return jsonify({'error': f'Failed to check availability: {str(e)}'}), 500
 
 @app.route('/api/medical-record/<int:record_id>', methods=['GET'])
@@ -11836,6 +12243,7 @@ def fix_print_history_dates():
             return jsonify({'error': 'Database connection failed'}), 500
         
         cursor = conn.cursor()
+        ticket_number = generate_unique_ticket_number(conn)
         
         # Update records where visit_date or visit_time is NULL
         # Use the printed_at date/time as fallback
@@ -11872,6 +12280,7 @@ def api_announcements():
             return jsonify({'error': 'Database connection failed'}), 500
         
         cursor = conn.cursor()
+        ticket_number = generate_unique_ticket_number(conn)
         
         # Create announcements table if it doesn't exist
         cursor.execute('''
@@ -11978,6 +12387,7 @@ def api_student_recent_activities():
             return jsonify({'error': 'Database connection failed'}), 500
         
         cursor = conn.cursor()
+        ticket_number = generate_unique_ticket_number(conn)
         user_id = session['user_id']
         
         # Get student_number from users/students table
@@ -12059,6 +12469,7 @@ def api_visitor_medical_records(visitor_id):
             return jsonify({'error': 'Database connection failed'}), 500
         
         cursor = conn.cursor()
+        ticket_number = generate_unique_ticket_number(conn)
         
         # Extract numeric ID from visitor_id (remove 'V' prefix if present)
         numeric_visitor_id = visitor_id.replace('V', '') if visitor_id.startswith('V') else visitor_id
@@ -12152,6 +12563,7 @@ def api_add_visitor_medical_record():
             return jsonify({'error': 'Database connection failed'}), 500
         
         cursor = conn.cursor()
+        ticket_number = generate_unique_ticket_number(conn)
         
         # Extract numeric ID from visitor_id (remove 'V' prefix if present)
         visitor_id_raw = data.get('visitor_id')
@@ -12237,6 +12649,7 @@ def api_teaching_medical_records(teaching_id):
             return jsonify({'error': 'Database connection failed'}), 500
         
         cursor = conn.cursor()
+        ticket_number = generate_unique_ticket_number(conn)
         
         # Extract numeric ID from teaching_id (remove 'T' prefix if present)
         numeric_teaching_id = teaching_id.replace('T', '') if teaching_id.startswith('T') else teaching_id
@@ -12336,6 +12749,7 @@ def api_add_teaching_medical_record():
             return jsonify({'error': 'Database connection failed'}), 500
         
         cursor = conn.cursor()
+        ticket_number = generate_unique_ticket_number(conn)
         
         # Extract numeric ID from teaching_id (remove 'T' prefix if present)
         teaching_id = data.get('teaching_id', '').replace('T', '') if data.get('teaching_id', '').startswith('T') else data.get('teaching_id', '')
@@ -12387,7 +12801,7 @@ def api_add_teaching_medical_record():
                 SET admission_time = %s 
                 WHERE id = %s
             ''', (admission_time, record_id))
-            print(f"🏥 Teaching staff admitted to clinic at {admission_time}")
+            print(f"ðŸ¥ Teaching staff admitted to clinic at {admission_time}")
         
         conn.commit()
         cursor.close()
@@ -12418,6 +12832,7 @@ def api_non_teaching_medical_records(non_teaching_id):
             return jsonify({'error': 'Database connection failed'}), 500
         
         cursor = conn.cursor()
+        ticket_number = generate_unique_ticket_number(conn)
         
         # Extract numeric ID
         numeric_id = non_teaching_id.replace('NT', '') if non_teaching_id.startswith('NT') else non_teaching_id
@@ -12497,6 +12912,7 @@ def api_add_non_teaching_medical_record():
             return jsonify({'error': 'Database connection failed'}), 500
         
         cursor = conn.cursor()
+        ticket_number = generate_unique_ticket_number(conn)
         
         # Extract numeric ID
         non_teaching_id = data.get('non_teaching_id', '').replace('NT', '') if data.get('non_teaching_id', '').startswith('NT') else data.get('non_teaching_id', '')
@@ -12554,6 +12970,7 @@ def api_dean_medical_records(dean_id):
             return jsonify({'error': 'Database connection failed'}), 500
         
         cursor = conn.cursor()
+        ticket_number = generate_unique_ticket_number(conn)
         
         # Extract numeric ID
         numeric_id = dean_id.replace('D', '') if dean_id.startswith('D') else dean_id
@@ -12633,6 +13050,7 @@ def api_add_dean_medical_record():
             return jsonify({'error': 'Database connection failed'}), 500
         
         cursor = conn.cursor()
+        ticket_number = generate_unique_ticket_number(conn)
         
         # Extract numeric ID
         dean_id = data.get('dean_id', '').replace('D', '') if data.get('dean_id', '').startswith('D') else data.get('dean_id', '')
@@ -12690,6 +13108,7 @@ def api_president_medical_records(president_id):
             return jsonify({'error': 'Database connection failed'}), 500
         
         cursor = conn.cursor()
+        ticket_number = generate_unique_ticket_number(conn)
         
         # Extract numeric ID
         numeric_id = president_id.replace('P', '') if president_id.startswith('P') else president_id
@@ -12769,6 +13188,7 @@ def api_add_president_medical_record():
             return jsonify({'error': 'Database connection failed'}), 500
         
         cursor = conn.cursor()
+        ticket_number = generate_unique_ticket_number(conn)
         
         # Extract numeric ID
         president_id = data.get('president_id', '').replace('P', '') if data.get('president_id', '').startswith('P') else data.get('president_id', '')
@@ -12837,6 +13257,7 @@ def api_create_announcement():
             return jsonify({'error': 'Database connection failed'}), 500
         
         cursor = conn.cursor()
+        ticket_number = generate_unique_ticket_number(conn)
         
         # Get expiration data
         expiration_date = data.get('expiration_date')
@@ -12887,6 +13308,7 @@ def api_update_announcement(announcement_id):
             return jsonify({'error': 'Database connection failed'}), 500
         
         cursor = conn.cursor()
+        ticket_number = generate_unique_ticket_number(conn)
         
         # Get expiration data
         expiration_date = data.get('expiration_date')
@@ -12935,6 +13357,7 @@ def delete_announcement(announcement_id):
             return jsonify({'error': 'Database connection failed'}), 500
         
         cursor = conn.cursor()
+        ticket_number = generate_unique_ticket_number(conn)
         
         # Get current Philippine time
         from datetime import datetime, timedelta
@@ -12964,7 +13387,7 @@ def delete_announcement(announcement_id):
 def init_database_endpoint():
     """Manual database initialization endpoint for testing"""
     try:
-        print("🔧 Manual database initialization triggered...")
+        print("ðŸ”§ Manual database initialization triggered...")
         success = init_db()
         if success:
             return jsonify({
@@ -12992,6 +13415,7 @@ def test_medical_records():
             return jsonify({'error': 'Database connection failed'}), 500
         
         cursor = conn.cursor()
+        ticket_number = generate_unique_ticket_number(conn)
         
         # Check medical_records table count
         cursor.execute('SELECT COUNT(*) FROM medical_records')
@@ -13058,6 +13482,7 @@ def test_all_medical_records_no_auth():
             return jsonify([])
         
         cursor = conn.cursor()
+        ticket_number = generate_unique_ticket_number(conn)
         
         # Query to get ALL medical records from different patient types
         print("Executing comprehensive medical records query for ALL patient types...")
@@ -13279,6 +13704,7 @@ def api_students_insurance_status():
             return jsonify({'error': 'Database connection failed'}), 500
         
         cursor = conn.cursor()
+        ticket_number = generate_unique_ticket_number(conn)
         
         # Get all students with insurance information
         cursor.execute('''
@@ -13352,6 +13778,7 @@ def api_update_insurance_payment(student_number):
             return jsonify({'error': 'Database connection failed'}), 500
         
         cursor = conn.cursor()
+        ticket_number = generate_unique_ticket_number(conn)
         
         # Update insurance payment information
         cursor.execute('''
@@ -13402,6 +13829,7 @@ def api_insurance_summary():
             return jsonify({'error': 'Database connection failed'}), 500
         
         cursor = conn.cursor()
+        ticket_number = generate_unique_ticket_number(conn)
         
         # Get summary statistics
         cursor.execute('''
@@ -13544,8 +13972,8 @@ def reset_user_password(user_id):
         data = request.get_json()
         new_password = data.get('newPassword')
         
-        print(f"🔑 Attempting to reset password for user ID: {user_id}")
-        print(f"📝 New password received: {'*' * len(new_password) if new_password else 'None'}")
+        print(f"ðŸ”‘ Attempting to reset password for user ID: {user_id}")
+        print(f"ðŸ“ New password received: {'*' * len(new_password) if new_password else 'None'}")
         
         if not new_password:
             return jsonify({'error': 'New password is required'}), 400
@@ -13555,17 +13983,18 @@ def reset_user_password(user_id):
         
         # Hash the new password
         hashed_password = generate_password_hash(new_password)
-        print(f"🔒 Password hashed successfully")
+        print(f"ðŸ”’ Password hashed successfully")
         
         conn = DatabaseConfig.get_connection()
         if not conn:
-            print("❌ Database connection failed")
+            print("âŒ Database connection failed")
             return jsonify({'error': 'Database connection failed'}), 500
         
         cursor = conn.cursor()
+        ticket_number = generate_unique_ticket_number(conn)
         
         # Update the user's password - MySQL uses %s not ?
-        print(f"💾 Updating password in database for user ID: {user_id}")
+        print(f"ðŸ’¾ Updating password in database for user ID: {user_id}")
         cursor.execute('''
             UPDATE users 
             SET password_hash = %s
@@ -13574,26 +14003,26 @@ def reset_user_password(user_id):
         
         conn.commit()
         rows_affected = cursor.rowcount
-        print(f"📊 Rows affected: {rows_affected}")
+        print(f"ðŸ“Š Rows affected: {rows_affected}")
         
         if rows_affected == 0:
             cursor.close()
             conn.close()
-            print(f"⚠️ User ID {user_id} not found")
+            print(f"âš ï¸ User ID {user_id} not found")
             return jsonify({'error': 'User not found'}), 404
         
         cursor.close()
         conn.close()
         
-        print(f"✅ Password reset successfully for user ID: {user_id}")
+        print(f"âœ… Password reset successfully for user ID: {user_id}")
         return jsonify({
             'success': True,
             'message': 'Password reset successfully'
         }), 200
         
     except Exception as e:
-        print(f"❌ Error resetting password: {e}")
-        print(f"❌ Error type: {type(e).__name__}")
+        print(f"âŒ Error resetting password: {e}")
+        print(f"âŒ Error type: {type(e).__name__}")
         import traceback
         traceback.print_exc()
         return jsonify({'error': f'Database error: {str(e)}'}), 500
@@ -13608,24 +14037,24 @@ def get_all_patients():
     cursor = None
     
     try:
-        print("🔍 Fetching patients from database...")
+        print("ðŸ” Fetching patients from database...")
         conn = DatabaseConfig.get_connection()
         if not conn:
-            print("❌ Database connection failed")
+            print("âŒ Database connection failed")
             return jsonify({'patients': []}), 200  # Return empty array instead of error
         
         cursor = conn.cursor(dictionary=True)  # Use dictionary cursor for easier access
         
         # Get all students as patients
-        print("📊 Executing query...")
+        print("ðŸ“Š Executing query...")
         cursor.execute('SELECT * FROM students')
         
-        print("📥 Fetching results...")
+        print("ðŸ“¥ Fetching results...")
         rows = cursor.fetchall()
-        print(f"✅ Found {len(rows)} students")
+        print(f"âœ… Found {len(rows)} students")
         
         if len(rows) > 0:
-            print(f"📋 Sample row keys: {list(rows[0].keys())}")
+            print(f"ðŸ“‹ Sample row keys: {list(rows[0].keys())}")
         
         patients = []
         for row in rows:
@@ -13648,16 +14077,16 @@ def get_all_patients():
                     'contact': row.get('std_ContactNumber') or row.get('contact') or ''
                 })
             except Exception as row_error:
-                print(f"⚠️ Error processing row: {row_error}")
+                print(f"âš ï¸ Error processing row: {row_error}")
                 continue
         
-        print(f"✅ Returning {len(patients)} patients")
-        print(f"📊 Sample patient: {patients[0] if patients else 'None'}")
+        print(f"âœ… Returning {len(patients)} patients")
+        print(f"ðŸ“Š Sample patient: {patients[0] if patients else 'None'}")
         return jsonify({'patients': patients}), 200
         
     except Exception as e:
-        print(f"❌ Error fetching patients: {e}")
-        print(f"❌ Error type: {type(e).__name__}")
+        print(f"âŒ Error fetching patients: {e}")
+        print(f"âŒ Error type: {type(e).__name__}")
         import traceback
         traceback.print_exc()
         # Return empty array instead of error to prevent frontend crash
@@ -13685,10 +14114,10 @@ def get_all_patients_combined():
     cursor = None
     
     try:
-        print("🔍 Fetching ALL patients from all tables...")
+        print("ðŸ” Fetching ALL patients from all tables...")
         conn = DatabaseConfig.get_connection()
         if not conn:
-            print("❌ Database connection failed")
+            print("âŒ Database connection failed")
             return jsonify({'patients': []}), 200
         
         cursor = conn.cursor(dictionary=True)
@@ -13698,7 +14127,7 @@ def get_all_patients_combined():
         try:
             cursor.execute('SELECT * FROM students WHERE is_active = TRUE')
             students = cursor.fetchall()
-            print(f"✅ Found {len(students)} students")
+            print(f"âœ… Found {len(students)} students")
             for row in students:
                 all_patients.append({
                     'id': row.get('student_number') or row.get('std_ID') or row.get('id'),
@@ -13712,13 +14141,13 @@ def get_all_patients_combined():
                     'contact': row.get('std_ContactNum', '')
                 })
         except Exception as e:
-            print(f"⚠️ Error fetching students: {e}")
+            print(f"âš ï¸ Error fetching students: {e}")
         
         # 2. Get VISITORS
         try:
             cursor.execute('SELECT * FROM visitors WHERE is_active = TRUE')
             visitors = cursor.fetchall()
-            print(f"✅ Found {len(visitors)} visitors")
+            print(f"âœ… Found {len(visitors)} visitors")
             for row in visitors:
                 all_patients.append({
                     'id': row.get('id'),
@@ -13732,13 +14161,13 @@ def get_all_patients_combined():
                     'contact': row.get('contact_number', '')
                 })
         except Exception as e:
-            print(f"⚠️ Error fetching visitors: {e}")
+            print(f"âš ï¸ Error fetching visitors: {e}")
         
         # 3. Get TEACHING STAFF (from teaching table)
         try:
             cursor.execute("SELECT * FROM teaching WHERE is_archived = FALSE")
             teaching_staff = cursor.fetchall()
-            print(f"✅ Found {len(teaching_staff)} teaching staff")
+            print(f"âœ… Found {len(teaching_staff)} teaching staff")
             for row in teaching_staff:
                 all_patients.append({
                     'id': row.get('id'),
@@ -13752,13 +14181,13 @@ def get_all_patients_combined():
                     'contact': row.get('contact_number', '')
                 })
         except Exception as e:
-            print(f"⚠️ Error fetching teaching staff: {e}")
+            print(f"âš ï¸ Error fetching teaching staff: {e}")
         
         # 4. Get NON-TEACHING STAFF (from non_teaching_staff table)
         try:
             cursor.execute("SELECT * FROM non_teaching_staff WHERE is_archived = FALSE")
             non_teaching_staff = cursor.fetchall()
-            print(f"✅ Found {len(non_teaching_staff)} non-teaching staff")
+            print(f"âœ… Found {len(non_teaching_staff)} non-teaching staff")
             for row in non_teaching_staff:
                 all_patients.append({
                     'id': row.get('id'),
@@ -13772,13 +14201,13 @@ def get_all_patients_combined():
                     'contact': row.get('contact_number', '')
                 })
         except Exception as e:
-            print(f"⚠️ Error fetching non-teaching staff: {e}")
+            print(f"âš ï¸ Error fetching non-teaching staff: {e}")
         
         # 5. Get PRESIDENT (from president table)
         try:
             cursor.execute("SELECT * FROM president WHERE is_archived = FALSE")
             presidents = cursor.fetchall()
-            print(f"✅ Found {len(presidents)} president(s)")
+            print(f"âœ… Found {len(presidents)} president(s)")
             for row in presidents:
                 all_patients.append({
                     'id': row.get('id'),
@@ -13792,13 +14221,13 @@ def get_all_patients_combined():
                     'contact': row.get('contact_number', '')
                 })
         except Exception as e:
-            print(f"⚠️ Error fetching president: {e}")
+            print(f"âš ï¸ Error fetching president: {e}")
         
         # 6. Get DEANS (from deans table)
         try:
             cursor.execute("SELECT * FROM deans WHERE is_archived = FALSE")
             deans = cursor.fetchall()
-            print(f"✅ Found {len(deans)} dean(s)")
+            print(f"âœ… Found {len(deans)} dean(s)")
             for row in deans:
                 all_patients.append({
                     'id': row.get('id'),
@@ -13812,13 +14241,13 @@ def get_all_patients_combined():
                     'contact': row.get('contact_number', '')
                 })
         except Exception as e:
-            print(f"⚠️ Error fetching deans: {e}")
+            print(f"âš ï¸ Error fetching deans: {e}")
         
-        print(f"✅ TOTAL PATIENTS: {len(all_patients)} (Students + Visitors + Teaching Staff + Non-Teaching Staff + President + Deans)")
+        print(f"âœ… TOTAL PATIENTS: {len(all_patients)} (Students + Visitors + Teaching Staff + Non-Teaching Staff + President + Deans)")
         return jsonify({'patients': all_patients}), 200
         
     except Exception as e:
-        print(f"❌ Error fetching all patients: {e}")
+        print(f"âŒ Error fetching all patients: {e}")
         import traceback
         traceback.print_exc()
         return jsonify({'patients': []}), 200
@@ -13849,10 +14278,10 @@ def get_admin_patients():
     cursor = None
     
     try:
-        print("🔍 [ADMIN] Fetching ALL patients from all tables...")
+        print("ðŸ” [ADMIN] Fetching ALL patients from all tables...")
         conn = DatabaseConfig.get_connection()
         if not conn:
-            print("❌ [ADMIN] Database connection failed")
+            print("âŒ [ADMIN] Database connection failed")
             return jsonify({'patients': [], 'error': 'Database connection failed'}), 200
         
         cursor = conn.cursor(dictionary=True)
@@ -13860,13 +14289,13 @@ def get_admin_patients():
         
         # 1. Get STUDENTS
         try:
-            print("🔍 [ADMIN] Querying students table...")
+            print("ðŸ” [ADMIN] Querying students table...")
             cursor.execute('SELECT * FROM students')
             students = cursor.fetchall()
-            print(f"✅ [ADMIN] Found {len(students)} students")
+            print(f"âœ… [ADMIN] Found {len(students)} students")
             if len(students) > 0:
                 sample_name = f"{students[0].get('std_Firstname', '')} {students[0].get('std_Surname', '')}".strip()
-                print(f"📋 [ADMIN] Sample student: {sample_name}")
+                print(f"ðŸ“‹ [ADMIN] Sample student: {sample_name}")
             for row in students:
                 student_name = f"{row.get('std_Firstname', '')} {row.get('std_Surname', '')}".strip()
                 all_patients.append({
@@ -13887,19 +14316,19 @@ def get_admin_patients():
                     'updated_at': row.get('updated_at').isoformat() if row.get('updated_at') else None
                 })
         except Exception as e:
-            print(f"⚠️ [ADMIN] Error fetching students: {e}")
+            print(f"âš ï¸ [ADMIN] Error fetching students: {e}")
             import traceback
             traceback.print_exc()
         
         # 2. Get TEACHING STAFF
         try:
-            print("🔍 [ADMIN] Querying teaching table...")
+            print("ðŸ” [ADMIN] Querying teaching table...")
             cursor.execute('SELECT * FROM teaching')
             teaching_staff = cursor.fetchall()
-            print(f"✅ [ADMIN] Found {len(teaching_staff)} teaching staff")
+            print(f"âœ… [ADMIN] Found {len(teaching_staff)} teaching staff")
             if len(teaching_staff) > 0:
                 sample_name = f"{teaching_staff[0].get('first_name', '')} {teaching_staff[0].get('last_name', '')}".strip()
-                print(f"📋 [ADMIN] Sample teaching staff: {sample_name}")
+                print(f"ðŸ“‹ [ADMIN] Sample teaching staff: {sample_name}")
             for row in teaching_staff:
                 teacher_name = f"{row.get('first_name', '')} {row.get('last_name', '')}".strip()
                 all_patients.append({
@@ -13919,7 +14348,7 @@ def get_admin_patients():
                     'updated_at': row.get('updated_at').isoformat() if row.get('updated_at') else None
                 })
         except Exception as e:
-            print(f"⚠️ [ADMIN] Error fetching teaching staff: {e}")
+            print(f"âš ï¸ [ADMIN] Error fetching teaching staff: {e}")
             import traceback
             traceback.print_exc()
         
@@ -13927,7 +14356,7 @@ def get_admin_patients():
         try:
             cursor.execute('SELECT * FROM non_teaching_staff')
             non_teaching_staff = cursor.fetchall()
-            print(f"✅ [ADMIN] Found {len(non_teaching_staff)} non-teaching staff")
+            print(f"âœ… [ADMIN] Found {len(non_teaching_staff)} non-teaching staff")
             for row in non_teaching_staff:
                 nts_name = f"{row.get('first_name', '')} {row.get('last_name', '')}".strip()
                 all_patients.append({
@@ -13947,13 +14376,13 @@ def get_admin_patients():
                     'updated_at': row.get('updated_at').isoformat() if row.get('updated_at') else None
                 })
         except Exception as e:
-            print(f"⚠️ [ADMIN] Error fetching non-teaching staff: {e}")
+            print(f"âš ï¸ [ADMIN] Error fetching non-teaching staff: {e}")
         
         # 4. Get DEANS
         try:
             cursor.execute('SELECT * FROM deans')
             deans = cursor.fetchall()
-            print(f"✅ [ADMIN] Found {len(deans)} dean(s)")
+            print(f"âœ… [ADMIN] Found {len(deans)} dean(s)")
             for row in deans:
                 dean_name = f"{row.get('first_name', '')} {row.get('last_name', '')}".strip()
                 all_patients.append({
@@ -13972,13 +14401,13 @@ def get_admin_patients():
                     'updated_at': row.get('updated_at').isoformat() if row.get('updated_at') else None
                 })
         except Exception as e:
-            print(f"⚠️ [ADMIN] Error fetching deans: {e}")
+            print(f"âš ï¸ [ADMIN] Error fetching deans: {e}")
         
         # 5. Get PRESIDENT
         try:
             cursor.execute('SELECT * FROM president')
             presidents = cursor.fetchall()
-            print(f"✅ [ADMIN] Found {len(presidents)} president(s)")
+            print(f"âœ… [ADMIN] Found {len(presidents)} president(s)")
             for row in presidents:
                 pres_name = f"{row.get('first_name', '')} {row.get('last_name', '')}".strip()
                 all_patients.append({
@@ -13996,12 +14425,12 @@ def get_admin_patients():
                     'updated_at': row.get('updated_at').isoformat() if row.get('updated_at') else None
                 })
         except Exception as e:
-            print(f"⚠️ [ADMIN] Error fetching president: {e}")
+            print(f"âš ï¸ [ADMIN] Error fetching president: {e}")
         
         # NOTE: Visitors are excluded from admin patient management
         # Only school-related patients are shown (Students, Staff, Deans, President)
         
-        print(f"✅ [ADMIN] TOTAL PATIENTS: {len(all_patients)} (Students + Teaching Staff + Non-Teaching Staff + Deans + President)")
+        print(f"âœ… [ADMIN] TOTAL PATIENTS: {len(all_patients)} (Students + Teaching Staff + Non-Teaching Staff + Deans + President)")
         return jsonify({
             'success': True,
             'patients': all_patients,
@@ -14009,7 +14438,7 @@ def get_admin_patients():
         }), 200
         
     except Exception as e:
-        print(f"❌ [ADMIN] Error fetching patients: {e}")
+        print(f"âŒ [ADMIN] Error fetching patients: {e}")
         import traceback
         traceback.print_exc()
         return jsonify({
@@ -14044,7 +14473,7 @@ def update_patient_status(patient_id):
         data = request.get_json()
         new_status = data.get('status', 'Active')
         
-        print(f"🔄 [ADMIN] Updating patient {patient_id} status to {new_status}")
+        print(f"ðŸ”„ [ADMIN] Updating patient {patient_id} status to {new_status}")
         
         conn = DatabaseConfig.get_connection()
         if not conn:
@@ -14074,9 +14503,9 @@ def update_patient_status(patient_id):
             if cursor.rowcount > 0:
                 conn.commit()
                 updated = True
-                print(f"✅ [ADMIN] Updated student {patient_id} status to {new_status}")
+                print(f"âœ… [ADMIN] Updated student {patient_id} status to {new_status}")
         except Exception as e:
-            print(f"⚠️ [ADMIN] Not a student or error: {e}")
+            print(f"âš ï¸ [ADMIN] Not a student or error: {e}")
         
         # Try to update in teaching table
         if not updated:
@@ -14100,9 +14529,9 @@ def update_patient_status(patient_id):
                 if cursor.rowcount > 0:
                     conn.commit()
                     updated = True
-                    print(f"✅ [ADMIN] Updated teaching staff {patient_id} status to {new_status}")
+                    print(f"âœ… [ADMIN] Updated teaching staff {patient_id} status to {new_status}")
             except Exception as e:
-                print(f"⚠️ [ADMIN] Not teaching staff or error: {e}")
+                print(f"âš ï¸ [ADMIN] Not teaching staff or error: {e}")
         
         # Try to update in non_teaching_staff table
         if not updated:
@@ -14126,9 +14555,9 @@ def update_patient_status(patient_id):
                 if cursor.rowcount > 0:
                     conn.commit()
                     updated = True
-                    print(f"✅ [ADMIN] Updated non-teaching staff {patient_id} status to {new_status}")
+                    print(f"âœ… [ADMIN] Updated non-teaching staff {patient_id} status to {new_status}")
             except Exception as e:
-                print(f"⚠️ [ADMIN] Not non-teaching staff or error: {e}")
+                print(f"âš ï¸ [ADMIN] Not non-teaching staff or error: {e}")
         
         # Try to update in deans table
         if not updated:
@@ -14152,9 +14581,9 @@ def update_patient_status(patient_id):
                 if cursor.rowcount > 0:
                     conn.commit()
                     updated = True
-                    print(f"✅ [ADMIN] Updated dean {patient_id} status to {new_status}")
+                    print(f"âœ… [ADMIN] Updated dean {patient_id} status to {new_status}")
             except Exception as e:
-                print(f"⚠️ [ADMIN] Not dean or error: {e}")
+                print(f"âš ï¸ [ADMIN] Not dean or error: {e}")
         
         # Try to update in president table
         if not updated:
@@ -14178,9 +14607,9 @@ def update_patient_status(patient_id):
                 if cursor.rowcount > 0:
                     conn.commit()
                     updated = True
-                    print(f"✅ [ADMIN] Updated president {patient_id} status to {new_status}")
+                    print(f"âœ… [ADMIN] Updated president {patient_id} status to {new_status}")
             except Exception as e:
-                print(f"⚠️ [ADMIN] Not dean/president or error: {e}")
+                print(f"âš ï¸ [ADMIN] Not dean/president or error: {e}")
         
         cursor.close()
         conn.close()
@@ -14194,7 +14623,7 @@ def update_patient_status(patient_id):
             return jsonify({'error': 'Patient not found in any table'}), 404
             
     except Exception as e:
-        print(f"❌ [ADMIN] Error updating patient status: {e}")
+        print(f"âŒ [ADMIN] Error updating patient status: {e}")
         import traceback
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
@@ -14210,7 +14639,7 @@ def delete_patient(patient_id):
         return jsonify({'error': 'Admin access required'}), 403
     
     try:
-        print(f"🗑️ [ADMIN] Permanently deleting patient {patient_id}")
+        print(f"ðŸ—‘ï¸ [ADMIN] Permanently deleting patient {patient_id}")
         
         conn = DatabaseConfig.get_connection()
         if not conn:
@@ -14225,9 +14654,9 @@ def delete_patient(patient_id):
             if cursor.rowcount > 0:
                 conn.commit()
                 deleted = True
-                print(f"✅ [ADMIN] Deleted student {patient_id}")
+                print(f"âœ… [ADMIN] Deleted student {patient_id}")
         except Exception as e:
-            print(f"⚠️ [ADMIN] Not a student or error: {e}")
+            print(f"âš ï¸ [ADMIN] Not a student or error: {e}")
         
         # Try to delete from teaching table
         if not deleted:
@@ -14236,9 +14665,9 @@ def delete_patient(patient_id):
                 if cursor.rowcount > 0:
                     conn.commit()
                     deleted = True
-                    print(f"✅ [ADMIN] Deleted teaching staff {patient_id}")
+                    print(f"âœ… [ADMIN] Deleted teaching staff {patient_id}")
             except Exception as e:
-                print(f"⚠️ [ADMIN] Not teaching staff or error: {e}")
+                print(f"âš ï¸ [ADMIN] Not teaching staff or error: {e}")
         
         # Try to delete from non_teaching_staff table
         if not deleted:
@@ -14247,9 +14676,9 @@ def delete_patient(patient_id):
                 if cursor.rowcount > 0:
                     conn.commit()
                     deleted = True
-                    print(f"✅ [ADMIN] Deleted non-teaching staff {patient_id}")
+                    print(f"âœ… [ADMIN] Deleted non-teaching staff {patient_id}")
             except Exception as e:
-                print(f"⚠️ [ADMIN] Not non-teaching staff or error: {e}")
+                print(f"âš ï¸ [ADMIN] Not non-teaching staff or error: {e}")
         
         # Try to delete from deans_president table
         if not deleted:
@@ -14258,9 +14687,9 @@ def delete_patient(patient_id):
                 if cursor.rowcount > 0:
                     conn.commit()
                     deleted = True
-                    print(f"✅ [ADMIN] Deleted dean/president {patient_id}")
+                    print(f"âœ… [ADMIN] Deleted dean/president {patient_id}")
             except Exception as e:
-                print(f"⚠️ [ADMIN] Not dean/president or error: {e}")
+                print(f"âš ï¸ [ADMIN] Not dean/president or error: {e}")
         
         cursor.close()
         conn.close()
@@ -14274,7 +14703,7 @@ def delete_patient(patient_id):
             return jsonify({'error': 'Patient not found in any table'}), 404
             
     except Exception as e:
-        print(f"❌ [ADMIN] Error deleting patient: {e}")
+        print(f"âŒ [ADMIN] Error deleting patient: {e}")
         import traceback
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
@@ -14345,8 +14774,7 @@ def get_ai_insights():
         top_complaints = sorted(complaint_counts.items(), key=lambda x: x[1], reverse=True)[:3]
 
         # Top departments
-        
-        prompt = f"""You are a medical AI assistant analyzing university clinic data.
+
         top_depts = [(d.get('course', 'Unknown'), d.get('consultation_count', 0)) for d in dept_data[:3]]
 
         # Ensure we always have at least one entry for fallbacks
@@ -14383,7 +14811,7 @@ def get_ai_insights():
             (top_dept_count / total_dept_visits * 100) if total_dept_visits > 0 else 0, 1
         )
 
-        # Default (analytics-based) professional insights – used as fallback or base
+        # Default (analytics-based) professional insights â€“ used as fallback or base
         summary = (
             f"Based on the last 30 days of clinic data, {top_complaint_name} is the most common health complaint, "
             f"accounting for {top_complaint_pct}% of all consultations ({top_complaint_count} cases). "
@@ -14465,7 +14893,7 @@ def get_ai_insights():
         # If OpenAI is configured, augment the insights with model-generated text
         if openai_client and OPENAI_API_KEY:
             try:
-                print("🤖 Calling OpenAI for AI report insights...")
+                print("ðŸ¤– Calling OpenAI for AI report insights...")
 
                 complaints_str = ", ".join(
                     [f"{name} ({count} cases)" for name, count in top_complaints]
@@ -14486,10 +14914,10 @@ def get_ai_insights():
                     '  "peak_hours": "1-2 sentences about when patients tend to come, and operational advice if needed.",\n'
                     '  "demographics": "1-2 sentences about which groups/department types are using the clinic the most.",\n'
                     '  "alerts": [\n'
-                    '    {"level": "critical" | "warning" | "info", "title": "short title", "description": "1–2 sentences", "action": "nurse-facing action"}\n'
+                    '    {"level": "critical" | "warning" | "info", "title": "short title", "description": "1â€“2 sentences", "action": "nurse-facing action"}\n'
                     "  ],\n"
                     '  "recommendations": [\n'
-                    '    {"title": "short recommendation", "description": "1–2 sentences of practical guidance"}\n'
+                    '    {"title": "short recommendation", "description": "1â€“2 sentences of practical guidance"}\n'
                     "  ]\n"
                     "}\n\n"
                     "Important: respond with ONLY valid JSON. Do not include any explanations or markdown."
@@ -14514,12 +14942,12 @@ def get_ai_insights():
                         if key in model_json and model_json[key]:
                             ai_insights[key] = model_json[key]
 
-                    print("✅ OpenAI insights merged successfully.")
+                    print("âœ… OpenAI insights merged successfully.")
                 except Exception as parse_err:
-                    print(f"⚠️ Failed to parse OpenAI JSON, using analytics-only insights. Error: {parse_err}")
+                    print(f"âš ï¸ Failed to parse OpenAI JSON, using analytics-only insights. Error: {parse_err}")
 
             except Exception as ai_error:
-                print(f"⚠️ OpenAI call failed, falling back to analytics-only insights: {ai_error}")
+                print(f"âš ï¸ OpenAI call failed, falling back to analytics-only insights: {ai_error}")
 
         return jsonify({
             'success': True,
@@ -14528,7 +14956,7 @@ def get_ai_insights():
         }), 200
 
     except Exception as e:
-        print(f"❌ AI Insights Error: {e}")
+        print(f"âŒ AI Insights Error: {e}")
         import traceback
         traceback.print_exc()
         return jsonify({
@@ -14607,7 +15035,7 @@ def get_chart_insight():
         # Prefer OpenAI if configured (user supplies OPENAI_API_KEY via environment)
         if openai_client and OPENAI_API_KEY and labels and numeric_values:
             try:
-                print(f"🤖 Calling OpenAI for chart insight on '{chart_id}'...")
+                print(f"ðŸ¤– Calling OpenAI for chart insight on '{chart_id}'...")
 
                 series_label = primary_dataset.get('label') or 'Values'
                 label_value_pairs = [
@@ -14621,8 +15049,8 @@ def get_chart_insight():
                     f"Primary series: {series_label}\n"
                     f"Selected period: {period}\n"
                     f"Data points: {chart_summary or 'no numeric data provided'}\n\n"
-                    "In 3–5 short, practical sentences, explain what this chart is showing, "
-                    "highlight any peaks or drops, and give 1–2 concrete, nurse-friendly actions. "
+                    "In 3â€“5 short, practical sentences, explain what this chart is showing, "
+                    "highlight any peaks or drops, and give 1â€“2 concrete, nurse-friendly actions. "
                     "Avoid making diagnoses or treatment recommendations. "
                     "Write in clear, plain English.\n"
                     "Return only plain text suitable for directly showing in the UI."
@@ -14640,7 +15068,7 @@ def get_chart_insight():
                 ai_text = (getattr(response, "output_text", "") or "").strip()
 
             except Exception as ai_error:
-                print(f"⚠️ OpenAI chart insight failed, using analytics-only summary. Error: {ai_error}")
+                print(f"âš ï¸ OpenAI chart insight failed, using analytics-only summary. Error: {ai_error}")
 
         insight_text = ai_text or base_summary
 
@@ -14656,13 +15084,223 @@ def get_chart_insight():
         }), 200
 
     except Exception as e:
-        print(f"❌ Chart Insight Error: {e}")
+        print(f"âŒ Chart Insight Error: {e}")
         import traceback
         traceback.print_exc()
         return jsonify({
             "success": False,
             "error": str(e),
         }), 200
+
+
+@app.route('/api/illness-forecast', methods=['GET'])
+def get_illness_forecast():
+    """
+    Forecast likely top clinic complaints for upcoming months
+    so nurses can prepare medicines in advance.
+    """
+    try:
+        months_ahead = int(request.args.get('months', 6))
+        months_ahead = max(1, min(months_ahead, 12))
+
+        # Get last 12 months of medical records grouped by month and chief complaint
+        conn = DatabaseConfig.get_connection()
+        if not conn:
+            return jsonify({
+                "success": False,
+                "error": "Database connection failed"
+            }), 200
+
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("""
+            SELECT 
+                chief_complaint,
+                COUNT(*) AS count,
+                DATE_FORMAT(visit_date, '%Y-%m') AS ym
+            FROM medical_records
+            WHERE visit_date >= DATE_SUB(CURDATE(), INTERVAL 12 MONTH)
+            GROUP BY ym, chief_complaint
+            ORDER BY ym ASC, count DESC
+        """)
+        history_rows = cursor.fetchall()
+        cursor.close()
+        conn.close()
+
+        # Build simple history summary per complaint
+        complaint_totals = {}
+        monthly_buckets = {}
+        for row in history_rows:
+            cc = row.get("chief_complaint") or "Unknown"
+            c = int(row.get("count") or 0)
+            ym = row.get("ym")
+            complaint_totals[cc] = complaint_totals.get(cc, 0) + c
+            monthly_buckets.setdefault(ym, {}).setdefault(cc, 0)
+            monthly_buckets[ym][cc] += c
+
+        # Determine top complaints overall for fallback
+        sorted_complaints = sorted(
+            complaint_totals.items(), key=lambda x: x[1], reverse=True
+        )
+        top_overall = [name for name, _ in sorted_complaints[:5]] or ["Respiratory infection"]
+
+        # Build upcoming month labels
+        from datetime import date
+        import calendar
+
+        today = date.today()
+        labels = []
+        base_month = today.month
+        base_year = today.year
+        for i in range(1, months_ahead + 1):
+            m = base_month + i
+            y = base_year + (m - 1) // 12
+            m = ((m - 1) % 12) + 1
+            labels.append(f"{calendar.month_name[m]} {y}")
+
+        forecast_illnesses = []
+        forecast_values = []
+
+        # Try to use OpenAI to get smarter forecast
+        if openai_client and OPENAI_API_KEY and history_rows:
+            try:
+                # Compact history for the prompt
+                history_summary_lines = []
+                for ym, bucket in list(monthly_buckets.items())[-6:]:
+                    month_top = sorted(bucket.items(), key=lambda x: x[1], reverse=True)[:5]
+                    parts = [f"{name} ({count})" for name, count in month_top]
+                    history_summary_lines.append(f"{ym}: " + ", ".join(parts))
+
+                history_text = "\n".join(history_summary_lines) or "No detailed history."
+
+                prompt_text = (
+                    "You are helping a university clinic nurse plan medicine inventory.\n\n"
+                    "You are given the last months of clinic complaints aggregated by month.\n"
+                    "Based on this pattern, forecast the most likely dominant complaint for each upcoming month "
+                    "and an approximate relative case volume (any positive number, it is just for chart scaling).\n\n"
+                    f"History (year-month: complaint (count)):\n{history_text}\n\n"
+                    f"Upcoming months to forecast: {', '.join(labels)}\n\n"
+                    "Respond with ONLY valid JSON in the following format:\n"
+                    "[\n"
+                    '  {"month": "Month Year", "illness": "Common Cold", "score": 42},\n'
+                    '  ... one object for each requested month ...\n'
+                    "]"
+                )
+
+                response = openai_client.responses.create(
+                    model="gpt-4.1-mini",
+                    instructions=(
+                        "You are a cautious, clinically safe planning assistant. "
+                        "You DO NOT diagnose patients and you avoid medical advice. "
+                        "You only forecast relative frequencies of common clinic complaints."
+                    ),
+                    input=prompt_text,
+                )
+
+                raw_text = (getattr(response, "output_text", "") or "").strip()
+                ai_json = json.loads(raw_text)
+                month_map = {item.get("month"): item for item in ai_json if isinstance(item, dict)}
+
+                for label in labels:
+                    info = month_map.get(label) or {}
+                    illness = (info.get("illness") or top_overall[0]).strip()
+                    score = float(info.get("score") or 1.0)
+                    forecast_illnesses.append(illness)
+                    forecast_values.append(max(score, 0.1))
+            except Exception as ai_error:
+                print(f"âš ï¸ Illness forecast OpenAI error, using analytics-only fallback: {ai_error}")
+
+        # Fallback: simple projection from top_overall if AI not used / failed
+        if not forecast_illnesses or not forecast_values:
+            avg_monthly = max(
+                (sum(complaint_totals.values()) / max(len(monthly_buckets) or 1, 1)),
+                5,
+            )
+            for idx, label in enumerate(labels):
+                illness = top_overall[idx % len(top_overall)]
+                # Slight variation per month
+                value = round(avg_monthly * (0.8 + 0.1 * (idx % 3)), 1)
+                forecast_illnesses.append(illness)
+                forecast_values.append(value)
+
+        # Optional second AI pass: generate structured nurse planning JSON
+        ai_plan = None
+        if openai_client and OPENAI_API_KEY and forecast_illnesses and forecast_values:
+            try:
+                # Build compact table of the forecast to feed into the model
+                forecast_lines = []
+                for label, illness, score in zip(labels, forecast_illnesses, forecast_values):
+                    forecast_lines.append(f"{label}: {illness} (score {score})")
+
+                forecast_text = "\n".join(forecast_lines)
+
+                plan_prompt = (
+                    "You are helping a university clinic nurse in the Philippines plan medicine inventory and health activities.\n"
+                    "You are given an AI-generated forecast of the most common clinic complaints for upcoming months.\n"
+                    "Use ONLY the information below plus general season patterns (tag-init: Marâ€“May, tag-ulan: Junâ€“Oct) "
+                    "to propose planning guidance. Do NOT invent diagnoses or treatment. Focus on operations only.\n\n"
+                    "Forecast table (month: illness (relative score)):\n"
+                    f"{forecast_text}\n\n"
+                    "Return ONLY valid JSON with this exact structure:\n"
+                    "{\n"
+                    '  \"per_month\": [\n'
+                    '    {\n'
+                    '      \"month\": \"March 2026\",\n'
+                    '      \"primary_illness\": \"Cough and cold\",\n'
+                    '      \"secondary_illnesses\": [\"Fever\"],\n'
+                    '      \"risk_level\": \"high\",  // one of: low, medium, high\n'
+                    '      \"group_breakdown\": {\n'
+                    '        \"students_pct\": 70,\n'
+                    '        \"teaching_staff_pct\": 20,\n'
+                    '        \"non_teaching_staff_pct\": 10,\n'
+                    '        \"visitors_pct\": 0\n'
+                    '      },\n'
+                    '      \"season_context\": \"Rainy season â€“ respiratory infections tend to increase.\",\n'
+                    '      \"medicine_suggestions\": [\n'
+                    '        \"Increase Paracetamol and cold-remedy stocks by about 15â€“20% for this month.\"\n'
+                    '      ],\n'
+                    '      \"nurse_actions\": [\n'
+                    '        \"Remind students about handwashing and mask use during crowded indoor activities.\"\n'
+                    '      ],\n'
+                    '      \"confidence\": \"moderate\"  // one of: low, moderate, high\n'
+                    '    }\n'
+                    '  ],\n'
+                    '  \"overall_summary\": \"Short 3â€“5 sentence overview for the nurse, summarizing which months and complaints need the most attention.\",\n'
+                    '  \"overall_confidence\": \"moderate\"  // one of: low, moderate, high\n'
+                    "}\n"
+                    "The percentages in group_breakdown should sum to ~100 and show your best guess based on typical campus clinics.\n"
+                    "Again, NEVER provide medical advice or diagnoses; keep everything focused on planning and logistics.\n"
+                )
+
+                plan_response = openai_client.responses.create(
+                    model="gpt-4.1-mini",
+                    instructions=(
+                        "You are a structured analytics assistant. "
+                        "Always follow the requested JSON schema exactly. "
+                        "Do not add extra top-level keys."
+                    ),
+                    input=plan_prompt,
+                )
+
+                raw_plan = (getattr(plan_response, "output_text", "") or "").strip()
+                ai_plan = json.loads(raw_plan)
+            except Exception as plan_error:
+                print(f"âš ï¸ Illness forecast planning JSON error: {plan_error}")
+
+        return jsonify(
+            {
+                "success": True,
+                "labels": labels,
+                "values": forecast_values,
+                "illnesses": forecast_illnesses,
+                "plan": ai_plan,
+            }
+        ), 200
+
+    except Exception as e:
+        print(f"âŒ Illness Forecast Error: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"success": False, "error": str(e)}), 200
 
 
 @app.route('/api/check-session')
@@ -14716,7 +15354,7 @@ def check_inventory_alerts():
         }), 200
         
     except Exception as e:
-        print(f"❌ Error checking inventory alerts: {e}")
+        print(f"âŒ Error checking inventory alerts: {e}")
         return jsonify({'error': str(e)}), 500
 
 
@@ -14758,7 +15396,7 @@ def send_inventory_notification():
             }), 500
         
     except Exception as e:
-        print(f"❌ Error sending inventory notification: {e}")
+        print(f"âŒ Error sending inventory notification: {e}")
         import traceback
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
@@ -14773,13 +15411,13 @@ def schedule_inventory_notification():
     try:
         from services.inventory_notification_service import send_inventory_notification_email, get_nurse_emails, get_inventory_alerts
         
-        print("📅 Running scheduled inventory notification check...")
+        print("ðŸ“… Running scheduled inventory notification check...")
         
         # Get alerts first to check if there are any
         alerts = get_inventory_alerts()
         
         if not alerts:
-            print("❌ Failed to get inventory alerts")
+            print("âŒ Failed to get inventory alerts")
             return jsonify({'error': 'Failed to get inventory alerts'}), 500
         
         # Check if there are any alerts
@@ -14791,7 +15429,7 @@ def schedule_inventory_notification():
         )
         
         if total_alerts == 0:
-            print("✅ No inventory alerts - notification not needed")
+            print("âœ… No inventory alerts - notification not needed")
             return jsonify({
                 'success': True,
                 'message': 'No alerts to send',
@@ -14802,7 +15440,7 @@ def schedule_inventory_notification():
         nurse_emails = get_nurse_emails()
         
         if not nurse_emails:
-            print("⚠️ No nurse emails found - using system email as fallback")
+            print("âš ï¸ No nurse emails found - using system email as fallback")
             nurse_emails = ['norzagaraycollege.clinic@gmail.com']
         
         # Send notification
@@ -14822,7 +15460,7 @@ def schedule_inventory_notification():
             }), 500
         
     except Exception as e:
-        print(f"❌ Error in scheduled notification: {e}")
+        print(f"âŒ Error in scheduled notification: {e}")
         import traceback
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
@@ -14830,8 +15468,9 @@ def schedule_inventory_notification():
 
 if __name__ == '__main__':
     # Initialize database on startup
-    print("🔧 Initializing database with sample data...")
+    print("ðŸ”§ Initializing database with sample data...")
     init_db()
-    print("✅ Database initialization complete!")
+    print("âœ… Database initialization complete!")
     # Run the application
     app.run(debug=True, host='0.0.0.0', port=5000)
+
