@@ -1033,6 +1033,14 @@ function consultationChat() {
                     </div>
                     <span x-show="!sidebarCollapsed || sidebarHovered" class="font-medium">Announcements</span>
                 </a>
+
+                <a href="{{ url_for('student_onsite_queue') }}"
+                   class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all group hover:bg-white/10">
+                    <div class="flex items-center justify-center" :class="sidebarCollapsed && !sidebarHovered ? 'w-full' : ''">
+                        <i data-feather="clipboard" class="w-5 h-5 group-hover:scale-110 transition-transform"></i>
+                    </div>
+                    <span x-show="!sidebarCollapsed || sidebarHovered" class="font-medium">Onsite Queue</span>
+                </a>
             </nav>
         
         <!-- User Profile -->

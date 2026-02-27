@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Onsite Queue - iClinic Healthcare Portal</title>
+    
+    <link rel="icon" type="image/png" href="../assets/img/iclinic-logo.png">
+    <link rel="apple-touch-icon" href="../assets/img/iclinic-logo.png">
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        const originalWarn = console.warn;
+        console.warn = function(...args) {
+            if (args[0] && typeof args[0] === 'string' && args[0].includes('cdn.tailwindcss.com')) {
+                return;
+            }
+            originalWarn.apply(console, args);
+        };
+    </script>
+    
+    <script defer src="/assets/js/libs/alpine.min.js"></script>
+    <script src="/assets/js/libs/feather.min.js"></script>
+    <script src="/assets/js/libs/chart.min.js"></script>
+    <link href="/assets/css/libs/aos.css" rel="stylesheet">
+    <script src="/assets/js/libs/aos.js"></script>
+    <link href="/assets/css/libs/inter-font.css" rel="stylesheet">
+
+    <style>
+        * { font-family: 'Inter', sans-serif; }
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 8px; }
+        ::-webkit-scrollbar-thumb { background: linear-gradient(180deg, #0056b3, #003d82); border-radius: 8px; }
+        ::-webkit-scrollbar-thumb:hover { background: linear-gradient(180deg, #004494, #002d61); }
+        .gradient-bg-sidebar { background: linear-gradient(135deg, #0056b3 0%, #003d82 100%); position: relative; }
+        .gradient-bg-sidebar::before { content: ''; position: absolute; inset: 0; background: linear-gradient(45deg, transparent, rgba(253, 184, 19, 0.1), transparent); pointer-events: none; }
+        .sidebar-item-active { background: linear-gradient(90deg, rgba(253, 184, 19, 0.2) 0%, rgba(253, 184, 19, 0.05) 100%); border-left: 4px solid #FDB813; box-shadow: 0 0 20px rgba(253, 184, 19, 0.2); }
+        [x-cloak] { display: none !important; }
+
+        @keyframes ticketGlow {
+            0% { box-shadow: 0 0 0 rgba(59, 130, 246, 0.0); }
+            25% { box-shadow: 0 0 0 6px rgba(59, 130, 246, 0.18); }
+            100% { box-shadow: 0 0 0 rgba(59, 130, 246, 0.0); }
+        }
+
+        .ticket-glow {
+            animation: ticketGlow 900ms ease-out;
+        }
+    </style>
+</head>
+<body class="bg-white transition-colors duration-200" x-data="{
+    sidebarCollapsed: false,
+    sidebarHovered: false,
+    mobileMenuOpen: false,
+    userDropdown: false,
+    profileDropdown: false,
+    showLogoutConfirm: false,
+
+    soundEnabled: false,
+    alarmPlaying: false,
+    alarmAudioCtx: null,
+    alarmOsc: null,
+    alarmGain: null,
+    alarmStopTimeoutId: null,
+    calledAlertVisible: false,
+    calledAlertTicketNumber: null,
+    lastMyTicketNumber: null,
+    lastMyTicketStatus: null,
+    lastNotifiedCalledTicketNumber: null,
+
+    onsiteTicketModal: false,
+    ticketSubmitting: false,
+    ticketForm: { priority: 'P3' },
+    ticketResult: null,
+    ticketError: null,
+
+    queueStatus: null,
+    queueStatusError: null,
+    queueLastUpdated: null,
+    isLoadingQueueStatus: false,
+    myTicketHighlight: false,
+    currentUserProfile: null,
+
+    init() {
+        this.$nextTick(() => {
+            try { feather.replace(); } catch (e) {}
+            try {
+                AOS.init({ duration: 600, once: true, offset: 50 });
+            } catch (e) {}
+        });
+
+        this.loadUserProfile();
+        this.loadQueueStatus();
+        setInterval(() => this.loadQueueStatus(false), 8000);
+    },
+
+    async enableSound() {
+        try {
+            if (!this.alarmAudioCtx) {
+                const Ctx = window.AudioContext || window.webkitAudioContext;
+                if (!Ctx) return;
+                this.alarmAudioCtx = new Ctx();
+            }
+            if (this.alarmAudioCtx && this.alarmAudioCtx.state === 'suspended') {
+                await this.alarmAudioCtx.resume();
+            }
+            this.soundEnabled = true;
+        } catch (e) {
+            this.soundEnabled = false;
+        }
+    },
+
+    stopAlarm() {
+        try {
+            if (this.alarmStopTimeoutId) {
+                clearTimeout(this.alarmStopTimeoutId);
+                this.alarmStopTimeoutId = null;
+            }
+            if (this.alarmOsc) {
+                try { this.alarmOsc.stop(); } catch (e) {}
+                try { this.alarmOsc.disconnect(); } catch (e) {}
+                this.alarmOsc = null;
+            }
+            if (this.alarmGain) {
+                try { this.alarmGain.disconnect(); } catch (e) {}
+                this.alarmGain = null;
+            }
+        } finally {
+            this.alarmPlaying = false;
+        }
+    },
+
+    playAlarm(durationMs = 7000) {
+        if (!this.soundEnabled || this.alarmPlaying) return;
+
+        try {
+            const Ctx = window.AudioContext || window.webkitAudioContext;
+            if (!Ctx) return;
+            if (!this.alarmAudioCtx) {
+                this.alarmAudioCtx = new Ctx();
+            }
+
+            if (this.alarmAudioCtx.state === 'suspended') {
+                return;
+            }
+
+            this.stopAlarm();
+            const ctx = this.alarmAudioCtx;
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+
+            osc.type = 'square';
+            osc.frequency.setValueAtTime(880, ctx.currentTime);
+            gain.gain.setValueAtTime(0.0001, ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.35, ctx.currentTime + 0.02);
+
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+
+            osc.start();
+            this.alarmOsc = osc;
+            this.alarmGain = gain;
+            this.alarmPlaying = true;
+
+            const beep = () => {
+                if (!this.alarmPlaying || !this.alarmOsc || !this.alarmAudioCtx) return;
+                const t = this.alarmAudioCtx.currentTime;
+                const f = this.alarmOsc.frequency;
+                f.cancelScheduledValues(t);
+                f.setValueAtTime(880, t);
+                f.setValueAtTime(660, t + 0.25);
+                f.setValueAtTime(880, t + 0.5);
+            };
+            beep();
+            const intervalId = setInterval(() => {
+                if (!this.alarmPlaying) {
+                    clearInterval(intervalId);
+                    return;
+                }
+                beep();
+            }, 600);
+
+            this.alarmStopTimeoutId = setTimeout(() => {
+                clearInterval(intervalId);
+                this.stopAlarm();
+            }, durationMs);
+        } catch (e) {
+            this.alarmPlaying = false;
+        }
+    },
+
+    triggerCalledAlert(ticketNumber) {
+        if (!ticketNumber) return;
+        if (this.lastNotifiedCalledTicketNumber === ticketNumber) return;
+
+        this.calledAlertTicketNumber = ticketNumber;
+        this.calledAlertVisible = true;
+        this.lastNotifiedCalledTicketNumber = ticketNumber;
+
+        this.playAlarm(9000);
+    },
+
+    dismissCalledAlert() {
+        this.calledAlertVisible = false;
+        this.stopAlarm();
+    },
+
+    async loadUserProfile() {
+        try {
+            const res = await fetch('/api/user/profile', { credentials: 'same-origin' });
+            if (!res.ok) return;
+            this.currentUserProfile = await res.json();
+        } catch (e) {}
+    },
+
+    async loadQueueStatus(showErrors = true) {
+        try {
+            this.isLoadingQueueStatus = true;
+            const response = await fetch('/api/patient/queue-status', { credentials: 'same-origin' });
+            const payload = await response.json().catch(() => ({}));
+            if (!response.ok || payload.error) {
+                if (showErrors) {
+                    this.queueStatusError = payload.error || 'Unable to load queue status.';
+                }
+                this.queueStatus = null;
+                return;
+            }
+            this.queueStatusError = null;
+
+            const prevMyTicketNumber = this.lastMyTicketNumber;
+            const prevMyStatus = this.lastMyTicketStatus;
+
+            this.queueStatus = payload;
+            this.queueLastUpdated = new Date().toLocaleTimeString();
+
+            const currentHasTicket = !!(payload && payload.my && payload.my.has_ticket);
+            const currentTicketNumber = currentHasTicket ? payload.my.ticket_number : null;
+            const currentStatus = currentHasTicket ? (payload.my.status || null) : null;
+
+            this.lastMyTicketNumber = currentTicketNumber;
+            this.lastMyTicketStatus = currentStatus;
+
+            const statusChanged = currentHasTicket && prevMyTicketNumber === currentTicketNumber && (prevMyStatus || null) !== (currentStatus || null);
+            if (statusChanged) {
+                this.myTicketHighlight = true;
+                setTimeout(() => { this.myTicketHighlight = false; }, 950);
+            }
+
+            const changedToCalled = currentHasTicket && String(currentStatus || '').toLowerCase() === 'called' && (
+                prevMyTicketNumber !== currentTicketNumber || String(prevMyStatus || '').toLowerCase() !== 'called'
+            );
+            if (changedToCalled) {
+                this.triggerCalledAlert(currentTicketNumber);
+            }
+        } catch (e) {
+            if (showErrors) {
+                this.queueStatusError = 'Network error. Unable to load queue status.';
+            }
+            this.queueStatus = null;
+        } finally {
+            this.isLoadingQueueStatus = false;
+        }
+    },
+
+    ticketStatusMeta(status) {
+        const s = String(status || '').toLowerCase();
+        if (s === 'called') return { label: 'Called', cls: 'bg-yellow-100 text-yellow-900 border-yellow-200' };
+        if (s === 'in_consultation') return { label: 'In consultation', cls: 'bg-blue-100 text-blue-900 border-blue-200' };
+        if (s === 'waiting') return { label: 'Waiting', cls: 'bg-gray-100 text-gray-800 border-gray-200' };
+        if (s === 'completed') return { label: 'Completed', cls: 'bg-emerald-100 text-emerald-900 border-emerald-200' };
+        if (s === 'cancelled') return { label: 'Cancelled', cls: 'bg-gray-100 text-gray-800 border-gray-200' };
+        if (s === 'no_show') return { label: 'No show', cls: 'bg-gray-100 text-gray-800 border-gray-200' };
+        return { label: 'Unknown', cls: 'bg-gray-100 text-gray-800 border-gray-200' };
+    },
+
+    openOnsiteTicketModal() {
+        this.ticketError = null;
+        this.ticketResult = null;
+        this.ticketForm = { priority: 'P3' };
+        this.onsiteTicketModal = true;
+        this.$nextTick(() => {
+            try { feather.replace(); } catch (e) {}
+        });
+    },
+
+    async submitOnsiteTicket() {
+        if (this.ticketSubmitting) return;
+
+        if (this.queueStatus && this.queueStatus.my && this.queueStatus.my.has_ticket) {
+            this.ticketError = 'You already have an active ticket. Please wait for it to be called.';
+            return;
+        }
+        const priority = String(this.ticketForm.priority || 'P3').toUpperCase().trim();
+
+        const profile = this.currentUserProfile;
+        const fullName = profile ? ((profile.first_name || '') + ' ' + (profile.last_name || '')).trim() : '';
+        const patientIdentifier = profile ? (profile.student_number || profile.username || '') : '';
+        const patientType = (profile && profile.role) ? String(profile.role).toLowerCase() : 'student';
+
+        try {
+            this.ticketSubmitting = true;
+            this.ticketError = null;
+            this.ticketResult = null;
+
+            const response = await fetch('/api/consultation/tickets', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    patient_type: patientType,
+                    patient_identifier: patientIdentifier || null,
+                    full_name: fullName || null,
+                    priority: priority
+                })
+            });
+
+            const payload = await response.json().catch(() => ({}));
+            if (!response.ok || payload.error || payload.success === false) {
+                this.ticketError = payload.error || payload.message || 'Unable to create ticket. Please try again.';
+                return;
+            }
+
+            this.ticketResult = payload.ticket || null;
+            this.loadQueueStatus(false);
+        } catch (error) {
+            this.ticketError = 'Network error. Unable to reach the server. Please try again.';
+        } finally {
+            this.ticketSubmitting = false;
+        }
+    }
+}" x-init="init()">
+
+<div class="flex h-screen overflow-hidden">
+    <aside :class="sidebarCollapsed ? 'w-20' : 'w-64'" class="fixed left-0 top-0 h-screen gradient-bg-sidebar text-white transition-all duration-300 shadow-2xl z-40"
+           @mouseenter="sidebarHovered = true"
+           @mouseleave="sidebarHovered = false">
+        <div class="relative p-6">
+            <div class="flex items-center gap-3" :class="sidebarCollapsed ? 'justify-center' : ''">
+                <div class="flex items-center justify-center">
+                    <img src="../assets/img/iclinic-logo.png" alt="Norzagaray College" class="w-14 h-14 object-contain">
+                </div>
+                <div x-show="!sidebarCollapsed" x-transition>
+                    <h1 class="text-xl font-bold text-white">iClinic</h1>
+                    <p class="text-xs text-yellow-300">Norzagaray College</p>
+                </div>
+            </div>
+        </div>
+
+        <nav class="relative mt-8 px-4 space-y-3">
+            <a href="{{ url_for('student_dashboard') }}" class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all group hover:bg-white/10">
+                <div class="flex items-center justify-center" :class="sidebarCollapsed ? 'w-full' : ''">
+                    <i data-feather="home" class="w-5 h-5"></i>
+                </div>
+                <span x-show="!sidebarCollapsed" class="font-medium">Dashboard</span>
+            </a>
+            <a href="{{ url_for('student_health_records') }}" class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all group hover:bg-white/10">
+                <div class="flex items-center justify-center" :class="sidebarCollapsed ? 'w-full' : ''">
+                    <i data-feather="file-text" class="w-5 h-5"></i>
+                </div>
+                <span x-show="!sidebarCollapsed" class="font-medium">Health Records</span>
+            </a>
+            <a href="{{ url_for('student_appointments') }}" class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all group hover:bg-white/10">
+                <div class="flex items-center justify-center" :class="sidebarCollapsed ? 'w-full' : ''">
+                    <i data-feather="calendar" class="w-5 h-5"></i>
+                </div>
+                <span x-show="!sidebarCollapsed" class="font-medium">Appointments</span>
+            </a>
+            <a href="{{ url_for('student_consultation_chat') }}" class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all group hover:bg-white/10">
+                <div class="flex items-center justify-center" :class="sidebarCollapsed ? 'w-full' : ''">
+                    <i data-feather="message-circle" class="w-5 h-5"></i>
+                </div>
+                <span x-show="!sidebarCollapsed" class="font-medium">Consultation Chat</span>
+            </a>
+            <a href="{{ url_for('student_announcements') }}" class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all group hover:bg-white/10">
+                <div class="flex items-center justify-center" :class="sidebarCollapsed ? 'w-full' : ''">
+                    <i data-feather="volume-2" class="w-5 h-5"></i>
+                </div>
+                <span x-show="!sidebarCollapsed" class="font-medium">Announcements</span>
+            </a>
+
+            <a href="{{ url_for('student_onsite_queue') }}" class="sidebar-item-active flex items-center gap-3 px-4 py-3 rounded-lg transition-all group">
+                <div class="flex items-center justify-center" :class="sidebarCollapsed ? 'w-full' : ''">
+                    <i data-feather="clipboard" class="w-5 h-5"></i>
+                </div>
+                <span x-show="!sidebarCollapsed" class="font-medium">Onsite Queue</span>
+            </a>
+        </nav>
+    </aside>
+
+    <div :class="sidebarCollapsed ? 'md:ml-20' : 'md:ml-64'" class="flex-1 flex flex-col transition-all duration-300">
+        <main class="flex-1 overflow-y-auto bg-gray-50 p-6">
+            <div class="gradient-bg-sidebar text-white shadow-2xl relative overflow-hidden rounded-[2rem] ml-1 mb-6">
+                <div class="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -translate-y-32 translate-x-32"></div>
+                <div class="absolute bottom-0 left-0 w-48 h-48 bg-yellow-400/10 rounded-full translate-y-24 -translate-x-24"></div>
+
+                <div class="relative px-6 py-5">
+                    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                        <div class="flex items-center gap-4">
+                            <div class="relative">
+                                <div class="w-12 h-12 bg-yellow-400 rounded-xl flex items-center justify-center shadow-lg transform rotate-2 hover:rotate-0 transition-transform duration-300">
+                                    <i data-feather="clipboard" class="w-6 h-6 text-blue-900"></i>
+                                </div>
+                            </div>
+                            <div>
+                                <div class="flex items-center gap-2 mb-1">
+                                    <h1 class="text-2xl sm:text-3xl font-bold text-white">Onsite Queue</h1>
+                                </div>
+                                <div class="flex items-center gap-2 text-blue-100">
+                                    <i data-feather="activity" class="w-3 h-3"></i>
+                                    <span class="text-sm">Track your position and wait for your number to be called</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <button type="button" x-show="!soundEnabled" @click="enableSound()" class="px-3 py-1.5 rounded-lg bg-yellow-400/90 hover:bg-yellow-400 text-xs font-semibold text-blue-900 border border-yellow-200/30">Enable Sound</button>
+                            <button type="button" @click="openOnsiteTicketModal()" :disabled="queueStatus && queueStatus.my && queueStatus.my.has_ticket" class="px-3 py-1.5 rounded-lg text-xs font-semibold border" :class="(queueStatus && queueStatus.my && queueStatus.my.has_ticket) ? 'bg-white/20 text-white/70 border-white/20 cursor-not-allowed' : 'rounded-lg bg-white/15 hover:bg-white/20 text-white border-white/20'">Generate Ticket</button>
+                            <button type="button" @click="loadQueueStatus()" class="px-3 py-1.5 rounded-lg bg-white/15 hover:bg-white/20 text-xs font-semibold border border-white/20">Refresh</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+                <div class="p-6">
+                    <div class="flex items-center justify-end mb-4">
+                        <div class="text-xs text-gray-500" x-text="queueLastUpdated ? ('Last update: ' + queueLastUpdated) : ''"></div>
+                    </div>
+                    <div x-show="queueStatusError" class="bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 text-sm" x-text="queueStatusError"></div>
+
+                    <div x-show="isLoadingQueueStatus && !queueStatus" class="grid grid-cols-1 lg:grid-cols-3 gap-4" aria-hidden="true">
+                        <div class="rounded-xl border border-gray-200 bg-white p-4">
+                            <div class="h-3 w-32 bg-gray-200 rounded"></div>
+                            <div class="mt-3 h-10 w-24 bg-gray-200 rounded"></div>
+                            <div class="mt-2 h-3 w-40 bg-gray-100 rounded"></div>
+                        </div>
+                        <div class="rounded-xl border border-gray-200 bg-white p-4">
+                            <div class="h-3 w-16 bg-gray-200 rounded"></div>
+                            <div class="mt-3 h-10 w-24 bg-gray-200 rounded"></div>
+                            <div class="mt-2 h-3 w-36 bg-gray-100 rounded"></div>
+                        </div>
+                        <div class="rounded-xl border border-gray-200 bg-white p-4">
+                            <div class="h-3 w-20 bg-gray-200 rounded"></div>
+                            <div class="mt-3 h-10 w-24 bg-gray-200 rounded"></div>
+                            <div class="mt-2 h-3 w-44 bg-gray-100 rounded"></div>
+                        </div>
+                    </div>
+
+                    <div x-show="queueStatus && queueStatus.success" class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                        <div class="rounded-xl border border-blue-200 bg-blue-50 p-4">
+                            <div class="text-xs font-semibold text-blue-700 uppercase">Now in Consultation</div>
+                            <div class="mt-2 text-3xl font-extrabold text-blue-900" x-text="queueStatus.board.now_in_consultation ? ('#' + queueStatus.board.now_in_consultation) : '—'"></div>
+                            <div class="mt-2 text-xs text-blue-700" x-show="!queueStatus.board.now_in_consultation">No consultation in progress</div>
+                        </div>
+
+                        <div class="rounded-xl border border-yellow-200 bg-yellow-50 p-4">
+                            <div class="text-xs font-semibold text-yellow-800 uppercase">Next</div>
+                            <div class="mt-2 text-3xl font-extrabold text-yellow-900" x-text="queueStatus.board.next_to_start ? ('#' + queueStatus.board.next_to_start) : (queueStatus.board.next_to_call ? ('#' + queueStatus.board.next_to_call) : '—')"></div>
+                            <div class="mt-1 text-xs text-yellow-800" x-text="queueStatus.board.next_to_start ? 'Next to Start' : (queueStatus.board.next_to_call ? 'Next to Call' : '')"></div>
+                            <div class="mt-2 text-xs text-yellow-800" x-show="!queueStatus.board.next_to_start && !queueStatus.board.next_to_call">No next ticket yet</div>
+                        </div>
+
+                        <div class="rounded-xl border border-blue-200 bg-white p-4" :class="myTicketHighlight ? 'ticket-glow' : ''">
+                            <div class="flex items-start justify-between gap-3">
+                                <div class="text-xs font-semibold text-blue-800 uppercase">My Ticket</div>
+                                <div x-show="queueStatus.my.has_ticket" class="inline-flex items-center gap-2">
+                                    <span class="px-2 py-0.5 rounded-full text-[11px] font-semibold border" :class="ticketStatusMeta(queueStatus.my.status).cls" x-text="ticketStatusMeta(queueStatus.my.status).label"></span>
+                                </div>
+                            </div>
+                            <div class="mt-2 text-3xl font-extrabold text-gray-900" x-text="queueStatus.my.has_ticket ? ('#' + queueStatus.my.ticket_number) : '—'"></div>
+                            <div class="mt-1 text-xs text-gray-600" x-text="queueStatus.my.has_ticket ? ('Status: ' + (queueStatus.my.status || '').replace(/_/g,' ')) : 'No active ticket yet'">
+                            </div>
+                            <div class="mt-2 text-sm font-semibold text-gray-800" x-show="queueStatus.my.has_ticket">
+                                Position: <span x-text="queueStatus.my.position_in_active || '—'"></span>
+                            </div>
+                            <div class="mt-2 text-xs text-gray-500" x-show="queueStatus.my.has_ticket && queueStatus.my.status === 'waiting'">Stay nearby. You will be called soon.</div>
+                            <div class="mt-2 text-xs text-gray-500" x-show="queueStatus.my.has_ticket && queueStatus.my.status === 'called'">Please proceed to the clinic now.</div>
+                        </div>
+                    </div>
+
+                    <div x-show="queueStatus && queueStatus.success" class="mt-4 grid grid-cols-1 lg:grid-cols-2 gap-4">
+                        <div class="rounded-xl border border-gray-200 p-4 bg-white">
+                            <div class="text-xs font-semibold text-gray-700 uppercase">Called</div>
+                            <div class="mt-2 grid grid-cols-4 sm:grid-cols-6 gap-2">
+                                <template x-for="num in (queueStatus.board.called || [])" :key="'called_' + num">
+                                    <div class="text-center text-sm font-bold text-blue-700 bg-blue-50 border border-blue-200 rounded-lg py-2" x-text="'#' + num"></div>
+                                </template>
+                                <div x-show="(queueStatus.board.called || []).length === 0" class="col-span-full text-sm text-gray-400">No called tickets</div>
+                            </div>
+                        </div>
+
+                        <div class="rounded-xl border border-gray-200 p-4 bg-white">
+                            <div class="text-xs font-semibold text-gray-700 uppercase">Waiting</div>
+                            <div class="mt-2 grid grid-cols-4 sm:grid-cols-6 gap-2">
+                                <template x-for="num in (queueStatus.board.waiting || [])" :key="'waiting_' + num">
+                                    <div class="text-center text-sm font-bold text-gray-700 bg-gray-50 border border-gray-200 rounded-lg py-2" x-text="'#' + num"></div>
+                                </template>
+                                <div x-show="(queueStatus.board.waiting || []).length === 0" class="col-span-full text-sm text-gray-400">No waiting tickets</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+</div>
+
+<div x-show="onsiteTicketModal" x-cloak class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4" @click.outside="onsiteTicketModal = false">
+    <div class="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden">
+        <div class="bg-gradient-to-r from-blue-600 to-indigo-700 px-6 py-4 text-white">
+            <div class="flex items-center justify-between">
+                <div>
+                    <h2 class="text-xl font-bold">Onsite Consultation Ticket</h2>
+                    <p class="text-blue-100 text-sm">Select priority to get a queue number</p>
+                </div>
+                <button type="button" @click="onsiteTicketModal = false" class="p-2 hover:bg-white/20 rounded-lg transition-colors">
+                    <i data-feather="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+        </div>
+
+        <div class="p-6 space-y-4">
+            <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-2">Priority</label>
+                <select x-model="ticketForm.priority" class="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-900 transition-all">
+                    <option value="P1">P1 - Emergency</option>
+                    <option value="P2">P2 - Urgent</option>
+                    <option value="P3">P3 - Routine</option>
+                    <option value="P4">P4 - Admin</option>
+                </select>
+            </div>
+
+            <div x-show="ticketError" class="bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 text-sm" x-text="ticketError"></div>
+
+            <div x-show="ticketResult" class="bg-blue-50 border border-blue-200 text-blue-800 rounded-xl px-4 py-3">
+                <div class="text-sm font-semibold">Ticket created</div>
+                <div class="text-3xl font-bold" x-text="ticketResult ? ('#' + (ticketResult.ticket_number || ticketResult.id)) : ''"></div>
+                <div class="text-xs text-blue-700 mt-1">Proceed to the clinic and wait for your number to be called.</div>
+            </div>
+        </div>
+
+        <div class="px-6 py-4 bg-gray-50 flex items-center justify-end gap-3">
+            <button type="button" @click="onsiteTicketModal = false" class="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium">Close</button>
+            <button type="button" @click="submitOnsiteTicket()" :disabled="ticketSubmitting" class="px-4 py-2 rounded-lg text-white font-medium transition-colors" :class="ticketSubmitting ? 'bg-blue-400' : 'bg-blue-600 hover:bg-blue-700'">
+                <span x-show="!ticketSubmitting">Generate Ticket</span>
+                <span x-show="ticketSubmitting">Generating...</span>
+            </button>
+        </div>
+    </div>
+</div>
+
+<div x-show="calledAlertVisible" x-cloak class="fixed inset-0 z-[60] flex items-center justify-center p-6">
+    <div class="absolute inset-0 bg-black/70" @click="dismissCalledAlert()"></div>
+    <div class="relative w-full max-w-2xl bg-white rounded-3xl shadow-2xl border border-gray-200 overflow-hidden">
+        <div class="px-8 py-6 bg-gradient-to-r from-blue-600 to-indigo-700 text-white">
+            <div class="flex items-center justify-between gap-4">
+                <div class="flex items-center gap-3">
+                    <div class="w-12 h-12 rounded-2xl bg-white/15 flex items-center justify-center">
+                        <i data-feather="bell" class="w-6 h-6"></i>
+                    </div>
+                    <div>
+                        <div class="text-sm font-semibold">Queue Notification</div>
+                        <div class="text-2xl font-extrabold">Your ticket is called</div>
+                    </div>
+                </div>
+                <button type="button" class="p-2 rounded-xl hover:bg-white/15" @click="dismissCalledAlert()">
+                    <i data-feather="x" class="w-6 h-6"></i>
+                </button>
+            </div>
+        </div>
+
+        <div class="px-8 py-8">
+            <div class="text-center">
+                <div class="text-sm text-gray-600">Ticket Number</div>
+                <div class="mt-2 text-6xl font-black text-gray-900" x-text="calledAlertTicketNumber ? ('#' + calledAlertTicketNumber) : '—'"></div>
+                <div class="mt-3 text-sm text-gray-600">Please proceed to the clinic now.</div>
+            </div>
+
+            <div class="mt-8 flex flex-col sm:flex-row items-stretch sm:items-center justify-center gap-3">
+                <button type="button" class="px-6 py-3 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-800 font-semibold" @click="stopAlarm()">Stop Sound</button>
+                <button type="button" class="px-6 py-3 rounded-xl bg-yellow-400 hover:bg-yellow-500 text-blue-900 font-semibold" @click="dismissCalledAlert()">OK</button>
+            </div>
+            <div class="mt-4 text-center text-xs text-gray-500" x-show="!soundEnabled">
+                Sound is disabled. Click Enable Sound so alerts can play.
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('alpine:init', () => {
+        try { feather.replace(); } catch (e) {}
+    });
+</script>
+
+</body>
+</html>

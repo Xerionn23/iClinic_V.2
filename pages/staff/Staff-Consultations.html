@@ -469,6 +469,7 @@
                             </div>
                         </div>
                     </div>
+
                 </div>
 
                 <!-- All Consultations Tab -->
@@ -726,6 +727,19 @@
                         </div>
                     </div>
 
+                    <div class="mb-4 flex items-center gap-2">
+                        <button @click="setQueueView('active')"
+                                class="px-4 py-2 rounded-lg text-sm font-semibold border"
+                                :class="queueView === 'active' ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'">
+                            Active Queue
+                        </button>
+                        <button @click="setQueueView('history')"
+                                class="px-4 py-2 rounded-lg text-sm font-semibold border"
+                                :class="queueView === 'history' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'">
+                            History
+                        </button>
+                    </div>
+
                     <!-- Queue controls -->
                     <div class="mb-4 flex items-center justify-between">
                         <div class="flex items-center gap-2 text-xs text-gray-600">
@@ -736,92 +750,226 @@
                             <span x-show="lastTicketRefresh" class="text-gray-500">
                                 Last update: <span x-text="lastTicketRefresh"></span>
                             </span>
+                            <span x-show="hasActiveConsultation" class="text-gray-500">
+                                Consultation in progress. Finish current patient to call next.
+                            </span>
                         </div>
                         <button @click="loadTickets()"
+                                x-show="queueView === 'active'"
+                                class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-white border border-gray-300 text-gray-700 hover:bg-gray-50">
+                            <i data-feather="refresh-cw" class="w-3 h-3"></i>
+                            Refresh
+                        </button>
+                        <button @click="loadTicketHistory()"
+                                x-show="queueView === 'history'"
                                 class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-white border border-gray-300 text-gray-700 hover:bg-gray-50">
                             <i data-feather="refresh-cw" class="w-3 h-3"></i>
                             Refresh
                         </button>
                     </div>
 
-                    <!-- Queue board -->
-                    <div class="grid grid-cols-1 lg:grid-cols-4 gap-4">
-                        <template x-for="priority in ['P1','P2','P3','P4']" :key="priority">
-                            <div class="bg-white rounded-xl border border-gray-200 shadow-sm flex flex-col">
-                                <div class="px-4 py-3 border-b flex items-center justify-between"
-                                     :class="{
-                                        'bg-red-50 border-red-100': priority === 'P1',
-                                        'bg-orange-50 border-orange-100': priority === 'P2',
-                                        'bg-blue-50 border-blue-100': priority === 'P3',
-                                        'bg-gray-50 border-gray-200': priority === 'P4'
-                                     }">
-                                    <div class="text-xs font-semibold uppercase"
-                                         :class="{
-                                            'text-red-700': priority === 'P1',
-                                            'text-orange-700': priority === 'P2',
-                                            'text-blue-700': priority === 'P3',
-                                            'text-gray-700': priority === 'P4'
-                                         }">
-                                        <span x-text="priority === 'P1' ? 'Emergency' :
-                                                      priority === 'P2' ? 'Urgent' :
-                                                      priority === 'P3' ? 'Routine' :
-                                                      'Admin / Papers'"></span>
+                    <div x-show="queueView === 'active' && nowServingTicket" class="mb-4">
+                        <div class="rounded-2xl border border-purple-200 bg-gradient-to-r from-purple-50 via-white to-white shadow-sm p-4 sm:p-5">
+                            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                                <div class="flex items-start gap-3">
+                                    <div class="w-10 h-10 rounded-xl bg-purple-600 flex items-center justify-center shadow-sm flex-shrink-0">
+                                        <i data-feather="activity" class="w-5 h-5 text-white"></i>
                                     </div>
-                                    <span class="text-xs font-medium text-gray-700">
-                                        <span x-text="ticketsByPriority[priority].length"></span> in line
-                                    </span>
+                                    <div class="min-w-0">
+                                        <div class="text-[11px] font-semibold uppercase tracking-wide text-purple-700">Now in Consultation</div>
+                                        <div class="mt-0.5 flex items-baseline gap-2 min-w-0">
+                                            <div class="text-base font-extrabold text-gray-900" x-text="'#' + nowServingTicket.ticket_number"></div>
+                                            <div class="text-sm font-semibold text-gray-800 truncate" x-text="nowServingTicket.full_name || 'Walk-in patient'"></div>
+                                        </div>
+                                        <div class="mt-1 text-xs text-gray-600 truncate" x-text="nowServingTicket.chief_complaint || ''"></div>
+                                        <div class="mt-1 text-[11px] text-gray-500" x-text="nowServingTicket.arrival_time ? ('Arrived: ' + new Date(nowServingTicket.arrival_time).toLocaleTimeString()) : ''"></div>
+                                    </div>
                                 </div>
 
-                                <div class="flex-1 max-h-80 overflow-y-auto divide-y divide-gray-100">
-                                    <template x-if="ticketsByPriority[priority].length === 0">
-                                        <div class="px-4 py-6 text-center text-xs text-gray-400">
-                                            No patients in this lane.
-                                        </div>
+                                <div class="flex items-center gap-2 sm:justify-end">
+                                    <span class="inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold bg-purple-100 text-purple-700 border border-purple-200">
+                                        <span class="w-1.5 h-1.5 rounded-full bg-purple-500"></span>
+                                        In Consultation
+                                    </span>
+                                    <span class="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold border"
+                                          :class="{
+                                            'bg-red-50 text-red-700 border-red-200': nowServingTicket.priority === 'P1',
+                                            'bg-orange-50 text-orange-700 border-orange-200': nowServingTicket.priority === 'P2',
+                                            'bg-blue-50 text-blue-700 border-blue-200': nowServingTicket.priority === 'P3',
+                                            'bg-gray-50 text-gray-700 border-gray-200': nowServingTicket.priority === 'P4'
+                                          }"
+                                          x-text="nowServingTicket.priority || 'P3'">
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div x-show="queueView === 'active' && (nextToStartTicket || nextToCallTicket)" class="mb-4">
+                        <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-4 flex items-center justify-between">
+                            <div class="flex flex-col">
+                                <div class="text-xs font-semibold uppercase text-gray-500" x-text="nextToStartTicket ? 'Next to Start' : 'Next to Call'"></div>
+                                <div class="text-sm font-bold text-gray-900">
+                                    <span x-text="'#' + (nextToStartTicket ? nextToStartTicket.ticket_number : nextToCallTicket.ticket_number)"></span>
+                                    <span class="ml-1" x-text="(nextToStartTicket ? nextToStartTicket.full_name : nextToCallTicket.full_name) || 'Walk-in patient'"></span>
+                                </div>
+                                <div class="text-xs text-gray-600" x-text="(nextToStartTicket ? nextToStartTicket.chief_complaint : nextToCallTicket.chief_complaint) || ''"></div>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <span class="rounded-full px-2 py-0.5 text-[10px] font-medium"
+                                      :class="(nextToStartTicket ? nextToStartTicket.priority : nextToCallTicket.priority) === 'P1' ? 'bg-red-100 text-red-700' :
+                                              (nextToStartTicket ? nextToStartTicket.priority : nextToCallTicket.priority) === 'P2' ? 'bg-orange-100 text-orange-700' :
+                                              (nextToStartTicket ? nextToStartTicket.priority : nextToCallTicket.priority) === 'P4' ? 'bg-gray-100 text-gray-700' :
+                                              'bg-blue-100 text-blue-700'"
+                                      x-text="(nextToStartTicket ? nextToStartTicket.priority : nextToCallTicket.priority) || 'P3'">
+                                </span>
+                                <span class="rounded-full px-2 py-0.5 text-[10px] font-medium"
+                                      :class="nextToStartTicket ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'"
+                                      x-text="nextToStartTicket ? 'Called' : 'Waiting'">
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mb-3 bg-white rounded-xl border border-gray-200 shadow-sm p-4">
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div>
+                                <label class="block text-xs font-semibold text-gray-700 mb-1">Priority Filter</label>
+                                <select x-show="queueView === 'active'" x-model="queuePriorityFilter" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white">
+                                    <option value="">All</option>
+                                    <option value="P1">P1 Emergency</option>
+                                    <option value="P2">P2 Urgent</option>
+                                    <option value="P3">P3 Routine</option>
+                                    <option value="P4">P4 Admin</option>
+                                </select>
+                                <select x-show="queueView === 'history'" x-model="historyPriorityFilter" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white">
+                                    <option value="">All</option>
+                                    <option value="P1">P1 Emergency</option>
+                                    <option value="P2">P2 Urgent</option>
+                                    <option value="P3">P3 Routine</option>
+                                    <option value="P4">P4 Admin</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-gray-700 mb-1">Status Filter</label>
+                                <select x-show="queueView === 'active'" x-model="queueStatusFilter" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white">
+                                    <option value="">All</option>
+                                    <option value="waiting">Waiting</option>
+                                    <option value="called">Called</option>
+                                    <option value="in_consultation">In Consultation</option>
+                                </select>
+                                <select x-show="queueView === 'history'" x-model="historyStatusFilter" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white">
+                                    <option value="">All</option>
+                                    <option value="completed">Completed</option>
+                                    <option value="cancelled">Cancelled</option>
+                                    <option value="no_show">No Show</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full divide-y divide-gray-200">
+                                <thead class="bg-gray-50">
+                                    <tr>
+                                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">#</th>
+                                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Ticket</th>
+                                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Patient</th>
+                                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Priority</th>
+                                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Status</th>
+                                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Arrived</th>
+                                        <template x-if="queueView === 'active'">
+                                            <th class="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">Action</th>
+                                        </template>
+                                    </tr>
+                                </thead>
+                                <tbody class="bg-white divide-y divide-gray-100">
+                                    <template x-if="(queueView === 'history' ? filteredHistoryTickets : filteredQueueTickets).length === 0">
+                                        <tr>
+                                            <td :colspan="queueView === 'history' ? 6 : 7" class="px-4 py-6 text-center text-sm text-gray-400">No tickets found.</td>
+                                        </tr>
                                     </template>
 
-                                    <template x-for="ticket in ticketsByPriority[priority]" :key="ticket.id">
-                                        <div class="px-4 py-3 text-xs flex flex-col gap-1">
-                                            <div class="flex items-center justify-between">
-                                                <div class="font-semibold text-gray-900">
-                                                    <span x-text="'#' + ticket.ticket_number"></span>
-                                                    <span class="ml-1" x-text="ticket.full_name || 'Walk-in patient'"></span>
-                                                </div>
-                                                <span class="rounded-full px-2 py-0.5 text-[10px] font-medium"
+                                    <template x-for="(ticket, idx) in (queueView === 'history' ? filteredHistoryTickets : filteredQueueTickets)" :key="ticket.id">
+                                        <tr :class="ticket.status === 'in_consultation' ? 'bg-purple-50' : ''">
+                                            <td class="px-4 py-3 text-sm font-semibold text-gray-700" x-text="idx + 1"></td>
+                                            <td class="px-4 py-3 text-sm font-bold text-gray-900" x-text="'#' + ticket.ticket_number"></td>
+                                            <td class="px-4 py-3 text-sm text-gray-900" x-text="ticket.full_name || 'Walk-in patient'"></td>
+                                            <td class="px-4 py-3">
+                                                <span class="rounded-full px-2 py-0.5 text-xs font-semibold"
+                                                      :class="{
+                                                        'bg-red-100 text-red-700': (ticket.priority || 'P3') === 'P1',
+                                                        'bg-orange-100 text-orange-700': (ticket.priority || 'P3') === 'P2',
+                                                        'bg-blue-100 text-blue-700': (ticket.priority || 'P3') === 'P3',
+                                                        'bg-gray-100 text-gray-700': (ticket.priority || 'P3') === 'P4'
+                                                      }"
+                                                      x-text="ticket.priority || 'P3'">
+                                                </span>
+                                            </td>
+                                            <td class="px-4 py-3">
+                                                <span class="rounded-full px-2 py-0.5 text-xs font-medium"
                                                       :class="{
                                                         'bg-green-100 text-green-700': ticket.status === 'waiting',
                                                         'bg-blue-100 text-blue-700': ticket.status === 'called',
                                                         'bg-purple-100 text-purple-700': ticket.status === 'in_consultation',
-                                                        'bg-gray-100 text-gray-600': ticket.status === 'completed'
+                                                        'bg-gray-100 text-gray-600': ticket.status === 'completed',
+                                                        'bg-red-100 text-red-700': ticket.status === 'cancelled',
+                                                        'bg-yellow-100 text-yellow-700': ticket.status === 'no_show'
                                                       }"
-                                                      x-text="ticket.status.replace('_',' ')">
+                                                      x-text="formatTicketStatus(ticket.status)">
                                                 </span>
-                                            </div>
-                                            <div class="text-gray-600 truncate" x-text="ticket.chief_complaint"></div>
-                                            <div class="flex items-center justify-between mt-1">
-                                                <span class="text-[10px] text-gray-400" x-text="ticket.arrival_time ? new Date(ticket.arrival_time).toLocaleTimeString() : ''"></span>
-                                                <div class="flex gap-1">
+                                            </td>
+                                            <td class="px-4 py-3 text-sm text-gray-600" x-text="ticket.arrival_time ? new Date(ticket.arrival_time).toLocaleTimeString() : ''"></td>
+                                            <template x-if="queueView === 'active'">
+                                                <td class="px-4 py-3 text-right">
+                                                <div class="inline-flex items-center gap-2">
                                                     <button @click="updateTicket(ticket.id, { status: 'called' })"
                                                             x-show="ticket.status === 'waiting'"
-                                                            class="px-2 py-0.5 rounded bg-emerald-600 text-white text-[10px] hover:bg-emerald-700">
+                                                            :disabled="updatingTicketIds.has(ticket.id) || hasActiveConsultation"
+                                                            :class="(updatingTicketIds.has(ticket.id) || hasActiveConsultation) ? 'opacity-50 cursor-not-allowed' : ''"
+                                                            class="px-3 py-1 rounded-lg bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-700">
                                                         Call
                                                     </button>
+
+                                                    <button @click="updateTicket(ticket.id, { status: 'no_show' })"
+                                                            x-show="ticket.status === 'waiting' || ticket.status === 'called'"
+                                                            :disabled="updatingTicketIds.has(ticket.id)"
+                                                            :class="updatingTicketIds.has(ticket.id) ? 'opacity-50 cursor-not-allowed' : ''"
+                                                            class="px-3 py-1 rounded-lg bg-yellow-500 text-white text-xs font-semibold hover:bg-yellow-600">
+                                                        No Show
+                                                    </button>
+
+                                                    <button @click="updateTicket(ticket.id, { status: 'cancelled' })"
+                                                            x-show="ticket.status === 'waiting' || ticket.status === 'called'"
+                                                            :disabled="updatingTicketIds.has(ticket.id)"
+                                                            :class="updatingTicketIds.has(ticket.id) ? 'opacity-50 cursor-not-allowed' : ''"
+                                                            class="px-3 py-1 rounded-lg bg-red-600 text-white text-xs font-semibold hover:bg-red-700">
+                                                        Cancel
+                                                    </button>
+
                                                     <button @click="updateTicket(ticket.id, { status: 'in_consultation' })"
                                                             x-show="ticket.status === 'called'"
-                                                            class="px-2 py-0.5 rounded bg-blue-600 text-white text-[10px] hover:bg-blue-700">
+                                                            :disabled="updatingTicketIds.has(ticket.id) || hasActiveConsultation"
+                                                            :class="(updatingTicketIds.has(ticket.id) || hasActiveConsultation) ? 'opacity-50 cursor-not-allowed' : ''"
+                                                            class="px-3 py-1 rounded-lg bg-blue-600 text-white text-xs font-semibold hover:bg-blue-700">
                                                         Start
                                                     </button>
                                                     <button @click="updateTicket(ticket.id, { status: 'completed' })"
                                                             x-show="ticket.status === 'in_consultation'"
-                                                            class="px-2 py-0.5 rounded bg-gray-800 text-white text-[10px] hover:bg-gray-900">
+                                                            :disabled="updatingTicketIds.has(ticket.id)"
+                                                            :class="updatingTicketIds.has(ticket.id) ? 'opacity-50 cursor-not-allowed' : ''"
+                                                            class="px-3 py-1 rounded-lg bg-gray-800 text-white text-xs font-semibold hover:bg-gray-900">
                                                         Done
                                                     </button>
                                                 </div>
-                                            </div>
-                                        </div>
+                                            </td>
+                                            </template>
+                                        </tr>
                                     </template>
-                                </div>
-                            </div>
-                        </template>
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
 
@@ -1307,6 +1455,14 @@
                 tickets: [],
                 isLoadingTickets: false,
                 lastTicketRefresh: null,
+                updatingTicketIds: new Set(),
+                queuePriorityFilter: '',
+                queueStatusFilter: '',
+                queueView: 'active',
+                ticketHistory: [],
+                isLoadingTicketHistory: false,
+                historyPriorityFilter: '',
+                historyStatusFilter: '',
 
                 // Sample student data - connected to database
                 onlineChats: [],
@@ -1419,6 +1575,77 @@
                     });
                     return buckets;
                 },
+
+                get sortedQueueTickets() {
+                    const order = { P1: 1, P2: 2, P3: 3, P4: 4 };
+                    return [...this.tickets].sort((a, b) => {
+                        const pa = order[a.priority || 'P3'] || 3;
+                        const pb = order[b.priority || 'P3'] || 3;
+                        if (pa !== pb) return pa - pb;
+                        const ta = a.arrival_time ? new Date(a.arrival_time).getTime() : 0;
+                        const tb = b.arrival_time ? new Date(b.arrival_time).getTime() : 0;
+                        return ta - tb;
+                    });
+                },
+
+                get filteredQueueTickets() {
+                    return this.sortedQueueTickets.filter(t => {
+                        const matchesPriority = !this.queuePriorityFilter || (t.priority || 'P3') === this.queuePriorityFilter;
+                        const matchesStatus = !this.queueStatusFilter || (t.status || '') === this.queueStatusFilter;
+                        return matchesPriority && matchesStatus;
+                    });
+                },
+
+                get sortedHistoryTickets() {
+                    const order = { P1: 1, P2: 2, P3: 3, P4: 4 };
+                    return [...this.ticketHistory].sort((a, b) => {
+                        const pa = order[a.priority || 'P3'] || 3;
+                        const pb = order[b.priority || 'P3'] || 3;
+                        if (pa !== pb) return pa - pb;
+                        const ta = a.arrival_time ? new Date(a.arrival_time).getTime() : 0;
+                        const tb = b.arrival_time ? new Date(b.arrival_time).getTime() : 0;
+                        return ta - tb;
+                    });
+                },
+
+                get filteredHistoryTickets() {
+                    return this.sortedHistoryTickets.filter(t => {
+                        const matchesPriority = !this.historyPriorityFilter || (t.priority || 'P3') === this.historyPriorityFilter;
+                        const matchesStatus = !this.historyStatusFilter || (t.status || '') === this.historyStatusFilter;
+                        return matchesPriority && matchesStatus;
+                    });
+                },
+
+                get hasActiveConsultation() {
+                    return this.tickets.some(t => t.status === 'in_consultation');
+                },
+
+                get nowServingTicket() {
+                    return this.tickets.find(t => t.status === 'in_consultation') || null;
+                },
+
+                get nextToStartTicket() {
+                    if (this.hasActiveConsultation) return null;
+                    return this.sortedQueueTickets.find(x => x.status === 'called') || null;
+                },
+
+                get nextToCallTicket() {
+                    if (this.hasActiveConsultation) return null;
+                    return this.sortedQueueTickets.find(x => x.status === 'waiting') || null;
+                },
+
+                formatTicketStatus(status) {
+                    if (!status) return '';
+                    const map = {
+                        waiting: 'Waiting',
+                        called: 'Called',
+                        in_consultation: 'In Consultation',
+                        completed: 'Completed',
+                        cancelled: 'Cancelled',
+                        no_show: 'No Show'
+                    };
+                    return map[status] || String(status).replace(/_/g, ' ');
+                },
                 
                 // Format time to 12-hour format with AM/PM (PH format)
                 formatTime(time) {
@@ -1513,7 +1740,7 @@
                 async loadTickets(showSpinner = true) {
                     try {
                         if (showSpinner) this.isLoadingTickets = true;
-                        const response = await fetch('/api/consultation/tickets');
+                        const response = await fetch('/api/consultation/tickets?status=waiting,called,in_consultation');
                         if (!response.ok) {
                             console.warn('⚠️ Failed to load consultation tickets:', response.status);
                             return;
@@ -1532,8 +1759,46 @@
                     }
                 },
 
+                async loadTicketHistory(showSpinner = true) {
+                    try {
+                        if (showSpinner) this.isLoadingTicketHistory = true;
+                        const response = await fetch('/api/consultation/tickets?status=completed,cancelled,no_show');
+                        if (!response.ok) {
+                            console.warn('⚠️ Failed to load ticket history:', response.status);
+                            return;
+                        }
+                        const payload = await response.json();
+                        if (!payload.success) {
+                            console.warn('⚠️ Ticket history API returned error:', payload.error || payload.message);
+                            return;
+                        }
+                        this.ticketHistory = payload.tickets || [];
+                    } catch (error) {
+                        console.error('❌ Error loading ticket history:', error);
+                    } finally {
+                        this.isLoadingTicketHistory = false;
+                    }
+                },
+
+                async setQueueView(view) {
+                    this.queueView = view;
+                    if (view === 'history') {
+                        this.queuePriorityFilter = '';
+                        this.queueStatusFilter = '';
+                    } else {
+                        this.historyPriorityFilter = '';
+                        this.historyStatusFilter = '';
+                    }
+                    if (view === 'history') {
+                        await this.loadTicketHistory();
+                    } else {
+                        await this.loadTickets(false);
+                    }
+                },
+
                 async updateTicket(ticketId, changes) {
                     try {
+                        this.updatingTicketIds.add(ticketId);
                         const response = await fetch(`/api/consultation/tickets/${ticketId}`, {
                             method: 'PATCH',
                             headers: { 'Content-Type': 'application/json' },
@@ -1544,10 +1809,16 @@
                             this.showModal('error', 'Update failed', payload.error || 'Unable to update ticket.');
                             return;
                         }
-                        await this.loadTickets(false);
+                        if (this.queueView === 'history') {
+                            await this.loadTicketHistory(false);
+                        } else {
+                            await this.loadTickets(false);
+                        }
                     } catch (error) {
                         console.error('❌ Error updating ticket:', error);
                         this.showModal('error', 'Network error', 'Unable to reach the server. Please try again.');
+                    } finally {
+                        this.updatingTicketIds.delete(ticketId);
                     }
                 },
 
@@ -2372,7 +2643,26 @@
                 },
 
                 // Modal helper functions
-                showModal(options) {
+                showModal(optionsOrType, title = null, message = null) {
+                    // Backward compatible:
+                    // - showModal(type, title, message)
+                    // - showModal({ type, title, message, ... })
+                    if (typeof optionsOrType === 'string') {
+                        this.modal = {
+                            show: true,
+                            type: optionsOrType || 'info',
+                            title: title || 'Notification',
+                            message: message || '',
+                            confirmText: 'OK',
+                            cancelText: 'Cancel',
+                            showCancel: false,
+                            onConfirm: () => {},
+                            onCancel: () => {}
+                        };
+                        return;
+                    }
+
+                    const options = optionsOrType || {};
                     this.modal = {
                         show: true,
                         type: options.type || 'info',

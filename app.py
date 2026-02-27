@@ -4588,6 +4588,26 @@ def student_dashboard():
     }
     return render_template('STUDENT/ST-dashboard.html', user=user_info)
 
+
+@app.route('/student/onsite-queue')
+def student_onsite_queue():
+    """Serve the onsite queue page for patients (students, teaching staff, non-teaching staff, deans, and president)."""
+    if 'user_id' not in session:
+        return redirect(url_for('login_page'))
+
+    if session.get('role') not in ['student', 'teaching_staff', 'non_teaching_staff', 'deans', 'president']:
+        flash('Access denied. This page is for students and staff members.', 'error')
+        return redirect(url_for('login_page'))
+
+    user_info = {
+        'username': session.get('username'),
+        'first_name': session.get('first_name'),
+        'last_name': session.get('last_name'),
+        'role': session.get('role'),
+        'position': session.get('position')
+    }
+    return render_template('STUDENT/ST-onsite-queue.html', user=user_info)
+
 @app.route('/student/health-records')
 def student_health_records():
     """Serve the student health records page (for students, teaching staff, non-teaching staff, deans, and president)"""
@@ -4921,6 +4941,40 @@ def create_consultation_ticket():
 
     try:
         cursor = conn.cursor()
+
+        active_statuses = ['waiting', 'called', 'in_consultation']
+        if patient_identifier:
+            placeholders = ','.join(['%s'] * len(active_statuses))
+            cursor.execute(
+                f"""
+                    SELECT id, ticket_number, status
+                    FROM consultation_tickets
+                    WHERE patient_identifier = %s
+                      AND status IN ({placeholders})
+                    ORDER BY arrival_time DESC
+                    LIMIT 1
+                    FOR UPDATE
+                """,
+                (patient_identifier, *active_statuses),
+            )
+            existing = cursor.fetchone()
+            if existing:
+                conn.rollback()
+                existing_id = existing[0] if isinstance(existing, (list, tuple)) and len(existing) > 0 else None
+                existing_ticket_number = existing[1] if isinstance(existing, (list, tuple)) and len(existing) > 1 else None
+                existing_status = existing[2] if isinstance(existing, (list, tuple)) and len(existing) > 2 else None
+                return jsonify(
+                    {
+                        'success': False,
+                        'error': 'You already have an active ticket. Please wait for it to be called.',
+                        'existing_ticket': {
+                            'id': existing_id,
+                            'ticket_number': existing_ticket_number,
+                            'status': existing_status,
+                        },
+                    }
+                ), 409
+
         ticket_number = generate_unique_ticket_number(conn)
         cursor.execute(
             '''
@@ -4972,6 +5026,129 @@ def create_consultation_ticket():
     except Exception as e:
         print(f"âŒ Error creating consultation ticket: {e}")
         return jsonify({'error': 'Failed to create ticket'}), 500
+    finally:
+        try:
+            cursor.close()
+            conn.close()
+        except Exception:
+            pass
+
+
+@app.route('/api/patient/queue-status', methods=['GET'])
+def api_patient_queue_status():
+    """Patient portal endpoint: show queue position and now/next tickets (ticket numbers only)."""
+    if 'user_id' not in session:
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    conn = DatabaseConfig.get_connection()
+    if not conn:
+        return jsonify({'error': 'Database connection failed'}), 500
+
+    try:
+        cursor = conn.cursor(dictionary=True)
+        user_id = session.get('user_id')
+        role = session.get('role') or ''
+
+        cursor.execute(
+            "SELECT id, username, first_name, last_name, role FROM users WHERE id = %s",
+            (user_id,),
+        )
+        user = cursor.fetchone()
+        if not user:
+            return jsonify({'error': 'User not found'}), 404
+
+        username = user.get('username')
+        first_name = user.get('first_name')
+        patient_identifier = None
+
+        if role == 'student':
+            cursor.execute(
+                "SELECT student_number FROM students WHERE std_EmailAdd = %s OR std_Firstname = %s LIMIT 1",
+                (username, first_name),
+            )
+            row = cursor.fetchone()
+            patient_identifier = (row.get('student_number') if row else None) or username
+        elif role == 'teaching_staff':
+            cursor.execute(
+                "SELECT faculty_id FROM teaching WHERE email = %s OR first_name = %s LIMIT 1",
+                (username, first_name),
+            )
+            row = cursor.fetchone()
+            patient_identifier = (row.get('faculty_id') if row else None) or username
+        elif role == 'non_teaching_staff':
+            cursor.execute(
+                "SELECT staff_id FROM non_teaching_staff WHERE email = %s OR first_name = %s LIMIT 1",
+                (username, first_name),
+            )
+            row = cursor.fetchone()
+            patient_identifier = (row.get('staff_id') if row else None) or username
+        else:
+            patient_identifier = username
+
+        active_statuses = ['waiting', 'called', 'in_consultation']
+        placeholders = ','.join(['%s'] * len(active_statuses))
+        order_expr = priority_order_case_expr('priority')
+        cursor.execute(
+            f"""
+                SELECT id, ticket_number, status, priority, patient_identifier, arrival_time
+                FROM consultation_tickets
+                WHERE status IN ({placeholders})
+                ORDER BY {order_expr}, arrival_time ASC
+            """,
+            active_statuses,
+        )
+        rows = cursor.fetchall() or []
+
+        now_in_consultation = next((r for r in rows if r.get('status') == 'in_consultation'), None)
+        next_to_call = next((r for r in rows if r.get('status') == 'waiting'), None)
+        next_to_start = next((r for r in rows if r.get('status') == 'called'), None)
+
+        my_ticket = next(
+            (r for r in rows if (r.get('patient_identifier') or '') == (patient_identifier or '')),
+            None,
+        )
+
+        position_in_active = None
+        position_in_waiting = None
+        if my_ticket:
+            for i, r in enumerate(rows):
+                if r.get('id') == my_ticket.get('id'):
+                    position_in_active = i + 1
+                    break
+            waiting_rows = [r for r in rows if r.get('status') == 'waiting']
+            for i, r in enumerate(waiting_rows):
+                if r.get('id') == my_ticket.get('id'):
+                    position_in_waiting = i + 1
+                    break
+
+        called_list = [r.get('ticket_number') for r in rows if r.get('status') == 'called'][:12]
+        waiting_list = [r.get('ticket_number') for r in rows if r.get('status') == 'waiting'][:12]
+
+        return jsonify(
+            {
+                'success': True,
+                'my': {
+                    'has_ticket': my_ticket is not None,
+                    'ticket_number': my_ticket.get('ticket_number') if my_ticket else None,
+                    'status': my_ticket.get('status') if my_ticket else None,
+                    'priority': my_ticket.get('priority') if my_ticket else None,
+                    'position_in_active': position_in_active,
+                    'position_in_waiting': position_in_waiting,
+                },
+                'board': {
+                    'now_in_consultation': now_in_consultation.get('ticket_number') if now_in_consultation else None,
+                    'next_to_start': next_to_start.get('ticket_number') if next_to_start else None,
+                    'next_to_call': next_to_call.get('ticket_number') if next_to_call else None,
+                    'called': called_list,
+                    'waiting': waiting_list,
+                    'total_waiting': len([r for r in rows if r.get('status') == 'waiting']),
+                    'total_called': len([r for r in rows if r.get('status') == 'called']),
+                },
+            }
+        ), 200
+    except Exception as e:
+        print(f"❌ Error getting patient queue status: {e}")
+        return jsonify({'error': 'Failed to load queue status'}), 500
     finally:
         try:
             cursor.close()
@@ -5112,8 +5289,59 @@ def update_consultation_ticket(ticket_id: int):
         return jsonify({'error': 'Database connection failed'}), 500
 
     try:
-        cursor = conn.cursor()
-        ticket_number = generate_unique_ticket_number(conn)
+        conn.autocommit = False
+        cursor = conn.cursor(dictionary=True)
+
+        cursor.execute(
+            "SELECT id, status FROM consultation_tickets WHERE id = %s FOR UPDATE",
+            (ticket_id,),
+        )
+        current = cursor.fetchone()
+        if not current:
+            conn.rollback()
+            return jsonify({'error': 'Ticket not found'}), 404
+
+        current_status = current.get('status')
+
+        if new_status:
+            if new_status == current_status:
+                conn.rollback()
+                return jsonify({'success': True}), 200
+
+            allowed_transitions = {
+                'waiting': {'called', 'cancelled', 'no_show'},
+                'called': {'in_consultation', 'waiting', 'cancelled', 'no_show'},
+                'in_consultation': {'completed', 'cancelled', 'no_show'},
+                'completed': set(),
+                'cancelled': set(),
+                'no_show': set(),
+            }
+
+            if new_status not in allowed_transitions.get(current_status, set()):
+                conn.rollback()
+                return jsonify({'error': f"Invalid status transition from '{current_status}' to '{new_status}'"}), 409
+
+            # Clinic-wide single active consultation rule:
+            # When a consultation is in progress, do not allow calling/starting another ticket.
+            if new_status == 'called':
+                cursor.execute(
+                    "SELECT id FROM consultation_tickets WHERE status = 'in_consultation' LIMIT 1 FOR UPDATE"
+                )
+                active = cursor.fetchone()
+                if active:
+                    conn.rollback()
+                    return jsonify({'error': 'A consultation is currently in progress. Complete it before calling the next patient.'}), 409
+
+            if new_status == 'in_consultation':
+                cursor.execute(
+                    "SELECT id FROM consultation_tickets WHERE status = 'in_consultation' AND id <> %s LIMIT 1 FOR UPDATE",
+                    (ticket_id,),
+                )
+                existing = cursor.fetchone()
+                if existing:
+                    conn.rollback()
+                    return jsonify({'error': 'Another consultation is already in progress. Complete it before starting a new one.'}), 409
+
         params.append(ticket_id)
         query = f"""
             UPDATE consultation_tickets
@@ -5122,13 +5350,13 @@ def update_consultation_ticket(ticket_id: int):
         """
         cursor.execute(query, params)
         conn.commit()
-
-        if cursor.rowcount == 0:
-            return jsonify({'error': 'Ticket not found'}), 404
-
         return jsonify({'success': True}), 200
     except Exception as e:
         print(f"âŒ Error updating consultation ticket {ticket_id}: {e}")
+        try:
+            conn.rollback()
+        except Exception:
+            pass
         return jsonify({'error': 'Failed to update ticket'}), 500
     finally:
         try:

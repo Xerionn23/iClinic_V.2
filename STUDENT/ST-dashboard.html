@@ -298,13 +298,7 @@
     showLogoutConfirm: false,
     settingsModal: false,
     allNotificationsModal: false,
-    onsiteTicketModal: false,
-    ticketSubmitting: false,
-    ticketForm: {
-        priority: 'P3'
-    },
-    ticketResult: null,
-    ticketError: null,
+    
     currentUserProfile: null,
     // Dashboard Stats - Real Data
     healthRecordsCount: 0,
@@ -343,56 +337,6 @@
         setInterval(() => this.updateClinicStatus(), 60000);
         this.handleResize();
         window.addEventListener('resize', () => this.handleResize());
-    },
-
-    openOnsiteTicketModal() {
-        this.ticketError = null;
-        this.ticketResult = null;
-        this.ticketForm = { priority: 'P3' };
-        this.onsiteTicketModal = true;
-        this.$nextTick(() => {
-            try { feather.replace(); } catch (e) {}
-        });
-    },
-
-    async submitOnsiteTicket() {
-        if (this.ticketSubmitting) return;
-        const priority = String(this.ticketForm.priority || 'P3').toUpperCase().trim();
-
-        const profile = this.currentUserProfile;
-        const fullName = profile ? ((profile.first_name || '') + ' ' + (profile.last_name || '')).trim() : '';
-        const patientIdentifier = profile ? (profile.student_number || profile.username || '') : '';
-        const patientType = (profile && profile.role) ? String(profile.role).toLowerCase() : 'student';
-
-        try {
-            this.ticketSubmitting = true;
-            this.ticketError = null;
-            this.ticketResult = null;
-
-            const response = await fetch('/api/consultation/tickets', {
-                method: 'POST',
-                credentials: 'same-origin',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    patient_type: patientType,
-                    patient_identifier: patientIdentifier || null,
-                    full_name: fullName || null,
-                    priority: priority
-                })
-            });
-
-            const payload = await response.json().catch(() => ({}));
-            if (!response.ok || payload.error || payload.success === false) {
-                this.ticketError = payload.error || payload.message || 'Unable to create ticket. Please try again.';
-                return;
-            }
-
-            this.ticketResult = payload.ticket || null;
-        } catch (error) {
-            this.ticketError = 'Network error. Unable to reach the server. Please try again.';
-        } finally {
-            this.ticketSubmitting = false;
-        }
     },
     updateClinicStatus() {
         const now = new Date();
@@ -691,6 +635,13 @@
                     <span x-show="!sidebarCollapsed || sidebarHovered" class="font-medium">Announcements</span>
                 </a>
 
+                <a href="{{ url_for('student_onsite_queue') }}" class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all group hover:bg-white/10">
+                    <div class="flex items-center justify-center" :class="sidebarCollapsed && !sidebarHovered ? 'w-full' : ''">
+                        <i data-feather="clipboard" class="w-5 h-5 group-hover:scale-110 transition-transform"></i>
+                    </div>
+                    <span x-show="!sidebarCollapsed || sidebarHovered" class="font-medium">Onsite Queue</span>
+                </a>
+
                                 <!-- Reports (ONLY for Deans and President) -->
                                 {% if user.role in ['deans', 'president'] %}
                                 <a href="{{ url_for('deans_president_reports') }}"
@@ -874,7 +825,6 @@
                         </div>
                     </div>
                     
-                    <!-- Quick Actions Section -->
                     <div class="mb-8">
                         <h2 class="section-header text-lg font-semibold text-gray-800 mb-6">Quick Actions</h2>
                         
@@ -913,15 +863,6 @@
                             </a>
 
 
-                            <button type="button" @click="openOnsiteTicketModal()" class="quick-action-card bg-gradient-to-br from-emerald-50 to-emerald-100 p-6 rounded-xl border border-emerald-200 hover:shadow-xl transition-all group" data-aos="fade-up" data-aos-delay="350">
-                                <div class="flex flex-col items-center text-center">
-                                    <div class="w-16 h-16 bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-2xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform shadow-lg">
-                                        <i data-feather="clipboard" class="w-8 h-8 text-white"></i>
-                                    </div>
-                                    <h3 class="text-lg font-bold text-emerald-900 mb-2">Onsite Ticket</h3>
-                                    <p class="text-sm text-emerald-700">Generate a queue number</p>
-                                </div>
-                            </button>
                             <!-- View Announcements -->
                             <a href="{{ url_for('student_announcements') }}" class="quick-action-card bg-gradient-to-br from-orange-50 to-orange-100 p-6 rounded-xl border border-orange-200 hover:shadow-xl transition-all group" data-aos="fade-up" data-aos-delay="400">
                                 <div class="flex flex-col items-center text-center">
@@ -936,70 +877,6 @@
                     </div>
                 </div>
             </main>
-        </div>
-    </div>
-
-
-    <div x-show="onsiteTicketModal" x-cloak 
-         x-transition:enter="transition ease-out duration-300"
-         x-transition:enter-start="opacity-0"
-         x-transition:enter-end="opacity-100"
-         x-transition:leave="transition ease-in duration-200"
-         x-transition:leave-start="opacity-100"
-         x-transition:leave-end="opacity-0"
-         class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4"
-         @click.outside="onsiteTicketModal = false">
-        <div
-             x-transition:enter="transition ease-out duration-300 transform"
-             x-transition:enter-start="opacity-0 scale-95"
-             x-transition:enter-end="opacity-100 scale-100"
-             x-transition:leave="transition ease-in duration-200 transform"
-             x-transition:leave-start="opacity-100 scale-100"
-             x-transition:leave-end="opacity-0 scale-95"
-             class="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden">
-            
-            <div class="bg-gradient-to-r from-emerald-600 to-emerald-700 px-6 py-4 text-white">
-                <div class="flex items-center justify-between">
-                    <div>
-                        <h2 class="text-xl font-bold">Onsite Consultation Ticket</h2>
-                        <p class="text-emerald-100 text-sm">Select priority to get a queue number</p>
-                    </div>
-                    <button type="button" @click="onsiteTicketModal = false" class="p-2 hover:bg-white/20 rounded-lg transition-colors">
-                        <i data-feather="x" class="w-5 h-5"></i>
-                    </button>
-                </div>
-            </div>
-            
-            <div class="p-6 space-y-4">
-                <div>
-                    <label class="block text-sm font-semibold text-gray-700 mb-2">Priority</label>
-                    <select x-model="ticketForm.priority"
-                            class="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 bg-white text-gray-900 transition-all">
-                        <option value="P1">P1 - Emergency</option>
-                        <option value="P2">P2 - Urgent</option>
-                        <option value="P3">P3 - Routine</option>
-                        <option value="P4">P4 - Admin</option>
-                    </select>
-                </div>
-                
-                <div x-show="ticketError" class="bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 text-sm" x-text="ticketError"></div>
-                
-                <div x-show="ticketResult" class="bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl px-4 py-3">
-                    <div class="text-sm font-semibold">Ticket created</div>
-                    <div class="text-3xl font-bold" x-text="ticketResult ? ('#' + (ticketResult.ticket_number || ticketResult.id)) : ''"></div>
-                    <div class="text-xs text-emerald-700 mt-1">Proceed to the clinic and wait for your number to be called.</div>
-                </div>
-            </div>
-            
-            <div class="px-6 py-4 bg-gray-50 flex items-center justify-end gap-3">
-                <button type="button" @click="onsiteTicketModal = false" class="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium">Close</button>
-                <button type="button" @click="submitOnsiteTicket()" :disabled="ticketSubmitting"
-                        class="px-4 py-2 rounded-lg text-white font-medium transition-colors"
-                        :class="ticketSubmitting ? 'bg-emerald-400' : 'bg-emerald-600 hover:bg-emerald-700'">
-                    <span x-show="!ticketSubmitting">Generate Ticket</span>
-                    <span x-show="ticketSubmitting">Generating...</span>
-                </button>
-            </div>
         </div>
     </div>
     <!-- Student Profile Modal -->
