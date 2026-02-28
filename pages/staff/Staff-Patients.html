@@ -461,6 +461,7 @@
                 showPrintHistoryModal: false,
                 showPrintReasonModal: false,
                 showPdfPreviewModal: false,
+                showEndorseNowModal: false,
                 selectedRecordForPrint: null,
                 printReason: '',
                 printHistory: [],
@@ -499,6 +500,11 @@
                 loadingPatientRecords: false,
                 addingRecord: false,
                 addingVisitor: false,
+                majorCaseActions: {
+                    record_id: null,
+                    role: null,
+                    patient_id: null
+                },
                 newVisitor: {
                     first_name: '',
                     middle_name: '',
@@ -512,6 +518,8 @@
                     visit_time: new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit' }),
                     chief_complaint: '',
                     medical_history: '',
+                    food_allergies: '',
+                    medicine_allergies: '',
                     fever_duration: '',
                     current_medication: '',
                     medication_schedule: '',
@@ -531,6 +539,10 @@
                     follow_up_date: '',
                     special_instructions: '',
                     notes: '',
+                    illness_classification_suggested: '',
+                    illness_classification_suggested_reason: '',
+                    illness_classification_final: '',
+                    illness_classification_override_reason: '',
                     // Clinic stay fields
                     will_stay_in_clinic: false,
                     stay_reason: ''
@@ -1108,7 +1120,15 @@
                                     // Handle admission_time: convert "None", "null", empty string to null
                                     admission_time: (record.admission_time && record.admission_time !== 'None' && record.admission_time !== 'null') ? record.admission_time : null,
                                     // Handle discharge_time: convert "None", "null", empty string to null
-                                    discharge_time: (record.discharge_time && record.discharge_time !== 'None' && record.discharge_time !== 'null') ? record.discharge_time : null
+                                    discharge_time: (record.discharge_time && record.discharge_time !== 'None' && record.discharge_time !== 'null') ? record.discharge_time : null,
+
+                                    illness_classification_suggested: record.illness_classification_suggested || '',
+                                    illness_classification_suggested_reason: record.illness_classification_suggested_reason || '',
+                                    illness_classification_final: record.illness_classification_final || '',
+                                    illness_classification_override_reason: record.illness_classification_override_reason || '',
+                                    endorsement_required: record.endorsement_required || false,
+                                    endorsement_status: record.endorsement_status || '',
+                                    endorsed_at: record.endorsed_at || null
                                 }));
                                 
                                 // Medical records loaded successfully
@@ -1208,6 +1228,8 @@
                         visit_time: new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit' }),
                         chief_complaint: '',
                         medical_history: '',
+                        food_allergies: '',
+                        medicine_allergies: '',
                         fever_duration: '',
                         current_medication: '',
                         medication_schedule: '',
@@ -1228,6 +1250,10 @@
                         follow_up_date: '',
                         special_instructions: '',
                         notes: '',
+                        illness_classification_suggested: '',
+                        illness_classification_suggested_reason: '',
+                        illness_classification_final: '',
+                        illness_classification_override_reason: '',
                         will_stay_in_clinic: false,
                         stay_reason: ''
                     };
@@ -1243,6 +1269,61 @@
                     });
                     
                     console.log('✅ Form reset complete');
+                    this.updateIllnessClassificationSuggestion();
+                },
+
+                updateIllnessClassificationSuggestion() {
+                    const complaint = (this.newRecord.chief_complaint || '').toLowerCase();
+                    const symptoms = (this.newRecord.symptoms || '').toLowerCase();
+                    const text = `${complaint} ${symptoms}`.trim();
+
+                    const temperature = this.newRecord.temperature !== '' && this.newRecord.temperature !== null ? parseFloat(this.newRecord.temperature) : null;
+                    const pulseRate = this.newRecord.pulse_rate !== '' && this.newRecord.pulse_rate !== null ? parseInt(this.newRecord.pulse_rate, 10) : null;
+                    const rr = this.newRecord.respiratory_rate !== '' && this.newRecord.respiratory_rate !== null ? parseInt(this.newRecord.respiratory_rate, 10) : null;
+                    const bpSys = this.newRecord.blood_pressure_systolic !== '' && this.newRecord.blood_pressure_systolic !== null ? parseInt(this.newRecord.blood_pressure_systolic, 10) : null;
+                    const bpDia = this.newRecord.blood_pressure_diastolic !== '' && this.newRecord.blood_pressure_diastolic !== null ? parseInt(this.newRecord.blood_pressure_diastolic, 10) : null;
+
+                    let suggested = 'minor';
+                    let reason = 'No major indicators detected.';
+
+                    const keywordMajor = [
+                        'difficulty breathing',
+                        'shortness of breath',
+                        'chest pain',
+                        'seizure',
+                        'unconscious',
+                        'faint',
+                        'severe bleeding',
+                        'bleeding',
+                        'head injury'
+                    ];
+
+                    if (keywordMajor.some(k => text.includes(k))) {
+                        suggested = 'major';
+                        reason = 'Major indicator found in complaint/symptoms.';
+                    } else if (temperature !== null && temperature >= 39.5) {
+                        suggested = 'major';
+                        reason = `High fever detected (${temperature}°C).`;
+                    } else if ((bpSys !== null && bpSys >= 180) || (bpDia !== null && bpDia >= 120)) {
+                        suggested = 'major';
+                        reason = 'Very high blood pressure detected.';
+                    } else if (pulseRate !== null && pulseRate >= 130) {
+                        suggested = 'major';
+                        reason = `Very high pulse rate detected (${pulseRate}).`;
+                    } else if (rr !== null && rr >= 30) {
+                        suggested = 'major';
+                        reason = `High respiratory rate detected (${rr}).`;
+                    }
+
+                    this.newRecord.illness_classification_suggested = suggested;
+                    this.newRecord.illness_classification_suggested_reason = reason;
+
+                    if (!this.newRecord.illness_classification_final) {
+                        this.newRecord.illness_classification_final = suggested;
+                    }
+                    if (this.newRecord.illness_classification_final === suggested) {
+                        this.newRecord.illness_classification_override_reason = '';
+                    }
                 },
 
                 async addMedicalRecord() {
@@ -1254,6 +1335,25 @@
                     // Form validation (date and time are automatic) - removed diagnosis requirement
                     if (!this.newRecord.chief_complaint || !this.newRecord.treatment) {
                         this.showError('Please fill in all required fields (Reason for Visit, Treatment)');
+                        return;
+                    }
+
+                    if (!this.newRecord.illness_classification_suggested) {
+                        this.updateIllnessClassificationSuggestion();
+                    }
+
+                    if (!this.newRecord.illness_classification_final) {
+                        this.showError('Please confirm final illness classification (Minor/Major).');
+                        return;
+                    }
+
+                    if (
+                        this.newRecord.illness_classification_suggested &&
+                        this.newRecord.illness_classification_final &&
+                        this.newRecord.illness_classification_final !== this.newRecord.illness_classification_suggested &&
+                        !(this.newRecord.illness_classification_override_reason || '').trim()
+                    ) {
+                        this.showError('Please provide an override reason when final classification differs from the suggested classification.');
                         return;
                     }
                     
@@ -1298,6 +1398,8 @@
                     this.addingRecord = true;
                     
                     try {
+                        const isMajorCase = (this.newRecord.illness_classification_final || '').toLowerCase() === 'major';
+
                         // Determine patient type and appropriate endpoint
                         const role = this.selectedPatient?.role;
                         const isVisitor = role === 'Visitor';
@@ -1345,12 +1447,22 @@
                             visit_time: this.newRecord.visit_time,
                             chief_complaint: this.newRecord.chief_complaint,
                             treatment: this.newRecord.treatment,
-                            symptoms: this.newRecord.symptoms
+                            symptoms: this.newRecord.symptoms,
+                            illness_classification_suggested: this.newRecord.illness_classification_suggested,
+                            illness_classification_suggested_reason: this.newRecord.illness_classification_suggested_reason,
+                            illness_classification_final: this.newRecord.illness_classification_final,
+                            illness_classification_override_reason: this.newRecord.illness_classification_override_reason
                         };
                         
                         // Add optional fields ONLY if they have values
                         if (this.newRecord.medical_history && this.newRecord.medical_history.trim()) {
                             requestBody.medical_history = this.newRecord.medical_history;
+                        }
+                        if (this.newRecord.food_allergies && this.newRecord.food_allergies.trim()) {
+                            requestBody.food_allergies = this.newRecord.food_allergies;
+                        }
+                        if (this.newRecord.medicine_allergies && this.newRecord.medicine_allergies.trim()) {
+                            requestBody.medicine_allergies = this.newRecord.medicine_allergies;
                         }
                         if (this.newRecord.fever_duration && this.newRecord.fever_duration.trim()) {
                             requestBody.fever_duration = this.newRecord.fever_duration;
@@ -1431,6 +1543,8 @@
                         });
                         
                         if (response.ok) {
+                            const responseData = await response.json();
+
                             // Update inventory if medicines were prescribed
                             if (this.newRecord.prescribed_medicines.length > 0) {
                                 await this.updateInventoryAfterPrescription(this.newRecord.prescribed_medicines);
@@ -1442,8 +1556,17 @@
                             
                             // Reload patient records and recent visits
                             await this.loadPatientRecords(this.selectedPatient.id);
-                            
+
                             this.showSuccess('Medical record added successfully! Inventory updated.');
+
+                            if (isMajorCase) {
+                                this.majorCaseActions = {
+                                    record_id: responseData?.record_id || null,
+                                    role: role || 'Student',
+                                    patient_id: this.selectedPatient?.id || null
+                                };
+                                this.showEndorseNowModal = true;
+                            }
                         } else {
                             const errorData = await response.json();
                             this.showError(errorData.message || 'Failed to add medical record');
@@ -1453,6 +1576,67 @@
                         this.showError('Network error. Please check your connection and try again.');
                     } finally {
                         this.addingRecord = false;
+                    }
+                },
+
+                async endorseMajorCaseNow() {
+                    try {
+                        if (!this.majorCaseActions?.record_id) {
+                            this.showError('Unable to endorse: missing record ID.');
+                            return;
+                        }
+
+                        const response = await fetch('/api/endorse-medical-record', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                role: this.majorCaseActions.role,
+                                record_id: this.majorCaseActions.record_id
+                            })
+                        });
+
+                        const data = await response.json();
+
+                        if (!response.ok) {
+                            this.showError(data.error || data.message || 'Failed to endorse record');
+                            return;
+                        }
+
+                        this.showSuccess(data.message || 'Record endorsed successfully');
+                        this.showEndorseNowModal = false;
+                    } catch (e) {
+                        console.error('Endorse error:', e);
+                        this.showError('Network error while endorsing.');
+                    }
+                },
+
+                async notifyGuardianMajorCaseNow() {
+                    try {
+                        if (!this.majorCaseActions?.record_id) {
+                            this.showError('Unable to notify: missing record ID.');
+                            return;
+                        }
+
+                        const response = await fetch('/api/notify-guardian-major-case', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                role: this.majorCaseActions.role,
+                                record_id: this.majorCaseActions.record_id
+                            })
+                        });
+
+                        const data = await response.json();
+
+                        if (!response.ok) {
+                            this.showError(data.error || data.message || 'Failed to notify guardian');
+                            return;
+                        }
+
+                        this.showSuccess(data.message || 'Guardian notified successfully');
+                    } catch (e) {
+                        console.error('Notify error:', e);
+                        this.showError('Network error while notifying guardian.');
                     }
                 },
 
@@ -1776,7 +1960,15 @@
                                 // Clinic stay information
                                 will_stay_in_clinic: fullRecord.will_stay_in_clinic || false,
                                 stay_reason: fullRecord.stay_reason || '',
-                                stay_status: fullRecord.stay_status || 'not_staying'
+                                stay_status: fullRecord.stay_status || 'not_staying',
+
+                                illness_classification_suggested: fullRecord.illness_classification_suggested || '',
+                                illness_classification_suggested_reason: fullRecord.illness_classification_suggested_reason || '',
+                                illness_classification_final: fullRecord.illness_classification_final || '',
+                                illness_classification_override_reason: fullRecord.illness_classification_override_reason || '',
+                                endorsement_required: fullRecord.endorsement_required || false,
+                                endorsement_status: fullRecord.endorsement_status || '',
+                                endorsed_at: fullRecord.endorsed_at || null
                             };
                         } else {
                             // Fallback to basic record data if API fails
@@ -3566,6 +3758,21 @@
                                                                         <div class="w-2 h-2 bg-blue-500 rounded-full"></div>
                                                                         <span class="text-xs font-semibold text-blue-700">Outpatient</span>
                                                                     </div>
+
+                                                                    <div class="mt-2 flex flex-wrap gap-1">
+                                                                        <div x-show="(record.illness_classification_final || '').toLowerCase() === 'major'" class="inline-flex items-center gap-1 bg-rose-50 border border-rose-200 px-2 py-1 rounded-full">
+                                                                            <span class="text-[11px] font-semibold text-rose-700">Major</span>
+                                                                        </div>
+                                                                        <div x-show="(record.illness_classification_final || '').toLowerCase() === 'minor'" class="inline-flex items-center gap-1 bg-emerald-50 border border-emerald-200 px-2 py-1 rounded-full">
+                                                                            <span class="text-[11px] font-semibold text-emerald-700">Minor</span>
+                                                                        </div>
+                                                                        <div x-show="(record.endorsement_status || '').toLowerCase() === 'pending'" class="inline-flex items-center gap-1 bg-amber-50 border border-amber-200 px-2 py-1 rounded-full">
+                                                                            <span class="text-[11px] font-semibold text-amber-700">Pending Endorsement</span>
+                                                                        </div>
+                                                                        <div x-show="(record.endorsement_status || '').toLowerCase() === 'endorsed'" class="inline-flex items-center gap-1 bg-green-50 border border-green-200 px-2 py-1 rounded-full">
+                                                                            <span class="text-[11px] font-semibold text-green-700">Endorsed</span>
+                                                                        </div>
+                                                                    </div>
                                                                 </td>
                                                                 <td class="px-3 sm:px-6 py-4 hidden lg:table-cell">
                                                                     <div x-show="record.admission_time" class="flex flex-col">
@@ -3967,7 +4174,7 @@
                                         <!-- Quick Select Dropdown -->
                                         <div class="space-y-2">
                                             <label class="block text-xs font-medium text-gray-600">Quick Select (Optional)</label>
-                                            <select x-ref="complaintDropdown" @change="if($event.target.value !== 'Other (specify)') { newRecord.chief_complaint = $event.target.value; } else { newRecord.chief_complaint = ''; }" 
+                                            <select x-ref="complaintDropdown" @change="if($event.target.value !== 'Other (specify)') { newRecord.chief_complaint = $event.target.value; } else { newRecord.chief_complaint = ''; } updateIllnessClassificationSuggestion();" 
                                                     class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors text-base">
                                                 <option value="">-- Select common complaint --</option>
                                                 <template x-for="complaint in commonComplaints" :key="complaint">
@@ -3979,8 +4186,45 @@
                                         <!-- Manual Input -->
                                         <div class="space-y-2">
                                             <label class="block text-xs font-medium text-gray-600">Or type manually:</label>
-                                            <textarea x-model="newRecord.chief_complaint" rows="2" required placeholder="Main reason for visit (e.g., Bunot ng ngipin, headache, fever)..."
+                                            <textarea x-model="newRecord.chief_complaint" @input.debounce.250ms="updateIllnessClassificationSuggestion()" rows="2" required placeholder="Main reason for visit (e.g., Bunot ng ngipin, headache, fever)..."
                                                       class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors resize-none text-base"></textarea>
+                                        </div>
+                                    </div>
+
+                                    <!-- Illness Classification (Suggested + Final) -->
+                                    <div class="bg-yellow-50 border border-yellow-200 rounded-xl p-4 space-y-4">
+                                        <div class="flex items-start justify-between gap-4">
+                                            <div>
+                                                <h4 class="text-sm font-semibold text-gray-900">Illness Classification</h4>
+                                                <p class="text-xs text-gray-600">System suggestion based on complaint, symptoms, and vital signs. Nurse must confirm final classification.</p>
+                                            </div>
+                                            <div class="flex-shrink-0">
+                                                <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold"
+                                                      :class="newRecord.illness_classification_suggested === 'major' ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'"
+                                                      x-text="(newRecord.illness_classification_suggested || 'minor').toUpperCase()"></span>
+                                            </div>
+                                        </div>
+
+                                        <div class="bg-white border border-yellow-200 rounded-lg p-3">
+                                            <p class="text-xs font-semibold text-gray-700 mb-1">Suggested Reason</p>
+                                            <p class="text-xs text-gray-700" x-text="newRecord.illness_classification_suggested_reason || 'No major indicators detected.'"></p>
+                                        </div>
+
+                                        <div class="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                                            <div class="space-y-2">
+                                                <label class="block text-xs font-semibold text-gray-700">Final Classification (Nurse) *</label>
+                                                <select x-model="newRecord.illness_classification_final" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 transition-colors text-sm">
+                                                    <option value="">-- Select --</option>
+                                                    <option value="minor">Minor</option>
+                                                    <option value="major">Major</option>
+                                                </select>
+                                                <p class="text-[11px] text-gray-600">If you select <strong>Major</strong>, the record can still be saved but it will require endorsement action.</p>
+                                            </div>
+
+                                            <div class="space-y-2" x-show="newRecord.illness_classification_final && newRecord.illness_classification_suggested && newRecord.illness_classification_final !== newRecord.illness_classification_suggested" x-cloak>
+                                                <label class="block text-xs font-semibold text-gray-700">Override Reason *</label>
+                                                <textarea x-model="newRecord.illness_classification_override_reason" rows="3" placeholder="Explain why your final classification differs..." class="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 transition-colors text-sm resize-none"></textarea>
+                                            </div>
                                         </div>
                                     </div>
 
@@ -3994,6 +4238,16 @@
                                                     <label class="block text-xs font-semibold text-gray-700">Medical History</label>
                                                     <textarea x-model="newRecord.medical_history" rows="2" placeholder="Previous conditions..."
                                                               class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors resize-none text-sm"></textarea>
+                                                </div>
+                                                <div class="space-y-1.5">
+                                                    <label class="block text-xs font-semibold text-gray-700">Food Allergy</label>
+                                                    <input type="text" x-model="newRecord.food_allergies" placeholder="e.g., seafood, peanuts"
+                                                           class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors text-sm">
+                                                </div>
+                                                <div class="space-y-1.5">
+                                                    <label class="block text-xs font-semibold text-gray-700">Medicine Allergy</label>
+                                                    <input type="text" x-model="newRecord.medicine_allergies" placeholder="e.g., penicillin"
+                                                           class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors text-sm">
                                                 </div>
                                                 <div class="space-y-1.5">
                                                     <label class="block text-xs font-semibold text-gray-700">Fever Duration</label>
@@ -4020,28 +4274,28 @@
                                                 <div class="grid grid-cols-2 gap-2">
                                                     <div class="space-y-1.5">
                                                         <label class="block text-xs font-semibold text-gray-700">BP Systolic</label>
-                                                        <input type="number" x-model="newRecord.blood_pressure_systolic" placeholder="120"
+                                                        <input type="number" x-model="newRecord.blood_pressure_systolic" @input.debounce.250ms="updateIllnessClassificationSuggestion()" placeholder="120"
                                                                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-colors text-sm">
                                                     </div>
                                                     <div class="space-y-1.5">
                                                         <label class="block text-xs font-semibold text-gray-700">BP Diastolic</label>
-                                                        <input type="number" x-model="newRecord.blood_pressure_diastolic" placeholder="80"
+                                                        <input type="number" x-model="newRecord.blood_pressure_diastolic" @input.debounce.250ms="updateIllnessClassificationSuggestion()" placeholder="80"
                                                                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-colors text-sm">
                                                     </div>
                                                 </div>
                                                 <div class="space-y-1.5">
                                                     <label class="block text-xs font-semibold text-gray-700">Pulse Rate</label>
-                                                    <input type="number" x-model="newRecord.pulse_rate" placeholder="72"
+                                                    <input type="number" x-model="newRecord.pulse_rate" @input.debounce.250ms="updateIllnessClassificationSuggestion()" placeholder="72"
                                                            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-colors text-sm">
                                                 </div>
                                                 <div class="space-y-1.5">
                                                     <label class="block text-xs font-semibold text-gray-700">Temperature (°C)</label>
-                                                    <input type="number" step="0.1" x-model="newRecord.temperature" placeholder="36.5"
+                                                    <input type="number" step="0.1" x-model="newRecord.temperature" @input.debounce.250ms="updateIllnessClassificationSuggestion()" placeholder="36.5"
                                                            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-colors text-sm">
                                                 </div>
                                                 <div class="space-y-1.5">
                                                     <label class="block text-xs font-semibold text-gray-700">Respiratory Rate</label>
-                                                    <input type="number" x-model="newRecord.respiratory_rate" placeholder="16"
+                                                    <input type="number" x-model="newRecord.respiratory_rate" @input.debounce.250ms="updateIllnessClassificationSuggestion()" placeholder="16"
                                                            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-colors text-sm">
                                                 </div>
                                             </div>
@@ -4078,7 +4332,7 @@
                                             <!-- Quick Select Dropdown -->
                                             <div class="space-y-2">
                                                 <label class="block text-xs font-medium text-gray-600">Quick Select (Optional)</label>
-                                                <select x-ref="symptomsDropdown" @change="if($event.target.value !== 'Other (specify)') { newRecord.symptoms = $event.target.value; } else { newRecord.symptoms = ''; }" 
+                                                <select x-ref="symptomsDropdown" @change="if($event.target.value !== 'Other (specify)') { newRecord.symptoms = $event.target.value; } else { newRecord.symptoms = ''; } updateIllnessClassificationSuggestion();" 
                                                         class="w-full px-3 sm:px-4 py-2.5 sm:py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors text-base">
                                                     <option value="">-- Select common symptoms --</option>
                                                     <template x-for="symptom in commonSymptoms" :key="symptom">
@@ -4090,7 +4344,7 @@
                                             <!-- Manual Input -->
                                             <div class="space-y-2">
                                                 <label class="block text-xs font-medium text-gray-600">Or describe manually:</label>
-                                                <textarea x-model="newRecord.symptoms" rows="3" required placeholder="Describe the patient's symptoms..."
+                                                <textarea x-model="newRecord.symptoms" @input.debounce.250ms="updateIllnessClassificationSuggestion()" rows="3" required placeholder="Describe the patient's symptoms..."
                                                           class="w-full px-3 sm:px-4 py-2.5 sm:py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors resize-none text-base"></textarea>
                                             </div>
                                         </div>
@@ -4197,11 +4451,9 @@
                                                 </template>
                                             </div>
 
-                                            <!-- Fallback textarea for manual entry -->
                                             <div class="space-y-2" x-show="newRecord.prescribed_medicines.length === 0">
-                                                <label class="block text-xs font-medium text-gray-600">Or enter manually:</label>
-                                                <textarea x-model="newRecord.prescribed_medicine" rows="2" placeholder="Medicine prescribed (if any)..."
-                                                          class="w-full px-3 sm:px-4 py-2.5 sm:py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors resize-none text-base"></textarea>
+                                                <label class="block text-xs font-medium text-gray-600">Manual entry</label>
+                                                <input type="text" disabled value="Manual medicine entry is disabled. Please add medicines from inventory." class="w-full px-3 sm:px-4 py-2.5 sm:py-3 bg-gray-100 border border-gray-300 rounded-xl text-gray-600 text-base">
                                             </div>
                                         </div>
                                     </div>
@@ -4324,6 +4576,53 @@
                                     </div>
                                 </div>
                             </form>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Endorse Now Modal (Major Case) -->
+                <div x-show="showEndorseNowModal" x-cloak class="fixed inset-0 z-[80] flex items-center justify-center p-4" style="display: none;" x-transition>
+                    <div class="fixed inset-0 bg-gray-900 bg-opacity-50 backdrop-blur-sm" @click="showEndorseNowModal = false" x-transition:enter="ease-out duration-300" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"></div>
+                    <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-xl overflow-hidden z-10" @click.stop x-transition:enter="ease-out duration-300" x-transition:enter-start="opacity-0 scale-95" x-transition:enter-end="opacity-100 scale-100">
+                        <div class="bg-gradient-to-r from-red-600 to-red-700 text-white px-6 py-5">
+                            <div class="flex items-center justify-between">
+                                <div class="flex items-center gap-3">
+                                    <div class="w-10 h-10 bg-white bg-opacity-20 rounded-full flex items-center justify-center">
+                                        <i data-feather="alert-triangle" class="w-5 h-5"></i>
+                                    </div>
+                                    <div>
+                                        <h3 class="text-lg font-semibold">Endorse now?</h3>
+                                        <p class="text-red-100 text-sm">This record was classified as Major and requires endorsement.</p>
+                                    </div>
+                                </div>
+                                <button @click="showEndorseNowModal = false" class="w-9 h-9 bg-white bg-opacity-20 hover:bg-opacity-30 rounded-full flex items-center justify-center transition-colors">
+                                    <i data-feather="x" class="w-4 h-4"></i>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="p-6 space-y-4">
+                            <div class="bg-red-50 border border-red-200 rounded-xl p-4">
+                                <p class="text-sm text-red-800 font-medium">Major case saved. Please proceed with endorsement and guardian notification.</p>
+                                <p class="text-xs text-red-700 mt-1" x-text="majorCaseActions && majorCaseActions.record_id ? 'Record ID: ' + majorCaseActions.record_id : ''"></p>
+                            </div>
+
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <button type="button" @click="endorseMajorCaseNow()"
+                                        class="w-full px-4 py-3 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white font-semibold rounded-xl transition-all shadow-lg">
+                                    Endorse to Hospital
+                                </button>
+                                <button type="button" @click="notifyGuardianMajorCaseNow()"
+                                        class="w-full px-4 py-3 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-semibold rounded-xl transition-all shadow-lg">
+                                    Notify Guardian (Email+SMS)
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="bg-gray-50 px-6 py-4 flex justify-end">
+                            <button type="button" @click="showEndorseNowModal = false" class="px-5 py-2.5 bg-gray-700 hover:bg-gray-800 text-white font-semibold rounded-xl transition-colors">
+                                Close
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -4827,6 +5126,35 @@
             <!-- Modal Content -->
             <template x-if="viewingRecord">
                 <div class="p-4 sm:p-6 space-y-4 sm:space-y-6">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
+                    <div x-show="viewingRecord && viewingRecord.illness_classification_final" class="bg-white border border-gray-200 rounded-lg sm:rounded-xl p-3 sm:p-4">
+                        <div class="text-xs font-semibold text-gray-700">Illness Classification</div>
+                        <div class="mt-2 flex flex-wrap gap-2">
+                            <div x-show="(viewingRecord.illness_classification_final || '').toLowerCase() === 'major'" class="inline-flex items-center gap-1 bg-rose-50 border border-rose-200 px-3 py-1.5 rounded-full">
+                                <span class="text-xs font-semibold text-rose-700">Major</span>
+                            </div>
+                            <div x-show="(viewingRecord.illness_classification_final || '').toLowerCase() === 'minor'" class="inline-flex items-center gap-1 bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-full">
+                                <span class="text-xs font-semibold text-emerald-700">Minor</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div x-show="viewingRecord && (viewingRecord.endorsement_required || viewingRecord.endorsement_status)" class="bg-white border border-gray-200 rounded-lg sm:rounded-xl p-3 sm:p-4">
+                        <div class="text-xs font-semibold text-gray-700">Endorsement Status</div>
+                        <div class="mt-2 flex flex-wrap gap-2">
+                            <div x-show="(viewingRecord.endorsement_status || '').toLowerCase() === 'pending'" class="inline-flex items-center gap-1 bg-amber-50 border border-amber-200 px-3 py-1.5 rounded-full">
+                                <span class="text-xs font-semibold text-amber-700">Pending</span>
+                            </div>
+                            <div x-show="(viewingRecord.endorsement_status || '').toLowerCase() === 'endorsed'" class="inline-flex items-center gap-1 bg-green-50 border border-green-200 px-3 py-1.5 rounded-full">
+                                <span class="text-xs font-semibold text-green-700">Endorsed</span>
+                            </div>
+                        </div>
+                        <div x-show="viewingRecord && viewingRecord.endorsed_at" class="mt-2 text-xs text-gray-600">
+                            <span class="font-semibold">Endorsed At:</span>
+                            <span x-text="viewingRecord.endorsed_at"></span>
+                        </div>
+                    </div>
+                </div>
                 <!-- Medical Information Grid -->
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
                     <!-- Reason for Visit - Only show if filled -->

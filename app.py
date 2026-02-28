@@ -15,6 +15,11 @@ from email.mime.multipart import MIMEMultipart
 from config.database import DatabaseConfig
 import requests as http_requests
 
+try:
+    from services.android_sms_gateway import AndroidSMSGateway
+except Exception:
+    AndroidSMSGateway = None
+
 # Optional OpenAI client (used for AI report insights)
 try:
     from openai import OpenAI
@@ -49,6 +54,205 @@ EMAIL_CONFIG = {
     'password': 'xtsweijcxsntwhld',   # Gmail App Password (same as account creation)
     'from_name': 'iClinic System'
 }
+
+def _resolve_medical_record_table(role):
+    role_normalized = (role or '').strip().lower()
+    if role_normalized in ['student', 'students', '']:
+        return 'medical_records'
+    if role_normalized in ['visitor', 'visitors']:
+        return 'visitor_medical_records'
+    if role_normalized in ['teaching staff', 'teaching', 'teaching_staff']:
+        return 'teaching_medical_records'
+    if role_normalized in ['non-teaching staff', 'non teaching staff', 'non_teaching staff', 'non_teaching', 'non_teaching_staff']:
+        return 'non_teaching_medical_records'
+    if role_normalized in ['dean', 'deans']:
+        return 'dean_medical_records'
+    if role_normalized in ['president', 'presidents']:
+        return 'president_medical_records'
+    return None
+
+
+def _get_available_medicine_stock(conn, medicine_id: int) -> int:
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            "SELECT quantity_in_stock, expiry_date FROM medicines WHERE medicine_id = %s",
+            (medicine_id,),
+        )
+        row = cursor.fetchone()
+        if not row:
+            return 0
+
+        today = datetime.now().date()
+        total_available_qty = 0
+
+        try:
+            cursor.execute(
+                """
+                SELECT quantity, expiry_date
+                FROM medicine_batches
+                WHERE medicine_id = %s
+                """,
+                (medicine_id,),
+            )
+            batches = cursor.fetchall() or []
+            for qty, exp in batches:
+                qty = qty or 0
+                if qty <= 0:
+                    continue
+                if exp and exp > today:
+                    total_available_qty += qty
+        except Exception:
+            qty_in_stock = row[0] or 0
+            expiry_date = row[1]
+            if qty_in_stock > 0 and ((expiry_date and expiry_date > today) or not expiry_date):
+                total_available_qty = qty_in_stock
+
+        return int(total_available_qty or 0)
+    finally:
+        try:
+            cursor.close()
+        except Exception:
+            pass
+
+
+def _validate_prescribed_medicines(conn, prescribed_medicines):
+    if prescribed_medicines is None:
+        return None
+    if not isinstance(prescribed_medicines, list):
+        return 'Invalid prescribed medicines format.'
+    if len(prescribed_medicines) == 0:
+        return None
+
+    errors = []
+    for item in prescribed_medicines:
+        if not isinstance(item, dict):
+            errors.append('Invalid prescribed medicine entry.')
+            continue
+
+        medicine_name = (item.get('medicine_name') or '').strip() or 'Medicine'
+
+        try:
+            medicine_id_int = int(item.get('medicine_id'))
+        except Exception:
+            medicine_id_int = None
+
+        try:
+            quantity_int = int(item.get('quantity'))
+        except Exception:
+            quantity_int = 0
+
+        if not medicine_id_int:
+            errors.append(f"{medicine_name}: Medicine not selected from inventory")
+            continue
+        if quantity_int <= 0:
+            errors.append(f"{medicine_name}: Invalid quantity")
+            continue
+
+        available_qty = _get_available_medicine_stock(conn, medicine_id_int)
+        if available_qty <= 0:
+            errors.append(f"{medicine_name}: Medicine not available in inventory")
+            continue
+        if quantity_int > available_qty:
+            errors.append(f"{medicine_name}: Requested {quantity_int} pcs, but only {available_qty} pcs available")
+
+    if errors:
+        return 'Cannot add medical record - Insufficient medicine stock:\n' + '\n'.join(errors)
+    return None
+
+def _send_major_case_notification_email(to_email, subject, html_content):
+    try:
+        from email.mime.multipart import MIMEMultipart
+        from email.mime.text import MIMEText
+
+        if not to_email:
+            return False
+
+        msg = MIMEMultipart('alternative')
+        msg['Subject'] = subject
+        msg['From'] = f"{EMAIL_CONFIG['from_name']} <{EMAIL_CONFIG['email']}>"
+        msg['To'] = to_email
+
+        msg.attach(MIMEText(html_content, 'html'))
+
+        with smtplib.SMTP(EMAIL_CONFIG['smtp_server'], EMAIL_CONFIG['smtp_port']) as server:
+            server.starttls()
+            server.login(EMAIL_CONFIG['email'], EMAIL_CONFIG['password'])
+            server.send_message(msg)
+
+        return True
+    except Exception as e:
+        print(f"Failed to send major case notification email: {str(e)}")
+        return False
+
+
+def _send_major_case_notification_sms(phone_number, message):
+    try:
+        if not phone_number:
+            return {'success': False, 'error': 'Missing phone number'}
+
+        provider = (os.environ.get('SMS_PROVIDER') or '').strip().lower()
+        if not provider:
+            return {'success': False, 'error': 'SMS provider not configured (set SMS_PROVIDER)'}
+        if provider == 'semaphore':
+            api_key = (os.environ.get('SEMAPHORE_API_KEY') or '').strip()
+            sender_name = (os.environ.get('SEMAPHORE_SENDER_NAME') or '').strip() or None
+
+            if not api_key:
+                return {'success': False, 'error': 'Missing SEMAPHORE_API_KEY'}
+
+            try:
+                payload = {
+                    'apikey': api_key,
+                    'number': str(phone_number),
+                    'message': str(message),
+                }
+                if sender_name:
+                    payload['sendername'] = sender_name
+
+                response = http_requests.post(
+                    'https://semaphore.co/api/v4/messages',
+                    data=payload,
+                    timeout=15
+                )
+
+                if response.status_code not in (200, 201):
+                    return {'success': False, 'error': f"HTTP {response.status_code}: {response.text}"}
+
+                try:
+                    data = response.json()
+                except Exception:
+                    data = None
+
+                if isinstance(data, list) and len(data) > 0:
+                    item = data[0] if isinstance(data[0], dict) else {}
+                    status = (item.get('status') or '').lower()
+                    if status in ('queued', 'success', 'sent'):
+                        return {
+                            'success': True,
+                            'provider': 'semaphore',
+                            'message_id': item.get('message_id') or item.get('id') or 'unknown',
+                            'status': item.get('status')
+                        }
+                    return {'success': False, 'error': item.get('status') or 'Semaphore send failed'}
+
+                return {'success': True, 'provider': 'semaphore', 'status': 'queued'}
+            except Exception as e:
+                return {'success': False, 'error': str(e)}
+
+        if provider != 'android_gateway':
+            return {'success': False, 'error': f"Unsupported SMS_PROVIDER: {provider}"}
+
+        if AndroidSMSGateway is None:
+            return {'success': False, 'error': 'Android SMS Gateway service not available'}
+
+        mode = (os.environ.get('ANDROID_SMS_GATEWAY_MODE') or 'local').strip().lower()
+        use_local = mode != 'cloud'
+
+        gateway = AndroidSMSGateway(use_local=use_local)
+        return gateway.send_sms(phone_number, message)
+    except Exception as e:
+        return {'success': False, 'error': str(e)}
 
 def send_verification_email(to_email, verification_token, user_name):
     """Send email verification link"""
@@ -125,6 +329,227 @@ def send_verification_email(to_email, verification_token, user_name):
     except Exception as e:
         print(f"âŒ Failed to send verification email: {str(e)}")
         return False
+
+
+@app.route('/api/endorse-medical-record', methods=['POST'])
+def api_endorse_medical_record():
+    if 'user_id' not in session:
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    try:
+        data = request.get_json() or {}
+        role = data.get('role')
+        record_id = data.get('record_id')
+
+        if not record_id:
+            return jsonify({'error': 'record_id is required'}), 400
+
+        table = _resolve_medical_record_table(role)
+        if not table:
+            return jsonify({'error': 'Invalid role'}), 400
+
+        conn = DatabaseConfig.get_connection()
+        if not conn:
+            return jsonify({'error': 'Database connection failed'}), 500
+
+        cursor = conn.cursor()
+
+        cursor.execute(f"SELECT id, endorsement_required, endorsement_status FROM {table} WHERE id = %s", (record_id,))
+        row = cursor.fetchone()
+        if not row:
+            cursor.close()
+            conn.close()
+            return jsonify({'error': 'Record not found'}), 404
+
+        cursor.execute(
+            f"UPDATE {table} SET endorsement_required = 1, endorsement_status = %s, endorsed_at = NOW() WHERE id = %s",
+            ('endorsed', record_id)
+        )
+
+        conn.commit()
+        cursor.close()
+        conn.close()
+
+        return jsonify({'success': True, 'message': 'Record endorsed to hospital successfully'}), 200
+
+    except Exception as e:
+        print(f"Error endorsing medical record: {str(e)}")
+        return jsonify({'error': f'Database error: {str(e)}'}), 500
+
+
+@app.route('/api/notify-guardian-major-case', methods=['POST'])
+def api_notify_guardian_major_case():
+    if 'user_id' not in session:
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    try:
+        data = request.get_json() or {}
+        role = data.get('role')
+        record_id = data.get('record_id')
+
+        if not record_id:
+            return jsonify({'error': 'record_id is required'}), 400
+
+        table = _resolve_medical_record_table(role)
+        if not table:
+            return jsonify({'error': 'Invalid role'}), 400
+
+        conn = DatabaseConfig.get_connection()
+        if not conn:
+            return jsonify({'error': 'Database connection failed'}), 500
+
+        cursor = conn.cursor()
+
+        cursor.execute(
+            f"SELECT id, chief_complaint, symptoms, visit_date, visit_time FROM {table} WHERE id = %s",
+            (record_id,)
+        )
+        record = cursor.fetchone()
+        if not record:
+            cursor.close()
+            conn.close()
+            return jsonify({'error': 'Record not found'}), 404
+
+        chief_complaint = record[1] or ''
+        symptoms = record[2] or ''
+        visit_date = str(record[3]) if record[3] else ''
+        visit_time = str(record[4]) if record[4] else ''
+
+        patient_email = None
+        contact_number = None
+
+        role_normalized = (role or '').strip().lower()
+        if role_normalized in ['student', 'students', '']:
+            cursor.execute('''
+                SELECT s.emergency_contact_email, s.emergency_contact_number, s.std_EmailAdd
+                FROM medical_records mr
+                INNER JOIN students s ON mr.student_number = s.student_number
+                WHERE mr.id = %s
+                LIMIT 1
+            ''', (record_id,))
+            row = cursor.fetchone()
+            if row:
+                patient_email = row[0] or row[2]
+                contact_number = row[1]
+        elif role_normalized in ['visitor', 'visitors']:
+            cursor.execute('''
+                SELECT v.contact_number
+                FROM visitor_medical_records mr
+                INNER JOIN visitors v ON mr.visitor_id = v.id
+                WHERE mr.id = %s
+                LIMIT 1
+            ''', (record_id,))
+            row = cursor.fetchone()
+            if row:
+                contact_number = row[0]
+        elif role_normalized in ['teaching staff', 'teaching', 'teaching_staff']:
+            cursor.execute('''
+                SELECT t.email, t.contact_number
+                FROM teaching_medical_records mr
+                INNER JOIN teaching t ON mr.teaching_id = t.id
+                WHERE mr.id = %s
+                LIMIT 1
+            ''', (record_id,))
+            row = cursor.fetchone()
+            if row:
+                patient_email = row[0]
+                contact_number = row[1]
+        elif role_normalized in ['non-teaching staff', 'non teaching staff', 'non_teaching staff', 'non_teaching', 'non_teaching_staff']:
+            cursor.execute('''
+                SELECT nt.email, nt.emergency_contact_number
+                FROM non_teaching_medical_records mr
+                INNER JOIN non_teaching_staff nt ON mr.non_teaching_id = nt.id
+                WHERE mr.id = %s
+                LIMIT 1
+            ''', (record_id,))
+            row = cursor.fetchone()
+            if row:
+                patient_email = row[0]
+                contact_number = row[1]
+        elif role_normalized in ['dean', 'deans']:
+            cursor.execute('''
+                SELECT d.email, d.emergency_contact_number
+                FROM dean_medical_records mr
+                INNER JOIN deans d ON mr.dean_id = d.id
+                WHERE mr.id = %s
+                LIMIT 1
+            ''', (record_id,))
+            row = cursor.fetchone()
+            if row:
+                patient_email = row[0]
+                contact_number = row[1]
+        elif role_normalized in ['president', 'presidents']:
+            cursor.execute('''
+                SELECT p.email, p.emergency_contact_number
+                FROM president_medical_records mr
+                INNER JOIN president p ON mr.president_id = p.id
+                WHERE mr.id = %s
+                LIMIT 1
+            ''', (record_id,))
+            row = cursor.fetchone()
+            if row:
+                patient_email = row[0]
+                contact_number = row[1]
+
+        email_sent = False
+        sms_sent = False
+        email_error = None
+        sms_error = None
+
+        if patient_email:
+            subject = 'URGENT: Major Case - Clinic Endorsement Required'
+            html_content = f"""
+                <div style='font-family: Arial, sans-serif;'>
+                    <h2 style='color:#b91c1c;'>Major Case Alert</h2>
+                    <p>A major case was recorded in the clinic.</p>
+                    <p><b>Date/Time:</b> {visit_date} {visit_time}</p>
+                    <p><b>Chief Complaint:</b> {chief_complaint}</p>
+                    <p><b>Symptoms:</b> {symptoms}</p>
+                    <p style='margin-top:16px;'>Please coordinate immediately for hospital endorsement.</p>
+                </div>
+            """
+            try:
+                email_sent = _send_major_case_notification_email(patient_email, subject, html_content)
+                if not email_sent:
+                    email_error = 'Email send failed'
+            except Exception as e:
+                email_error = str(e)
+                email_sent = False
+
+        if contact_number:
+            sms_message = (
+                f"iClinic ALERT: Major case recorded. Date/Time: {visit_date} {visit_time}. "
+                f"Complaint: {chief_complaint}. Please coordinate immediately."
+            )
+            sms_result = _send_major_case_notification_sms(contact_number, sms_message)
+            sms_sent = bool(sms_result.get('success'))
+            if not sms_sent:
+                sms_error = sms_result.get('error') or 'SMS send failed'
+
+        cursor.close()
+        conn.close()
+
+        if not patient_email and not contact_number:
+            return jsonify({'error': 'No contact details available for notification'}), 400
+
+        message_parts = []
+        if patient_email:
+            message_parts.append('Email sent' if email_sent else f"Email not sent{': ' + email_error if email_error else ''}")
+        if contact_number:
+            message_parts.append('SMS sent' if sms_sent else f"SMS not sent{': ' + sms_error if sms_error else ''}")
+
+        return jsonify({
+            'success': True,
+            'message': ' | '.join(message_parts) if message_parts else 'Notification processed',
+            'email_sent': email_sent,
+            'sms_sent': sms_sent,
+            'email_error': email_error,
+            'sms_error': sms_error
+        }), 200
+
+    except Exception as e:
+        print(f"Error notifying guardian for major case: {str(e)}")
+        return jsonify({'error': f'Database error: {str(e)}'}), 500
 
 def send_password_reset_email(to_email, reset_token, user_name):
     """Send password reset link"""
@@ -582,6 +1007,13 @@ def init_db():
     except Exception as e:
         if "Duplicate column name" not in str(e):
             print(f"â„¹ï¸  is_active column check: {e}")
+
+    try:
+        cursor.execute("SHOW COLUMNS FROM students LIKE 'emergency_contact_email'")
+        if not cursor.fetchone():
+            cursor.execute("ALTER TABLE students ADD COLUMN emergency_contact_email VARCHAR(100) AFTER emergency_contact_number")
+    except Exception:
+        pass
     
     # Clinic stays table for monitoring patients staying in clinic
     cursor.execute('''
@@ -613,6 +1045,8 @@ def init_db():
             visit_time TIME,
             chief_complaint TEXT,
             medical_history TEXT,
+            food_allergies TEXT,
+            medicine_allergies TEXT,
             fever_duration VARCHAR(50),
             current_medication TEXT,
             medication_schedule TEXT,
@@ -632,6 +1066,13 @@ def init_db():
             follow_up_date DATE,
             special_instructions TEXT,
             notes TEXT,
+            illness_classification_suggested VARCHAR(10),
+            illness_classification_suggested_reason TEXT,
+            illness_classification_final VARCHAR(10),
+            illness_classification_override_reason TEXT,
+            endorsement_required BOOLEAN DEFAULT FALSE,
+            endorsement_status VARCHAR(20) DEFAULT 'not_required',
+            endorsed_at DATETIME,
             staff_name VARCHAR(100),
             staff_id INT,
             will_stay_in_clinic BOOLEAN DEFAULT FALSE,
@@ -676,6 +1117,33 @@ def init_db():
             print("Successfully added missing columns to medical_records table!")
     except Exception as e:
         print(f"Note: Could not add columns to medical_records table (may already exist): {e}")
+
+    try:
+        cursor.execute("SHOW COLUMNS FROM medical_records LIKE 'food_allergies'")
+        if not cursor.fetchone():
+            cursor.execute("ALTER TABLE medical_records ADD COLUMN food_allergies TEXT AFTER medical_history")
+    except Exception as e:
+        print(f"Note: Could not add food_allergies to medical_records (may already exist): {e}")
+
+    try:
+        cursor.execute("SHOW COLUMNS FROM medical_records LIKE 'medicine_allergies'")
+        if not cursor.fetchone():
+            cursor.execute("ALTER TABLE medical_records ADD COLUMN medicine_allergies TEXT AFTER food_allergies")
+    except Exception as e:
+        print(f"Note: Could not add medicine_allergies to medical_records (may already exist): {e}")
+
+    try:
+        cursor.execute("SHOW COLUMNS FROM medical_records LIKE 'illness_classification_suggested'")
+        if not cursor.fetchone():
+            cursor.execute("ALTER TABLE medical_records ADD COLUMN illness_classification_suggested VARCHAR(10) AFTER notes")
+            cursor.execute("ALTER TABLE medical_records ADD COLUMN illness_classification_suggested_reason TEXT AFTER illness_classification_suggested")
+            cursor.execute("ALTER TABLE medical_records ADD COLUMN illness_classification_final VARCHAR(10) AFTER illness_classification_suggested_reason")
+            cursor.execute("ALTER TABLE medical_records ADD COLUMN illness_classification_override_reason TEXT AFTER illness_classification_final")
+            cursor.execute("ALTER TABLE medical_records ADD COLUMN endorsement_required BOOLEAN DEFAULT FALSE AFTER illness_classification_override_reason")
+            cursor.execute("ALTER TABLE medical_records ADD COLUMN endorsement_status VARCHAR(20) DEFAULT 'not_required' AFTER endorsement_required")
+            cursor.execute("ALTER TABLE medical_records ADD COLUMN endorsed_at DATETIME AFTER endorsement_status")
+    except Exception as e:
+        print(f"Note: Could not add classification/endorsement columns to medical_records (may already exist): {e}")
     
     # Add admission_time and discharge_time columns if they don't exist
     try:
@@ -796,6 +1264,8 @@ def init_db():
             visit_time TIME,
             chief_complaint TEXT,
             medical_history TEXT,
+            food_allergies TEXT,
+            medicine_allergies TEXT,
             fever_duration VARCHAR(50),
             current_medication TEXT,
             medication_schedule TEXT,
@@ -815,6 +1285,13 @@ def init_db():
             follow_up_date DATE,
             special_instructions TEXT,
             notes TEXT,
+            illness_classification_suggested VARCHAR(10),
+            illness_classification_suggested_reason TEXT,
+            illness_classification_final VARCHAR(10),
+            illness_classification_override_reason TEXT,
+            endorsement_required BOOLEAN DEFAULT FALSE,
+            endorsement_status VARCHAR(20) DEFAULT 'not_required',
+            endorsed_at DATETIME,
             staff_name VARCHAR(100),
             staff_id INT,
             will_stay_in_clinic BOOLEAN DEFAULT FALSE,
@@ -829,6 +1306,19 @@ def init_db():
             FOREIGN KEY (staff_id) REFERENCES users (id)
         )
     ''')
+
+    try:
+        cursor.execute("SHOW COLUMNS FROM visitor_medical_records LIKE 'illness_classification_suggested'")
+        if not cursor.fetchone():
+            cursor.execute("ALTER TABLE visitor_medical_records ADD COLUMN illness_classification_suggested VARCHAR(10) AFTER notes")
+            cursor.execute("ALTER TABLE visitor_medical_records ADD COLUMN illness_classification_suggested_reason TEXT AFTER illness_classification_suggested")
+            cursor.execute("ALTER TABLE visitor_medical_records ADD COLUMN illness_classification_final VARCHAR(10) AFTER illness_classification_suggested_reason")
+            cursor.execute("ALTER TABLE visitor_medical_records ADD COLUMN illness_classification_override_reason TEXT AFTER illness_classification_final")
+            cursor.execute("ALTER TABLE visitor_medical_records ADD COLUMN endorsement_required BOOLEAN DEFAULT FALSE AFTER illness_classification_override_reason")
+            cursor.execute("ALTER TABLE visitor_medical_records ADD COLUMN endorsement_status VARCHAR(20) DEFAULT 'not_required' AFTER endorsement_required")
+            cursor.execute("ALTER TABLE visitor_medical_records ADD COLUMN endorsed_at DATETIME AFTER endorsement_status")
+    except Exception as e:
+        print(f"Note: Could not add classification/endorsement columns to visitor_medical_records (may already exist): {e}")
     
     # Clinic supplies and equipment table
     cursor.execute('''
@@ -1396,11 +1886,20 @@ def init_db():
             physical_examination TEXT,
             assessment TEXT,
             diagnosis TEXT,
+            food_allergies TEXT,
+            medicine_allergies TEXT,
             treatment TEXT,
             prescribed_medicine TEXT,
             vital_signs JSON,
             doctor_notes TEXT,
             follow_up_date DATE,
+            illness_classification_suggested VARCHAR(10),
+            illness_classification_suggested_reason TEXT,
+            illness_classification_final VARCHAR(10),
+            illness_classification_override_reason TEXT,
+            endorsement_required BOOLEAN DEFAULT FALSE,
+            endorsement_status VARCHAR(20) DEFAULT 'not_required',
+            endorsed_at DATETIME,
             stay_status ENUM('none', 'staying', 'checked_out') DEFAULT 'none',
             check_in_time DATETIME NULL,
             actual_checkout_time DATETIME NULL,
@@ -1414,6 +1913,33 @@ def init_db():
             FOREIGN KEY (created_by) REFERENCES users(id)
         )
     ''')
+
+    try:
+        cursor.execute("SHOW COLUMNS FROM teaching_medical_records LIKE 'illness_classification_suggested'")
+        if not cursor.fetchone():
+            cursor.execute("ALTER TABLE teaching_medical_records ADD COLUMN illness_classification_suggested VARCHAR(10) AFTER follow_up_date")
+            cursor.execute("ALTER TABLE teaching_medical_records ADD COLUMN illness_classification_suggested_reason TEXT AFTER illness_classification_suggested")
+            cursor.execute("ALTER TABLE teaching_medical_records ADD COLUMN illness_classification_final VARCHAR(10) AFTER illness_classification_suggested_reason")
+            cursor.execute("ALTER TABLE teaching_medical_records ADD COLUMN illness_classification_override_reason TEXT AFTER illness_classification_final")
+            cursor.execute("ALTER TABLE teaching_medical_records ADD COLUMN endorsement_required BOOLEAN DEFAULT FALSE AFTER illness_classification_override_reason")
+            cursor.execute("ALTER TABLE teaching_medical_records ADD COLUMN endorsement_status VARCHAR(20) DEFAULT 'not_required' AFTER endorsement_required")
+            cursor.execute("ALTER TABLE teaching_medical_records ADD COLUMN endorsed_at DATETIME AFTER endorsement_status")
+    except Exception as e:
+        print(f"Note: Could not add classification/endorsement columns to teaching_medical_records (may already exist): {e}")
+
+    try:
+        cursor.execute("SHOW COLUMNS FROM teaching_medical_records LIKE 'food_allergies'")
+        if not cursor.fetchone():
+            cursor.execute("ALTER TABLE teaching_medical_records ADD COLUMN food_allergies TEXT AFTER diagnosis")
+    except Exception as e:
+        print(f"Note: Could not add food_allergies to teaching_medical_records (may already exist): {e}")
+
+    try:
+        cursor.execute("SHOW COLUMNS FROM teaching_medical_records LIKE 'medicine_allergies'")
+        if not cursor.fetchone():
+            cursor.execute("ALTER TABLE teaching_medical_records ADD COLUMN medicine_allergies TEXT AFTER food_allergies")
+    except Exception as e:
+        print(f"Note: Could not add medicine_allergies to teaching_medical_records (may already exist): {e}")
     
     # Non-Teaching Staff table
     cursor.execute('''
@@ -1454,6 +1980,8 @@ def init_db():
             visit_time TIME,
             chief_complaint TEXT,
             medical_history TEXT,
+            food_allergies TEXT,
+            medicine_allergies TEXT,
             fever_duration VARCHAR(50),
             current_medication TEXT,
             medication_schedule TEXT,
@@ -1473,6 +2001,13 @@ def init_db():
             follow_up_date DATE,
             special_instructions TEXT,
             notes TEXT,
+            illness_classification_suggested VARCHAR(10),
+            illness_classification_suggested_reason TEXT,
+            illness_classification_final VARCHAR(10),
+            illness_classification_override_reason TEXT,
+            endorsement_required BOOLEAN DEFAULT FALSE,
+            endorsement_status VARCHAR(20) DEFAULT 'not_required',
+            endorsed_at DATETIME,
             staff_name VARCHAR(100),
             staff_id INT,
             will_stay_in_clinic BOOLEAN DEFAULT FALSE,
@@ -1489,6 +2024,19 @@ def init_db():
             FOREIGN KEY (staff_id) REFERENCES users(id)
         )
     ''')
+
+    try:
+        cursor.execute("SHOW COLUMNS FROM non_teaching_medical_records LIKE 'illness_classification_suggested'")
+        if not cursor.fetchone():
+            cursor.execute("ALTER TABLE non_teaching_medical_records ADD COLUMN illness_classification_suggested VARCHAR(10) AFTER notes")
+            cursor.execute("ALTER TABLE non_teaching_medical_records ADD COLUMN illness_classification_suggested_reason TEXT AFTER illness_classification_suggested")
+            cursor.execute("ALTER TABLE non_teaching_medical_records ADD COLUMN illness_classification_final VARCHAR(10) AFTER illness_classification_suggested_reason")
+            cursor.execute("ALTER TABLE non_teaching_medical_records ADD COLUMN illness_classification_override_reason TEXT AFTER illness_classification_final")
+            cursor.execute("ALTER TABLE non_teaching_medical_records ADD COLUMN endorsement_required BOOLEAN DEFAULT FALSE AFTER illness_classification_override_reason")
+            cursor.execute("ALTER TABLE non_teaching_medical_records ADD COLUMN endorsement_status VARCHAR(20) DEFAULT 'not_required' AFTER endorsement_required")
+            cursor.execute("ALTER TABLE non_teaching_medical_records ADD COLUMN endorsed_at DATETIME AFTER endorsement_status")
+    except Exception as e:
+        print(f"Note: Could not add classification/endorsement columns to non_teaching_medical_records (may already exist): {e}")
     
     # Deans table
     cursor.execute('''
@@ -1622,6 +2170,8 @@ def init_db():
             visit_time TIME,
             chief_complaint TEXT,
             medical_history TEXT,
+            food_allergies TEXT,
+            medicine_allergies TEXT,
             fever_duration VARCHAR(50),
             current_medication TEXT,
             medication_schedule TEXT,
@@ -1641,6 +2191,13 @@ def init_db():
             follow_up_date DATE,
             special_instructions TEXT,
             notes TEXT,
+            illness_classification_suggested VARCHAR(10),
+            illness_classification_suggested_reason TEXT,
+            illness_classification_final VARCHAR(10),
+            illness_classification_override_reason TEXT,
+            endorsement_required BOOLEAN DEFAULT FALSE,
+            endorsement_status VARCHAR(20) DEFAULT 'not_required',
+            endorsed_at DATETIME,
             staff_name VARCHAR(100),
             staff_id INT,
             will_stay_in_clinic BOOLEAN DEFAULT FALSE,
@@ -1657,6 +2214,19 @@ def init_db():
             FOREIGN KEY (staff_id) REFERENCES users(id)
         )
     ''')
+
+    try:
+        cursor.execute("SHOW COLUMNS FROM dean_medical_records LIKE 'illness_classification_suggested'")
+        if not cursor.fetchone():
+            cursor.execute("ALTER TABLE dean_medical_records ADD COLUMN illness_classification_suggested VARCHAR(10) AFTER notes")
+            cursor.execute("ALTER TABLE dean_medical_records ADD COLUMN illness_classification_suggested_reason TEXT AFTER illness_classification_suggested")
+            cursor.execute("ALTER TABLE dean_medical_records ADD COLUMN illness_classification_final VARCHAR(10) AFTER illness_classification_suggested_reason")
+            cursor.execute("ALTER TABLE dean_medical_records ADD COLUMN illness_classification_override_reason TEXT AFTER illness_classification_final")
+            cursor.execute("ALTER TABLE dean_medical_records ADD COLUMN endorsement_required BOOLEAN DEFAULT FALSE AFTER illness_classification_override_reason")
+            cursor.execute("ALTER TABLE dean_medical_records ADD COLUMN endorsement_status VARCHAR(20) DEFAULT 'not_required' AFTER endorsement_required")
+            cursor.execute("ALTER TABLE dean_medical_records ADD COLUMN endorsed_at DATETIME AFTER endorsement_status")
+    except Exception as e:
+        print(f"Note: Could not add classification/endorsement columns to dean_medical_records (may already exist): {e}")
     
     # President table
     cursor.execute('''
@@ -1695,6 +2265,8 @@ def init_db():
             visit_time TIME,
             chief_complaint TEXT,
             medical_history TEXT,
+            food_allergies TEXT,
+            medicine_allergies TEXT,
             fever_duration VARCHAR(50),
             current_medication TEXT,
             medication_schedule TEXT,
@@ -1714,6 +2286,13 @@ def init_db():
             follow_up_date DATE,
             special_instructions TEXT,
             notes TEXT,
+            illness_classification_suggested VARCHAR(10),
+            illness_classification_suggested_reason TEXT,
+            illness_classification_final VARCHAR(10),
+            illness_classification_override_reason TEXT,
+            endorsement_required BOOLEAN DEFAULT FALSE,
+            endorsement_status VARCHAR(20) DEFAULT 'not_required',
+            endorsed_at DATETIME,
             staff_name VARCHAR(100),
             staff_id INT,
             will_stay_in_clinic BOOLEAN DEFAULT FALSE,
@@ -1730,6 +2309,19 @@ def init_db():
             FOREIGN KEY (staff_id) REFERENCES users(id)
         )
     ''')
+
+    try:
+        cursor.execute("SHOW COLUMNS FROM president_medical_records LIKE 'illness_classification_suggested'")
+        if not cursor.fetchone():
+            cursor.execute("ALTER TABLE president_medical_records ADD COLUMN illness_classification_suggested VARCHAR(10) AFTER notes")
+            cursor.execute("ALTER TABLE president_medical_records ADD COLUMN illness_classification_suggested_reason TEXT AFTER illness_classification_suggested")
+            cursor.execute("ALTER TABLE president_medical_records ADD COLUMN illness_classification_final VARCHAR(10) AFTER illness_classification_suggested_reason")
+            cursor.execute("ALTER TABLE president_medical_records ADD COLUMN illness_classification_override_reason TEXT AFTER illness_classification_final")
+            cursor.execute("ALTER TABLE president_medical_records ADD COLUMN endorsement_required BOOLEAN DEFAULT FALSE AFTER illness_classification_override_reason")
+            cursor.execute("ALTER TABLE president_medical_records ADD COLUMN endorsement_status VARCHAR(20) DEFAULT 'not_required' AFTER endorsement_required")
+            cursor.execute("ALTER TABLE president_medical_records ADD COLUMN endorsed_at DATETIME AFTER endorsement_status")
+    except Exception as e:
+        print(f"Note: Could not add classification/endorsement columns to president_medical_records (may already exist): {e}")
     
     # Nurses table
     cursor.execute('''
@@ -1848,6 +2440,8 @@ def init_db():
             visit_time TIME,
             chief_complaint TEXT,
             medical_history TEXT,
+            food_allergies TEXT,
+            medicine_allergies TEXT,
             fever_duration VARCHAR(50),
             current_medication TEXT,
             medication_schedule TEXT,
@@ -4922,8 +5516,18 @@ def create_consultation_ticket():
     patient_identifier = (data.get('patient_identifier') or '').strip() or None
     full_name = (data.get('full_name') or '').strip() or None
 
+    illness_classification_final = (data.get('illness_classification_final') or '').strip().lower() or None
+    if illness_classification_final == 'major':
+        return jsonify(
+            {
+                'success': False,
+                'error': 'Major cases are not eligible for ticketing. Please proceed directly to the clinic for urgent endorsement.',
+                'bypass_queue': True,
+            }
+        ), 409
+
     requested_priority = (data.get('priority') or '').upper().strip()
-    priority = requested_priority if requested_priority in PRIORITY_LEVELS else 'P3'
+    priority = 'P3'
 
     severity_score = data.get('severity_score')
     if severity_score is not None:
@@ -5473,7 +6077,7 @@ def api_all_patients():
             SELECT student_number, std_Firstname, std_Surname, std_Middlename, std_Suffix, 
                    std_Gender, std_Age, std_EmailAdd, std_ContactNum, std_Course, 
                    std_Level, std_Status, std_2x2, std_Birthdate,
-                   emergency_contact_name, emergency_contact_relationship, emergency_contact_number,
+                   emergency_contact_name, emergency_contact_relationship, emergency_contact_number, emergency_contact_email,
                    blood_type, allergies, medical_conditions
             FROM students 
             WHERE is_active = TRUE
@@ -5487,7 +6091,7 @@ def api_all_patients():
             # s[5]=std_Gender, s[6]=std_Age, s[7]=std_EmailAdd, s[8]=std_ContactNum, s[9]=std_Course,
             # s[10]=std_Level, s[11]=std_Status, s[12]=std_2x2, s[13]=std_Birthdate,
             # s[14]=emergency_contact_name, s[15]=emergency_contact_relationship, s[16]=emergency_contact_number,
-            # s[17]=blood_type, s[18]=allergies, s[19]=medical_conditions
+            # s[17]=emergency_contact_email, s[18]=blood_type, s[19]=allergies, s[20]=medical_conditions
             full_name = f"{s[1]} {s[3] + ' ' if s[3] else ''}{s[2]}{' ' + s[4] if s[4] else ''}"
             patient_data = {
                 'id': s[0],  # student_number
@@ -5511,9 +6115,10 @@ def api_all_patients():
                 'emergency_contact_name': s[14] or 'N/A',
                 'emergency_contact_relationship': s[15] or 'N/A',
                 'emergency_contact_number': s[16] or 'N/A',
-                'blood_type': s[17] or 'N/A',
-                'allergies': s[18] or 'None',
-                'medical_conditions': s[19] or 'None',
+                'emergency_contact_email': s[17] or 'N/A',
+                'blood_type': s[18] or 'N/A',
+                'allergies': s[19] or 'None',
+                'medical_conditions': s[20] or 'None',
                 'role': 'Student'
             }
             # Debug log for first student to check emergency contact data
@@ -5522,6 +6127,7 @@ def api_all_patients():
                 print(f"   Emergency Contact Name: {s[14]}")
                 print(f"   Emergency Contact Relationship: {s[15]}")
                 print(f"   Emergency Contact Number: {s[16]}")
+                print(f"   Emergency Contact Email: {s[17]}")
             all_patients.append(patient_data)
         
         # Check if visitors table exists and get visitors
@@ -7135,6 +7741,9 @@ def api_student_medical_records(student_number):
                    mr.treatment, mr.prescribed_medicine, mr.notes, mr.staff_name,
                    mr.will_stay_in_clinic, mr.stay_reason, mr.stay_status, mr.actual_checkout_time, mr.checkout_notes,
                    mr.admission_time, mr.discharge_time,
+                   mr.illness_classification_suggested, mr.illness_classification_suggested_reason,
+                   mr.illness_classification_final, mr.illness_classification_override_reason,
+                   mr.endorsement_required, mr.endorsement_status, mr.endorsed_at,
                    s.std_Firstname, s.std_Surname, s.std_Course, s.std_Level
             FROM medical_records mr
             INNER JOIN students s ON mr.student_number = s.student_number
@@ -7197,6 +7806,13 @@ def api_student_medical_records(student_number):
                 'checkout_notes': r[13] if r[13] and r[13].strip() else '',
                 'admission_time': r[14].strftime('%Y-%m-%d %H:%M:%S') if r[14] else None,
                 'discharge_time': r[15].strftime('%Y-%m-%d %H:%M:%S') if r[15] else None,
+                'illness_classification_suggested': r[16],
+                'illness_classification_suggested_reason': r[17],
+                'illness_classification_final': r[18],
+                'illness_classification_override_reason': r[19],
+                'endorsement_required': bool(r[20]) if r[20] is not None else False,
+                'endorsement_status': r[21],
+                'endorsed_at': r[22].strftime('%Y-%m-%d %H:%M:%S') if r[22] else None,
                 'medical_history': '',  # Not in simplified query
                 'fever_duration': '',   # Not in simplified query
                 'current_medication': '', # Not in simplified query
@@ -7208,9 +7824,9 @@ def api_student_medical_records(student_number):
                 'weight': None,
                 'height': None,
                 'bmi': None,
-                'patient_name': f"{r[16]} {r[17]}" if r[16] and r[17] else 'Unknown Patient',  # std_Firstname, std_Surname
-                'patient_course': r[18] if r[18] else '',  # std_Course
-                'patient_level': r[19] if r[19] else '',   # std_Level
+                'patient_name': f"{r[23]} {r[24]}" if r[23] and r[24] else 'Unknown Patient',  # std_Firstname, std_Surname
+                'patient_course': r[25] if r[25] else '',  # std_Course
+                'patient_level': r[26] if r[26] else '',   # std_Level
                 'created_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
                 # Additional formatting for frontend
                 'date': r[2].strftime('%Y-%m-%d') if r[2] else None,
@@ -7238,11 +7854,17 @@ def api_add_student_medical_record():
         if not data:
             return jsonify({'error': 'No data provided'}), 400
         
-        
         conn = DatabaseConfig.get_connection()
         if not conn:
             return jsonify({'error': 'Database connection failed'}), 500
-        
+
+        prescribed_medicines = data.get('prescribed_medicines')
+        if data.get('prescribed_medicine') and not prescribed_medicines:
+            return jsonify({'error': 'Manual medicine entry is not allowed. Please select medicines from inventory.'}), 400
+        validation_error = _validate_prescribed_medicines(conn, prescribed_medicines)
+        if validation_error:
+            return jsonify({'error': validation_error}), 400
+
         cursor = conn.cursor()
         ticket_number = generate_unique_ticket_number(conn)
         
@@ -7250,21 +7872,29 @@ def api_add_student_medical_record():
         print(f"Saving medical record for student_number: {data.get('student_number')}")
         print(f"Chief complaint: '{data.get('chief_complaint', '')}'")
 
-        print(f"Treatment: '{data.get('treatment', '')}'")
+        illness_suggested = (data.get('illness_classification_suggested') or '').strip().lower() or None
+        illness_suggested_reason = data.get('illness_classification_suggested_reason')
+        illness_final = (data.get('illness_classification_final') or '').strip().lower() or illness_suggested
+        illness_override_reason = data.get('illness_classification_override_reason')
+        endorsement_required = True if illness_final == 'major' else False
+        endorsement_status = 'pending' if endorsement_required else 'not_required'
         
-        # Insert new medical record with all fields including clinic stay
         cursor.execute('''
             INSERT INTO medical_records (
                 student_number, visit_date, visit_time, chief_complaint, medical_history,
+                food_allergies, medicine_allergies,
                 fever_duration, current_medication, medication_schedule,
                 blood_pressure_systolic, blood_pressure_diastolic, pulse_rate, 
                 temperature, respiratory_rate, weight, height, bmi, symptoms,
                 treatment, prescribed_medicine, dental_procedure,
                 procedure_notes, follow_up_date, special_instructions, notes, 
+                illness_classification_suggested, illness_classification_suggested_reason,
+                illness_classification_final, illness_classification_override_reason,
+                endorsement_required, endorsement_status,
                 staff_name, staff_id, will_stay_in_clinic, stay_reason, 
                 stay_status
             ) VALUES (
-                %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+                %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
             )
         ''', (
             data.get('student_number'),
@@ -7272,6 +7902,8 @@ def api_add_student_medical_record():
             data.get('visit_time') or datetime.now().strftime('%H:%M:%S'),
             data.get('chief_complaint', ''),
             data.get('medical_history', ''),
+            data.get('food_allergies', ''),
+            data.get('medicine_allergies', ''),
             data.get('fever_duration', ''),
             data.get('current_medication', ''),
             data.get('medication_schedule', ''),
@@ -7291,6 +7923,12 @@ def api_add_student_medical_record():
             data.get('follow_up_date'),
             data.get('special_instructions', ''),
             data.get('notes', ''),
+            illness_suggested,
+            illness_suggested_reason,
+            illness_final,
+            illness_override_reason,
+            endorsement_required,
+            endorsement_status,
             f"{session.get('first_name', '')} {session.get('last_name', '')}".strip(),
             session.get('user_id'),
             # Clinic stay fields
@@ -7820,6 +8458,7 @@ def api_student_profile():
             student_dict.get('emergency_contact_name'),
             student_dict.get('emergency_contact_relationship'),
             student_dict.get('emergency_contact_number'),
+            student_dict.get('emergency_contact_email'),
             student_dict.get('blood_type'),
             student_dict.get('allergies'),
             student_dict.get('medical_conditions'),
@@ -7842,10 +8481,11 @@ def api_student_profile():
                 'emergency_contact_name': user_data[11],
                 'emergency_contact_relationship': user_data[12],
                 'emergency_contact_number': user_data[13],
-                'blood_type': user_data[14],
-                'allergies': user_data[15],
-                'medical_conditions': user_data[16],
-                'student_number': user_data[17]
+                'emergency_contact_email': user_data[14],
+                'blood_type': user_data[15],
+                'allergies': user_data[16],
+                'medical_conditions': user_data[17],
+                'student_number': user_data[18]
             }
         else:
             # Fallback: create basic profile from session
@@ -9492,6 +10132,9 @@ def api_get_teaching_medical_record(record_id):
                    tmr.treatment, tmr.prescribed_medicine, tmr.doctor_notes,
                    tmr.stay_status, tmr.actual_checkout_time, tmr.discharge_notes,
                    tmr.admission_time, tmr.discharge_time, tmr.diagnosis, tmr.vital_signs,
+                   tmr.illness_classification_suggested, tmr.illness_classification_suggested_reason,
+                   tmr.illness_classification_final, tmr.illness_classification_override_reason,
+                   tmr.endorsement_required, tmr.endorsement_status, tmr.endorsed_at,
                    t.first_name, t.last_name, t.email, t.faculty_id, t.rank, t.specialization,
                    u.first_name as doctor_first_name, u.last_name as doctor_last_name
             FROM teaching_medical_records tmr
@@ -9526,8 +10169,15 @@ def api_get_teaching_medical_record(record_id):
             'discharge_time': record[12].strftime('%Y-%m-%d %H:%M:%S') if record[12] else None,
             'diagnosis': record[13] or '',
             'vital_signs': record[14] or '',
-            'patient_name': f"{record[15]} {record[16]}" if record[15] and record[16] else 'Unknown',
-            'doctor_name': f"{record[21]} {record[22]}" if record[21] and record[22] else 'Unknown Doctor',
+            'illness_classification_suggested': record[15],
+            'illness_classification_suggested_reason': record[16],
+            'illness_classification_final': record[17],
+            'illness_classification_override_reason': record[18],
+            'endorsement_required': bool(record[19]) if record[19] is not None else False,
+            'endorsement_status': record[20],
+            'endorsed_at': record[21].strftime('%Y-%m-%d %H:%M:%S') if record[21] else None,
+            'patient_name': f"{record[22]} {record[23]}" if record[22] and record[23] else 'Unknown',
+            'doctor_name': f"{record[28]} {record[29]}" if record[28] and record[29] else 'Unknown Doctor',
             'will_stay_in_clinic': record[8] == 'staying' if record[8] else False,
             'stay_reason': record[10] or ''
         }
@@ -9560,6 +10210,9 @@ def api_get_visitor_medical_record(record_id):
                    mr.treatment, mr.prescribed_medicine, mr.notes, mr.staff_name,
                    mr.will_stay_in_clinic, mr.stay_reason, mr.stay_status, mr.actual_checkout_time, mr.checkout_notes,
                    mr.admission_time, mr.discharge_time,
+                   mr.illness_classification_suggested, mr.illness_classification_suggested_reason,
+                   mr.illness_classification_final, mr.illness_classification_override_reason,
+                   mr.endorsement_required, mr.endorsement_status, mr.endorsed_at,
                    v.first_name, v.middle_name, v.last_name, v.age, v.contact_number
             FROM visitor_medical_records mr
             LEFT JOIN visitors v ON mr.visitor_id = v.id
@@ -9574,9 +10227,9 @@ def api_get_visitor_medical_record(record_id):
         
         # Format the record data
         # Construct full name from first, middle, last
-        first_name = record[16] or ''
-        middle_name = record[17] or ''
-        last_name = record[18] or ''
+        first_name = record[23] or ''
+        middle_name = record[24] or ''
+        last_name = record[25] or ''
         full_name = f"{first_name} {middle_name + ' ' if middle_name else ''}{last_name}".strip() or 'Unknown Visitor'
         
         record_data = {
@@ -9596,9 +10249,16 @@ def api_get_visitor_medical_record(record_id):
             'checkout_notes': record[13] or '',
             'admission_time': record[14].strftime('%Y-%m-%d %H:%M:%S') if record[14] else None,
             'discharge_time': record[15].strftime('%Y-%m-%d %H:%M:%S') if record[15] else None,
+            'illness_classification_suggested': record[16],
+            'illness_classification_suggested_reason': record[17],
+            'illness_classification_final': record[18],
+            'illness_classification_override_reason': record[19],
+            'endorsement_required': bool(record[20]) if record[20] is not None else False,
+            'endorsement_status': record[21],
+            'endorsed_at': record[22].strftime('%Y-%m-%d %H:%M:%S') if record[22] else None,
             'patient_name': full_name,
-            'age': record[19] or 'N/A',
-            'contact_number': record[20] or 'N/A'
+            'age': record[26] or 'N/A',
+            'contact_number': record[27] or 'N/A'
         }
         
         return jsonify(record_data)
@@ -9625,6 +10285,9 @@ def api_get_non_teaching_medical_record(record_id):
                    mr.treatment, mr.prescribed_medicine, mr.notes, mr.staff_name,
                    mr.will_stay_in_clinic, mr.stay_reason, mr.stay_status, mr.actual_checkout_time, mr.checkout_notes,
                    mr.admission_time, mr.discharge_time,
+                   mr.illness_classification_suggested, mr.illness_classification_suggested_reason,
+                   mr.illness_classification_final, mr.illness_classification_override_reason,
+                   mr.endorsement_required, mr.endorsement_status, mr.endorsed_at,
                    nt.first_name, nt.last_name, nt.position, nt.department
             FROM non_teaching_medical_records mr
             LEFT JOIN non_teaching_staff nt ON mr.non_teaching_id = nt.id
@@ -9655,7 +10318,14 @@ def api_get_non_teaching_medical_record(record_id):
             'checkout_notes': record[13] or '',
             'admission_time': record[14].strftime('%Y-%m-%d %H:%M:%S') if record[14] else None,
             'discharge_time': record[15].strftime('%Y-%m-%d %H:%M:%S') if record[15] else None,
-            'patient_name': f"{record[16]} {record[17]}" if record[16] and record[17] else 'Unknown'
+            'illness_classification_suggested': record[16],
+            'illness_classification_suggested_reason': record[17],
+            'illness_classification_final': record[18],
+            'illness_classification_override_reason': record[19],
+            'endorsement_required': bool(record[20]) if record[20] is not None else False,
+            'endorsement_status': record[21],
+            'endorsed_at': record[22].strftime('%Y-%m-%d %H:%M:%S') if record[22] else None,
+            'patient_name': f"{record[23]} {record[24]}" if record[23] and record[24] else 'Unknown'
         }
         
         return jsonify(record_data)
@@ -9679,15 +10349,12 @@ def api_get_dean_medical_record(record_id):
         
         cursor.execute('''
             SELECT mr.id, mr.dean_id, mr.visit_date, mr.visit_time, mr.chief_complaint, 
-                   mr.medical_history, mr.fever_duration, mr.current_medication, mr.medication_schedule,
-                   mr.blood_pressure_systolic, mr.blood_pressure_diastolic, mr.pulse_rate, 
-                   mr.temperature, mr.respiratory_rate, mr.weight, mr.height, mr.bmi,
-                   mr.symptoms, mr.treatment, mr.prescribed_medicine, 
-                   mr.dental_procedure, mr.procedure_notes, mr.follow_up_date, 
-                   mr.special_instructions, mr.notes, mr.staff_name,
-                   mr.will_stay_in_clinic, mr.stay_reason, mr.stay_status, 
-                   mr.actual_checkout_time, mr.checkout_notes,
+                   mr.treatment, mr.prescribed_medicine, mr.notes, mr.staff_name,
+                   mr.will_stay_in_clinic, mr.stay_reason, mr.stay_status, mr.actual_checkout_time, mr.checkout_notes,
                    mr.admission_time, mr.discharge_time,
+                   mr.illness_classification_suggested, mr.illness_classification_suggested_reason,
+                   mr.illness_classification_final, mr.illness_classification_override_reason,
+                   mr.endorsement_required, mr.endorsement_status, mr.endorsed_at,
                    d.first_name, d.last_name, d.college, d.department
             FROM dean_medical_records mr
             LEFT JOIN deans d ON mr.dean_id = d.id
@@ -9701,48 +10368,32 @@ def api_get_dean_medical_record(record_id):
         if not record:
             return jsonify({'error': 'Dean medical record not found'}), 404
         
-        # Build blood pressure string
-        blood_pressure = ''
-        if record[9] and record[10]:  # systolic and diastolic
-            blood_pressure = f"{record[9]}/{record[10]}"
-        
+        # Format the record data
         record_data = {
             'id': record[0],
             'dean_id': record[1],
             'visit_date': record[2].strftime('%Y-%m-%d') if record[2] else None,
             'visit_time': str(record[3]) if record[3] else None,
             'chief_complaint': record[4] or '',
-            'symptoms': record[17] or record[4] or '',  # Use symptoms or fallback to chief_complaint
-            'medical_history': record[5] or '',
-            'fever_duration': record[6] or '',
-            'current_medication': record[7] or '',
-            'medication_schedule': record[8] or '',
-            'blood_pressure': blood_pressure,
-            'blood_pressure_systolic': record[9],
-            'blood_pressure_diastolic': record[10],
-            'pulse_rate': record[11],
-            'heart_rate': record[11],  # Alias for pulse_rate
-            'temperature': record[12],
-            'respiratory_rate': record[13],
-            'weight': record[14],
-            'height': record[15],
-            'bmi': record[16],
-            'treatment': record[18] or '',
-            'prescribed_medicine': record[19] or '',
-            'dental_procedure': record[20] or '',
-            'procedure_notes': record[21] or '',
-            'follow_up_date': record[22],
-            'special_instructions': record[23] or '',
-            'notes': record[24] or '',
-            'doctor_name': record[25] or 'Unknown Doctor',
-            'will_stay_in_clinic': record[26] or False,
-            'stay_reason': record[27] or '',
-            'stay_status': record[28] or 'not_staying',
-            'actual_checkout_time': record[29].strftime('%Y-%m-%d %H:%M:%S') if record[29] else None,
-            'checkout_notes': record[30] or '',
-            'admission_time': record[31].strftime('%Y-%m-%d %H:%M:%S') if record[31] else None,
-            'discharge_time': record[32].strftime('%Y-%m-%d %H:%M:%S') if record[32] else None,
-            'patient_name': f"{record[33]} {record[34]}" if record[33] and record[34] else 'Unknown'
+            'treatment': record[5] or '',
+            'prescribed_medicine': record[6] or '',
+            'notes': record[7] or '',
+            'doctor_name': record[8] or 'Unknown Doctor',
+            'will_stay_in_clinic': record[9] or False,
+            'stay_reason': record[10] or '',
+            'stay_status': record[11] or 'not_staying',
+            'actual_checkout_time': record[12].strftime('%Y-%m-%d %H:%M:%S') if record[12] else None,
+            'checkout_notes': record[13] or '',
+            'admission_time': record[14].strftime('%Y-%m-%d %H:%M:%S') if record[14] else None,
+            'discharge_time': record[15].strftime('%Y-%m-%d %H:%M:%S') if record[15] else None,
+            'illness_classification_suggested': record[16],
+            'illness_classification_suggested_reason': record[17],
+            'illness_classification_final': record[18],
+            'illness_classification_override_reason': record[19],
+            'endorsement_required': bool(record[20]) if record[20] is not None else False,
+            'endorsement_status': record[21],
+            'endorsed_at': record[22].strftime('%Y-%m-%d %H:%M:%S') if record[22] else None,
+            'patient_name': f"{record[23]} {record[24]}" if record[23] and record[24] else 'Unknown'
         }
         
         return jsonify(record_data)
@@ -9766,16 +10417,13 @@ def api_get_president_medical_record(record_id):
         
         cursor.execute('''
             SELECT mr.id, mr.president_id, mr.visit_date, mr.visit_time, mr.chief_complaint, 
-                   mr.medical_history, mr.fever_duration, mr.current_medication, mr.medication_schedule,
-                   mr.blood_pressure_systolic, mr.blood_pressure_diastolic, mr.pulse_rate, 
-                   mr.temperature, mr.respiratory_rate, mr.weight, mr.height, mr.bmi,
-                   mr.symptoms, mr.treatment, mr.prescribed_medicine, 
-                   mr.dental_procedure, mr.procedure_notes, mr.follow_up_date, 
-                   mr.special_instructions, mr.notes, mr.staff_name,
-                   mr.will_stay_in_clinic, mr.stay_reason, mr.stay_status, 
-                   mr.actual_checkout_time, mr.checkout_notes,
+                   mr.treatment, mr.prescribed_medicine, mr.notes, mr.staff_name,
+                   mr.will_stay_in_clinic, mr.stay_reason, mr.stay_status, mr.actual_checkout_time, mr.checkout_notes,
                    mr.admission_time, mr.discharge_time,
-                   p.first_name, p.last_name
+                   mr.illness_classification_suggested, mr.illness_classification_suggested_reason,
+                   mr.illness_classification_final, mr.illness_classification_override_reason,
+                   mr.endorsement_required, mr.endorsement_status, mr.endorsed_at,
+                   p.first_name, p.last_name, p.position
             FROM president_medical_records mr
             LEFT JOIN president p ON mr.president_id = p.id
             WHERE mr.id = %s
@@ -9788,48 +10436,32 @@ def api_get_president_medical_record(record_id):
         if not record:
             return jsonify({'error': 'President medical record not found'}), 404
         
-        # Build blood pressure string
-        blood_pressure = ''
-        if record[9] and record[10]:  # systolic and diastolic
-            blood_pressure = f"{record[9]}/{record[10]}"
-        
         record_data = {
             'id': record[0],
             'president_id': record[1],
             'visit_date': record[2].strftime('%Y-%m-%d') if record[2] else None,
             'visit_time': str(record[3]) if record[3] else None,
             'chief_complaint': record[4] or '',
-            'symptoms': record[17] or record[4] or '',  # Use symptoms or fallback to chief_complaint
-            'medical_history': record[5] or '',
-            'fever_duration': record[6] or '',
-            'current_medication': record[7] or '',
-            'medication_schedule': record[8] or '',
-            'blood_pressure': blood_pressure,
-            'blood_pressure_systolic': record[9],
-            'blood_pressure_diastolic': record[10],
-            'pulse_rate': record[11],
-            'heart_rate': record[11],  # Alias for pulse_rate
-            'temperature': record[12],
-            'respiratory_rate': record[13],
-            'weight': record[14],
-            'height': record[15],
-            'bmi': record[16],
-            'treatment': record[18] or '',
-            'prescribed_medicine': record[19] or '',
-            'dental_procedure': record[20] or '',
-            'procedure_notes': record[21] or '',
-            'follow_up_date': record[22],
-            'special_instructions': record[23] or '',
-            'notes': record[24] or '',
-            'doctor_name': record[25] or 'Unknown Doctor',
-            'will_stay_in_clinic': record[26] or False,
-            'stay_reason': record[27] or '',
-            'stay_status': record[28] or 'not_staying',
-            'actual_checkout_time': record[29].strftime('%Y-%m-%d %H:%M:%S') if record[29] else None,
-            'checkout_notes': record[30] or '',
-            'admission_time': record[31].strftime('%Y-%m-%d %H:%M:%S') if record[31] else None,
-            'discharge_time': record[32].strftime('%Y-%m-%d %H:%M:%S') if record[32] else None,
-            'patient_name': f"{record[33]} {record[34]}" if record[33] and record[34] else 'Unknown'
+            'symptoms': record[4] or '',
+            'treatment': record[5] or '',
+            'prescribed_medicine': record[6] or '',
+            'notes': record[7] or '',
+            'doctor_name': record[8] or 'Unknown Doctor',
+            'will_stay_in_clinic': record[9] or False,
+            'stay_reason': record[10] or '',
+            'stay_status': record[11] or 'not_staying',
+            'actual_checkout_time': record[12].strftime('%Y-%m-%d %H:%M:%S') if record[12] else None,
+            'checkout_notes': record[13] or '',
+            'admission_time': record[14].strftime('%Y-%m-%d %H:%M:%S') if record[14] else None,
+            'discharge_time': record[15].strftime('%Y-%m-%d %H:%M:%S') if record[15] else None,
+            'illness_classification_suggested': record[16],
+            'illness_classification_suggested_reason': record[17],
+            'illness_classification_final': record[18],
+            'illness_classification_override_reason': record[19],
+            'endorsement_required': bool(record[20]) if record[20] is not None else False,
+            'endorsement_status': record[21],
+            'endorsed_at': record[22].strftime('%Y-%m-%d %H:%M:%S') if record[22] else None,
+            'patient_name': f"{record[23]} {record[24]}" if record[23] and record[24] else 'Unknown'
         }
         
         return jsonify(record_data)
@@ -12447,6 +13079,8 @@ def api_get_medical_record(record_id):
             record['admission_time'] = record['admission_time'].strftime('%Y-%m-%d %H:%M:%S')
         if record.get('discharge_time'):
             record['discharge_time'] = record['discharge_time'].strftime('%Y-%m-%d %H:%M:%S')
+        if record.get('endorsed_at'):
+            record['endorsed_at'] = record['endorsed_at'].strftime('%Y-%m-%d %H:%M:%S')
         
         cursor.close()
         conn.close()
@@ -12695,7 +13329,7 @@ def api_visitor_medical_records(visitor_id):
         conn = DatabaseConfig.get_connection()
         if not conn:
             return jsonify({'error': 'Database connection failed'}), 500
-        
+
         cursor = conn.cursor()
         ticket_number = generate_unique_ticket_number(conn)
         
@@ -12710,6 +13344,9 @@ def api_visitor_medical_records(visitor_id):
                    mr.treatment, mr.prescribed_medicine, mr.notes, mr.staff_name,
                    mr.will_stay_in_clinic, mr.stay_reason, mr.stay_status, mr.actual_checkout_time, mr.checkout_notes,
                    mr.admission_time, mr.discharge_time,
+                   mr.illness_classification_suggested, mr.illness_classification_suggested_reason,
+                   mr.illness_classification_final, mr.illness_classification_override_reason,
+                   mr.endorsement_required, mr.endorsement_status, mr.endorsed_at,
                    v.first_name, v.middle_name, v.last_name, v.age, v.contact_number
             FROM visitor_medical_records mr
             INNER JOIN visitors v ON mr.visitor_id = v.id
@@ -12762,9 +13399,16 @@ def api_visitor_medical_records(visitor_id):
                 'checkout_notes': r[13] or '',
                 'admission_time': r[14].strftime('%Y-%m-%d %H:%M:%S') if r[14] else None,
                 'discharge_time': r[15].strftime('%Y-%m-%d %H:%M:%S') if r[15] else None,
+                'illness_classification_suggested': r[16],
+                'illness_classification_suggested_reason': r[17],
+                'illness_classification_final': r[18],
+                'illness_classification_override_reason': r[19],
+                'endorsement_required': bool(r[20]) if r[20] is not None else False,
+                'endorsement_status': r[21],
+                'endorsed_at': r[22].strftime('%Y-%m-%d %H:%M:%S') if r[22] else None,
                 'patient_name': full_name,
-                'age': r[19] or '',
-                'contact_number': r[20] or ''
+                'age': r[26] or '',
+                'contact_number': r[27] or ''
             }
             result.append(record)
         
@@ -12789,6 +13433,13 @@ def api_add_visitor_medical_record():
         conn = DatabaseConfig.get_connection()
         if not conn:
             return jsonify({'error': 'Database connection failed'}), 500
+
+        prescribed_medicines = data.get('prescribed_medicines')
+        if data.get('prescribed_medicine') and not prescribed_medicines:
+            return jsonify({'error': 'Manual medicine entry is not allowed. Please select medicines from inventory.'}), 400
+        validation_error = _validate_prescribed_medicines(conn, prescribed_medicines)
+        if validation_error:
+            return jsonify({'error': validation_error}), 400
         
         cursor = conn.cursor()
         ticket_number = generate_unique_ticket_number(conn)
@@ -12801,20 +13452,31 @@ def api_add_visitor_medical_record():
         print(f"Saving medical record for visitor_id: {visitor_id_raw} (numeric: {numeric_visitor_id})")
         print(f"Chief complaint: '{data.get('chief_complaint', '')}'")
         print(f"Treatment: '{data.get('treatment', '')}'")
+
+        illness_suggested = (data.get('illness_classification_suggested') or '').strip().lower() or None
+        illness_suggested_reason = data.get('illness_classification_suggested_reason')
+        illness_final = (data.get('illness_classification_final') or '').strip().lower() or illness_suggested
+        illness_override_reason = data.get('illness_classification_override_reason')
+        endorsement_required = True if illness_final == 'major' else False
+        endorsement_status = 'pending' if endorsement_required else 'not_required'
         
         # Insert new medical record for visitor
         cursor.execute('''
             INSERT INTO visitor_medical_records (
                 visitor_id, visit_date, visit_time, chief_complaint, medical_history,
+                food_allergies, medicine_allergies,
                 fever_duration, current_medication, medication_schedule,
                 blood_pressure_systolic, blood_pressure_diastolic, pulse_rate, 
                 temperature, respiratory_rate, weight, height, bmi, symptoms,
                 treatment, prescribed_medicine, dental_procedure,
                 procedure_notes, follow_up_date, special_instructions, notes, 
+                illness_classification_suggested, illness_classification_suggested_reason,
+                illness_classification_final, illness_classification_override_reason,
+                endorsement_required, endorsement_status,
                 staff_name, staff_id, will_stay_in_clinic, stay_reason, 
                 stay_status
             ) VALUES (
-                %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+                %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
             )
         ''', (
             numeric_visitor_id,
@@ -12822,6 +13484,8 @@ def api_add_visitor_medical_record():
             data.get('visit_time') or datetime.now().strftime('%H:%M:%S'),
             data.get('chief_complaint', ''),
             data.get('medical_history', ''),
+            data.get('food_allergies', ''),
+            data.get('medicine_allergies', ''),
             data.get('fever_duration', ''),
             data.get('current_medication', ''),
             data.get('medication_schedule', ''),
@@ -12841,6 +13505,12 @@ def api_add_visitor_medical_record():
             data.get('follow_up_date'),
             data.get('special_instructions', ''),
             data.get('notes', ''),
+            illness_suggested,
+            illness_suggested_reason,
+            illness_final,
+            illness_override_reason,
+            endorsement_required,
+            endorsement_status,
             session.get('first_name', '') + ' ' + session.get('last_name', ''),
             session.get('user_id'),
             1 if data.get('will_stay_in_clinic') else 0,
@@ -12890,6 +13560,9 @@ def api_teaching_medical_records(teaching_id):
                    tmr.treatment, tmr.prescribed_medicine, tmr.doctor_notes,
                    tmr.stay_status, tmr.actual_checkout_time, tmr.discharge_notes,
                    tmr.admission_time, tmr.discharge_time, tmr.diagnosis, tmr.vital_signs,
+                   tmr.illness_classification_suggested, tmr.illness_classification_suggested_reason,
+                   tmr.illness_classification_final, tmr.illness_classification_override_reason,
+                   tmr.endorsement_required, tmr.endorsement_status, tmr.endorsed_at,
                    t.first_name, t.last_name, t.email, t.faculty_id, t.rank, t.specialization,
                    u.first_name as doctor_first_name, u.last_name as doctor_last_name
             FROM teaching_medical_records tmr
@@ -12944,12 +13617,19 @@ def api_teaching_medical_records(teaching_id):
                 'discharge_time': r[12].strftime('%Y-%m-%d %H:%M:%S') if r[12] else None,
                 'diagnosis': r[13] or '',
                 'vital_signs': vital_signs,
-                'patient_name': f"{r[15]} {r[16]}" if r[15] and r[16] else '',
-                'email': r[17] or '',
-                'faculty_id': r[18] or '',
-                'rank': r[19] or '',
-                'specialization': r[20] or '',
-                'staff_name': f"{r[21]} {r[22]}" if r[21] and r[22] else 'N/A'
+                'illness_classification_suggested': r[15],
+                'illness_classification_suggested_reason': r[16],
+                'illness_classification_final': r[17],
+                'illness_classification_override_reason': r[18],
+                'endorsement_required': bool(r[19]) if r[19] is not None else False,
+                'endorsement_status': r[20],
+                'endorsed_at': r[21].strftime('%Y-%m-%d %H:%M:%S') if r[21] else None,
+                'patient_name': f"{r[22]} {r[23]}" if r[22] and r[23] else '',
+                'email': r[24] or '',
+                'faculty_id': r[25] or '',
+                'rank': r[26] or '',
+                'specialization': r[27] or '',
+                'staff_name': f"{r[28]} {r[29]}" if r[28] and r[29] else 'N/A'
             }
             result.append(record)
         
@@ -12975,6 +13655,13 @@ def api_add_teaching_medical_record():
         conn = DatabaseConfig.get_connection()
         if not conn:
             return jsonify({'error': 'Database connection failed'}), 500
+
+        prescribed_medicines = data.get('prescribed_medicines')
+        if data.get('prescribed_medicine') and not prescribed_medicines:
+            return jsonify({'error': 'Manual medicine entry is not allowed. Please select medicines from inventory.'}), 400
+        validation_error = _validate_prescribed_medicines(conn, prescribed_medicines)
+        if validation_error:
+            return jsonify({'error': validation_error}), 400
         
         cursor = conn.cursor()
         ticket_number = generate_unique_ticket_number(conn)
@@ -12983,6 +13670,13 @@ def api_add_teaching_medical_record():
         teaching_id = data.get('teaching_id', '').replace('T', '') if data.get('teaching_id', '').startswith('T') else data.get('teaching_id', '')
         
         print(f"Adding medical record for teaching staff ID: {teaching_id}")
+
+        illness_suggested = (data.get('illness_classification_suggested') or '').strip().lower() or None
+        illness_suggested_reason = data.get('illness_classification_suggested_reason')
+        illness_final = (data.get('illness_classification_final') or '').strip().lower() or illness_suggested
+        illness_override_reason = data.get('illness_classification_override_reason')
+        endorsement_required = True if illness_final == 'major' else False
+        endorsement_status = 'pending' if endorsement_required else 'not_required'
         
         # Prepare vital signs JSON
         vital_signs = {
@@ -12999,9 +13693,13 @@ def api_add_teaching_medical_record():
         cursor.execute('''
             INSERT INTO teaching_medical_records (
                 teaching_id, visit_date, visit_time, chief_complaint, physical_examination,
-                assessment, diagnosis, treatment, prescribed_medicine, vital_signs,
-                doctor_notes, follow_up_date, stay_status, created_by
-            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                assessment, diagnosis, food_allergies, medicine_allergies, treatment, prescribed_medicine, vital_signs,
+                doctor_notes, follow_up_date,
+                illness_classification_suggested, illness_classification_suggested_reason,
+                illness_classification_final, illness_classification_override_reason,
+                endorsement_required, endorsement_status,
+                stay_status, created_by
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         ''', (
             teaching_id,
             data.get('visit_date'),
@@ -13010,11 +13708,19 @@ def api_add_teaching_medical_record():
             data.get('physical_examination', ''),
             data.get('assessment', ''),
             data.get('diagnosis', ''),
+            data.get('food_allergies', ''),
+            data.get('medicine_allergies', ''),
             data.get('treatment', ''),
             data.get('prescribed_medicine', ''),
             json.dumps(vital_signs),
             data.get('doctor_notes', ''),
             data.get('follow_up_date'),
+            illness_suggested,
+            illness_suggested_reason,
+            illness_final,
+            illness_override_reason,
+            endorsement_required,
+            endorsement_status,
             'staying' if data.get('will_stay_in_clinic') else 'none',
             session.get('user_id')
         ))
@@ -13058,7 +13764,7 @@ def api_non_teaching_medical_records(non_teaching_id):
         conn = DatabaseConfig.get_connection()
         if not conn:
             return jsonify({'error': 'Database connection failed'}), 500
-        
+
         cursor = conn.cursor()
         ticket_number = generate_unique_ticket_number(conn)
         
@@ -13071,7 +13777,10 @@ def api_non_teaching_medical_records(non_teaching_id):
                    pulse_rate, temperature, respiratory_rate, weight, height, bmi, symptoms, treatment,
                    prescribed_medicine, dental_procedure, procedure_notes, follow_up_date,
                    special_instructions, notes, staff_name, stay_status, created_at,
-                   admission_time, discharge_time, stay_reason
+                   admission_time, discharge_time, stay_reason,
+                   illness_classification_suggested, illness_classification_suggested_reason,
+                   illness_classification_final, illness_classification_override_reason,
+                   endorsement_required, endorsement_status, endorsed_at
             FROM non_teaching_medical_records
             WHERE non_teaching_id = %s
             ORDER BY visit_date DESC, visit_time DESC
@@ -13111,7 +13820,14 @@ def api_non_teaching_medical_records(non_teaching_id):
                 'created_at': str(record[26]) if record[26] else None,
                 'admission_time': str(record[27]) if record[27] else None,
                 'discharge_time': str(record[28]) if record[28] else None,
-                'stay_reason': record[29]
+                'stay_reason': record[29],
+                'illness_classification_suggested': record[30],
+                'illness_classification_suggested_reason': record[31],
+                'illness_classification_final': record[32],
+                'illness_classification_override_reason': record[33],
+                'endorsement_required': bool(record[34]) if record[34] is not None else False,
+                'endorsement_status': record[35],
+                'endorsed_at': str(record[36]) if record[36] else None
             })
         
         cursor.close()
@@ -13138,6 +13854,13 @@ def api_add_non_teaching_medical_record():
         conn = DatabaseConfig.get_connection()
         if not conn:
             return jsonify({'error': 'Database connection failed'}), 500
+
+        prescribed_medicines = data.get('prescribed_medicines')
+        if data.get('prescribed_medicine') and not prescribed_medicines:
+            return jsonify({'error': 'Manual medicine entry is not allowed. Please select medicines from inventory.'}), 400
+        validation_error = _validate_prescribed_medicines(conn, prescribed_medicines)
+        if validation_error:
+            return jsonify({'error': validation_error}), 400
         
         cursor = conn.cursor()
         ticket_number = generate_unique_ticket_number(conn)
@@ -13147,23 +13870,37 @@ def api_add_non_teaching_medical_record():
         
         # Get staff name from session
         staff_name = f"{session.get('first_name', '')} {session.get('last_name', '')}".strip()
+
+        illness_suggested = (data.get('illness_classification_suggested') or '').strip().lower() or None
+        illness_suggested_reason = data.get('illness_classification_suggested_reason')
+        illness_final = (data.get('illness_classification_final') or '').strip().lower() or illness_suggested
+        illness_override_reason = data.get('illness_classification_override_reason')
+        endorsement_required = True if illness_final == 'major' else False
+        endorsement_status = 'pending' if endorsement_required else 'not_required'
         
         cursor.execute('''
             INSERT INTO non_teaching_medical_records (
                 non_teaching_id, visit_date, visit_time, chief_complaint, medical_history, fever_duration,
+                food_allergies, medicine_allergies,
                 current_medication, medication_schedule, blood_pressure_systolic, blood_pressure_diastolic,
                 pulse_rate, temperature, respiratory_rate, weight, height, bmi, symptoms, treatment,
                 prescribed_medicine, dental_procedure, procedure_notes, follow_up_date,
-                special_instructions, notes, staff_name, staff_id, will_stay_in_clinic, stay_reason, stay_status
-            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                special_instructions, notes,
+                illness_classification_suggested, illness_classification_suggested_reason,
+                illness_classification_final, illness_classification_override_reason,
+                endorsement_required, endorsement_status,
+                staff_name, staff_id, will_stay_in_clinic, stay_reason, stay_status
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         ''', (
             non_teaching_id, data.get('visit_date'), data.get('visit_time'), data.get('chief_complaint', ''),
-            data.get('medical_history', ''), data.get('fever_duration', ''), data.get('current_medication', ''),
+            data.get('medical_history', ''), data.get('fever_duration', ''), data.get('food_allergies', ''), data.get('medicine_allergies', ''), data.get('current_medication', ''),
             data.get('medication_schedule', ''), data.get('blood_pressure_systolic'), data.get('blood_pressure_diastolic'),
             data.get('pulse_rate'), data.get('temperature'), data.get('respiratory_rate'), data.get('weight'),
             data.get('height'), data.get('bmi'), data.get('symptoms', ''), data.get('treatment', ''),
             data.get('prescribed_medicine', ''), data.get('dental_procedure', ''), data.get('procedure_notes', ''),
             data.get('follow_up_date'), data.get('special_instructions', ''), data.get('notes', ''),
+            illness_suggested, illness_suggested_reason, illness_final, illness_override_reason,
+            endorsement_required, endorsement_status,
             staff_name, session.get('user_id'), data.get('will_stay_in_clinic', False),
             data.get('stay_reason', ''), 'staying' if data.get('will_stay_in_clinic') else 'not_staying'
         ))
@@ -13196,7 +13933,7 @@ def api_dean_medical_records(dean_id):
         conn = DatabaseConfig.get_connection()
         if not conn:
             return jsonify({'error': 'Database connection failed'}), 500
-        
+
         cursor = conn.cursor()
         ticket_number = generate_unique_ticket_number(conn)
         
@@ -13209,7 +13946,10 @@ def api_dean_medical_records(dean_id):
                    pulse_rate, temperature, respiratory_rate, weight, height, bmi, symptoms, treatment,
                    prescribed_medicine, dental_procedure, procedure_notes, follow_up_date,
                    special_instructions, notes, staff_name, stay_status, created_at,
-                   admission_time, discharge_time, stay_reason
+                   admission_time, discharge_time, stay_reason,
+                   illness_classification_suggested, illness_classification_suggested_reason,
+                   illness_classification_final, illness_classification_override_reason,
+                   endorsement_required, endorsement_status, endorsed_at
             FROM dean_medical_records
             WHERE dean_id = %s
             ORDER BY visit_date DESC, visit_time DESC
@@ -13249,7 +13989,14 @@ def api_dean_medical_records(dean_id):
                 'created_at': str(record[26]) if record[26] else None,
                 'admission_time': str(record[27]) if record[27] else None,
                 'discharge_time': str(record[28]) if record[28] else None,
-                'stay_reason': record[29]
+                'stay_reason': record[29],
+                'illness_classification_suggested': record[30],
+                'illness_classification_suggested_reason': record[31],
+                'illness_classification_final': record[32],
+                'illness_classification_override_reason': record[33],
+                'endorsement_required': bool(record[34]) if record[34] is not None else False,
+                'endorsement_status': record[35],
+                'endorsed_at': str(record[36]) if record[36] else None
             })
         
         cursor.close()
@@ -13276,6 +14023,13 @@ def api_add_dean_medical_record():
         conn = DatabaseConfig.get_connection()
         if not conn:
             return jsonify({'error': 'Database connection failed'}), 500
+
+        prescribed_medicines = data.get('prescribed_medicines')
+        if data.get('prescribed_medicine') and not prescribed_medicines:
+            return jsonify({'error': 'Manual medicine entry is not allowed. Please select medicines from inventory.'}), 400
+        validation_error = _validate_prescribed_medicines(conn, prescribed_medicines)
+        if validation_error:
+            return jsonify({'error': validation_error}), 400
         
         cursor = conn.cursor()
         ticket_number = generate_unique_ticket_number(conn)
@@ -13285,23 +14039,37 @@ def api_add_dean_medical_record():
         
         # Get staff name from session
         staff_name = f"{session.get('first_name', '')} {session.get('last_name', '')}".strip()
+
+        illness_suggested = (data.get('illness_classification_suggested') or '').strip().lower() or None
+        illness_suggested_reason = data.get('illness_classification_suggested_reason')
+        illness_final = (data.get('illness_classification_final') or '').strip().lower() or illness_suggested
+        illness_override_reason = data.get('illness_classification_override_reason')
+        endorsement_required = True if illness_final == 'major' else False
+        endorsement_status = 'pending' if endorsement_required else 'not_required'
         
         cursor.execute('''
             INSERT INTO dean_medical_records (
                 dean_id, visit_date, visit_time, chief_complaint, medical_history, fever_duration,
+                food_allergies, medicine_allergies,
                 current_medication, medication_schedule, blood_pressure_systolic, blood_pressure_diastolic,
                 pulse_rate, temperature, respiratory_rate, weight, height, bmi, symptoms, treatment,
                 prescribed_medicine, dental_procedure, procedure_notes, follow_up_date,
-                special_instructions, notes, staff_name, staff_id, will_stay_in_clinic, stay_reason, stay_status
-            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                special_instructions, notes,
+                illness_classification_suggested, illness_classification_suggested_reason,
+                illness_classification_final, illness_classification_override_reason,
+                endorsement_required, endorsement_status,
+                staff_name, staff_id, will_stay_in_clinic, stay_reason, stay_status
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         ''', (
             dean_id, data.get('visit_date'), data.get('visit_time'), data.get('chief_complaint', ''),
-            data.get('medical_history', ''), data.get('fever_duration', ''), data.get('current_medication', ''),
+            data.get('medical_history', ''), data.get('fever_duration', ''), data.get('food_allergies', ''), data.get('medicine_allergies', ''), data.get('current_medication', ''),
             data.get('medication_schedule', ''), data.get('blood_pressure_systolic'), data.get('blood_pressure_diastolic'),
             data.get('pulse_rate'), data.get('temperature'), data.get('respiratory_rate'), data.get('weight'),
             data.get('height'), data.get('bmi'), data.get('symptoms', ''), data.get('treatment', ''),
             data.get('prescribed_medicine', ''), data.get('dental_procedure', ''), data.get('procedure_notes', ''),
             data.get('follow_up_date'), data.get('special_instructions', ''), data.get('notes', ''),
+            illness_suggested, illness_suggested_reason, illness_final, illness_override_reason,
+            endorsement_required, endorsement_status,
             staff_name, session.get('user_id'), data.get('will_stay_in_clinic', False),
             data.get('stay_reason', ''), 'staying' if data.get('will_stay_in_clinic') else 'not_staying'
         ))
@@ -13347,7 +14115,10 @@ def api_president_medical_records(president_id):
                    pulse_rate, temperature, respiratory_rate, weight, height, bmi, symptoms, treatment,
                    prescribed_medicine, dental_procedure, procedure_notes, follow_up_date,
                    special_instructions, notes, staff_name, stay_status, created_at,
-                   admission_time, discharge_time, stay_reason
+                   admission_time, discharge_time, stay_reason,
+                   illness_classification_suggested, illness_classification_suggested_reason,
+                   illness_classification_final, illness_classification_override_reason,
+                   endorsement_required, endorsement_status, endorsed_at
             FROM president_medical_records
             WHERE president_id = %s
             ORDER BY visit_date DESC, visit_time DESC
@@ -13387,7 +14158,14 @@ def api_president_medical_records(president_id):
                 'created_at': str(record[26]) if record[26] else None,
                 'admission_time': str(record[27]) if record[27] else None,
                 'discharge_time': str(record[28]) if record[28] else None,
-                'stay_reason': record[29]
+                'stay_reason': record[29],
+                'illness_classification_suggested': record[30],
+                'illness_classification_suggested_reason': record[31],
+                'illness_classification_final': record[32],
+                'illness_classification_override_reason': record[33],
+                'endorsement_required': bool(record[34]) if record[34] is not None else False,
+                'endorsement_status': record[35],
+                'endorsed_at': str(record[36]) if record[36] else None
             })
         
         cursor.close()
@@ -13414,6 +14192,13 @@ def api_add_president_medical_record():
         conn = DatabaseConfig.get_connection()
         if not conn:
             return jsonify({'error': 'Database connection failed'}), 500
+
+        prescribed_medicines = data.get('prescribed_medicines')
+        if data.get('prescribed_medicine') and not prescribed_medicines:
+            return jsonify({'error': 'Manual medicine entry is not allowed. Please select medicines from inventory.'}), 400
+        validation_error = _validate_prescribed_medicines(conn, prescribed_medicines)
+        if validation_error:
+            return jsonify({'error': validation_error}), 400
         
         cursor = conn.cursor()
         ticket_number = generate_unique_ticket_number(conn)
@@ -13423,23 +14208,37 @@ def api_add_president_medical_record():
         
         # Get staff name from session
         staff_name = f"{session.get('first_name', '')} {session.get('last_name', '')}".strip()
+
+        illness_suggested = (data.get('illness_classification_suggested') or '').strip().lower() or None
+        illness_suggested_reason = data.get('illness_classification_suggested_reason')
+        illness_final = (data.get('illness_classification_final') or '').strip().lower() or illness_suggested
+        illness_override_reason = data.get('illness_classification_override_reason')
+        endorsement_required = True if illness_final == 'major' else False
+        endorsement_status = 'pending' if endorsement_required else 'not_required'
         
         cursor.execute('''
             INSERT INTO president_medical_records (
                 president_id, visit_date, visit_time, chief_complaint, medical_history, fever_duration,
+                food_allergies, medicine_allergies,
                 current_medication, medication_schedule, blood_pressure_systolic, blood_pressure_diastolic,
                 pulse_rate, temperature, respiratory_rate, weight, height, bmi, symptoms, treatment,
                 prescribed_medicine, dental_procedure, procedure_notes, follow_up_date,
-                special_instructions, notes, staff_name, staff_id, will_stay_in_clinic, stay_reason, stay_status
-            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                special_instructions, notes,
+                illness_classification_suggested, illness_classification_suggested_reason,
+                illness_classification_final, illness_classification_override_reason,
+                endorsement_required, endorsement_status,
+                staff_name, staff_id, will_stay_in_clinic, stay_reason, stay_status
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         ''', (
             president_id, data.get('visit_date'), data.get('visit_time'), data.get('chief_complaint', ''),
-            data.get('medical_history', ''), data.get('fever_duration', ''), data.get('current_medication', ''),
+            data.get('medical_history', ''), data.get('fever_duration', ''), data.get('food_allergies', ''), data.get('medicine_allergies', ''), data.get('current_medication', ''),
             data.get('medication_schedule', ''), data.get('blood_pressure_systolic'), data.get('blood_pressure_diastolic'),
             data.get('pulse_rate'), data.get('temperature'), data.get('respiratory_rate'), data.get('weight'),
             data.get('height'), data.get('bmi'), data.get('symptoms', ''), data.get('treatment', ''),
             data.get('prescribed_medicine', ''), data.get('dental_procedure', ''), data.get('procedure_notes', ''),
             data.get('follow_up_date'), data.get('special_instructions', ''), data.get('notes', ''),
+            illness_suggested, illness_suggested_reason, illness_final, illness_override_reason,
+            endorsement_required, endorsement_status,
             staff_name, session.get('user_id'), data.get('will_stay_in_clinic', False),
             data.get('stay_reason', ''), 'staying' if data.get('will_stay_in_clinic') else 'not_staying'
         ))

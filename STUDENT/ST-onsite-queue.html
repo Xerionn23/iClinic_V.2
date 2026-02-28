@@ -43,7 +43,7 @@
             100% { box-shadow: 0 0 0 rgba(59, 130, 246, 0.0); }
         }
 
-        .ticket-glow {
+        .ticket-glow { 
             animation: ticketGlow 900ms ease-out;
         }
     </style>
@@ -70,7 +70,7 @@
 
     onsiteTicketModal: false,
     ticketSubmitting: false,
-    ticketForm: { priority: 'P3' },
+    ticketForm: { },
     ticketResult: null,
     ticketError: null,
 
@@ -276,7 +276,7 @@
     openOnsiteTicketModal() {
         this.ticketError = null;
         this.ticketResult = null;
-        this.ticketForm = { priority: 'P3' };
+        this.ticketForm = { };
         this.onsiteTicketModal = true;
         this.$nextTick(() => {
             try { feather.replace(); } catch (e) {}
@@ -290,7 +290,6 @@
             this.ticketError = 'You already have an active ticket. Please wait for it to be called.';
             return;
         }
-        const priority = String(this.ticketForm.priority || 'P3').toUpperCase().trim();
 
         const profile = this.currentUserProfile;
         const fullName = profile ? ((profile.first_name || '') + ' ' + (profile.last_name || '')).trim() : '';
@@ -309,14 +308,17 @@
                 body: JSON.stringify({
                     patient_type: patientType,
                     patient_identifier: patientIdentifier || null,
-                    full_name: fullName || null,
-                    priority: priority
+                    full_name: fullName || null
                 })
             });
 
             const payload = await response.json().catch(() => ({}));
             if (!response.ok || payload.error || payload.success === false) {
-                this.ticketError = payload.error || payload.message || 'Unable to create ticket. Please try again.';
+                if (payload && payload.bypass_queue) {
+                    this.ticketError = payload.error || 'Please proceed directly to the clinic.';
+                } else {
+                    this.ticketError = payload.error || payload.message || 'Unable to create ticket. Please try again.';
+                }
                 return;
             }
 
@@ -510,7 +512,7 @@
             <div class="flex items-center justify-between">
                 <div>
                     <h2 class="text-xl font-bold">Onsite Consultation Ticket</h2>
-                    <p class="text-blue-100 text-sm">Select priority to get a queue number</p>
+                    <p class="text-blue-100 text-sm">Get a queue number and wait for your ticket to be called</p>
                 </div>
                 <button type="button" @click="onsiteTicketModal = false" class="p-2 hover:bg-white/20 rounded-lg transition-colors">
                     <i data-feather="x" class="w-5 h-5"></i>
@@ -519,16 +521,6 @@
         </div>
 
         <div class="p-6 space-y-4">
-            <div>
-                <label class="block text-sm font-semibold text-gray-700 mb-2">Priority</label>
-                <select x-model="ticketForm.priority" class="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-900 transition-all">
-                    <option value="P1">P1 - Emergency</option>
-                    <option value="P2">P2 - Urgent</option>
-                    <option value="P3">P3 - Routine</option>
-                    <option value="P4">P4 - Admin</option>
-                </select>
-            </div>
-
             <div x-show="ticketError" class="bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 text-sm" x-text="ticketError"></div>
 
             <div x-show="ticketResult" class="bg-blue-50 border border-blue-200 text-blue-800 rounded-xl px-4 py-3">
