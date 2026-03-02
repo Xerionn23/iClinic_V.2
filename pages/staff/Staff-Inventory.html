@@ -647,6 +647,18 @@
                                                class="pl-10 pr-4 py-2 w-64 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white text-gray-900">
                                         <i data-feather="search" class="absolute left-3 top-2.5 w-4 h-4 text-gray-400"></i>
                                     </div>
+
+                                    <div class="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2">
+                                        <input type="date"
+                                               x-model="expiryDateFrom"
+                                               class="px-3 py-2 w-44 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white text-gray-900"
+                                               title="Expiry date from">
+
+                                        <input type="date"
+                                               x-model="expiryDateTo"
+                                               class="px-3 py-2 w-44 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white text-gray-900"
+                                               title="Expiry date to">
+                                    </div>
                                 </div>
                                 
                                 <div class="flex items-center gap-2">
@@ -1001,7 +1013,15 @@
                                             <p class="text-sm text-gray-600">Medicines that have passed their expiration date</p>
                                         </div>
                                     </div>
-                                    <span class="px-3 py-1 bg-blue-500 text-white rounded-full text-sm font-semibold" x-text="expiredMedicines.length + ' items'"></span>
+                                    <div class="flex items-center gap-3">
+                                        <select x-model="selectedExpiryStatus" class="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white text-gray-900">
+                                            <option value="">All Expiry Status</option>
+                                            <option value="valid">Valid (&gt; 30 days)</option>
+                                            <option value="expiring">Expiring Soon (0-30 days)</option>
+                                            <option value="expired">Expired</option>
+                                        </select>
+                                        <span class="px-3 py-1 bg-blue-500 text-white rounded-full text-sm font-semibold" x-text="expiredMedicines.length + ' items'"></span>
+                                    </div>
                                 </div>
                             </div>
 
@@ -1510,6 +1530,9 @@
                 searchTerm: '',
                 selectedCategory: '',
                 selectedStatus: '',
+                expiryDateFrom: '',
+                expiryDateTo: '',
+                selectedExpiryStatus: '',
                 
                 // Supply filters
                 supplySearchTerm: '',
@@ -1578,24 +1601,83 @@
                 // Computed properties
                 get filteredMedicines() {
                     return this.medicines.filter(medicine => {
-                        // Show medicines that have AT LEAST ONE batch with >30 days until expiry
-                        let hasActiveBatches = false;
-                        
-                        if (medicine.batches && medicine.batches.length > 0) {
-                            // Check if there's at least one batch with >30 days
-                            hasActiveBatches = medicine.batches.some(batch => {
-                                const daysUntilExpiry = this.getDaysUntilExpiry(batch.expiry_date);
-                                return daysUntilExpiry > 30; // At least one batch with >30 days
-                            });
-                        } else {
-                            // No batches, use medicine's own expiry date
-                            const daysUntilExpiry = this.getDaysUntilExpiry(medicine.expiry_date);
-                            hasActiveBatches = daysUntilExpiry > 30;
-                        }
-                        
-                        // Only show medicines that have at least one active batch
-                        if (!hasActiveBatches) {
-                            return false;
+                        const hasExpiryRangeFilter = !!this.expiryDateFrom || !!this.expiryDateTo;
+                        const hasExpiryStatusFilter = !!this.selectedExpiryStatus;
+
+                        const parseDateOnly = (dateStr) => {
+                            if (!dateStr) return null;
+                            const d = new Date(dateStr + 'T00:00:00');
+                            return isNaN(d.getTime()) ? null : d;
+                        };
+
+                        const fromDate = parseDateOnly(this.expiryDateFrom);
+                        const toDate = parseDateOnly(this.expiryDateTo);
+
+                        const getMedicineMinDaysUntilExpiry = () => {
+                            const candidates = [];
+                            if (medicine.batches && medicine.batches.length > 0) {
+                                medicine.batches.forEach(b => {
+                                    if (b && b.expiry_date) {
+                                        candidates.push(this.getDaysUntilExpiry(b.expiry_date));
+                                    }
+                                });
+                            }
+                            if (candidates.length === 0 && medicine.expiry_date) {
+                                candidates.push(this.getDaysUntilExpiry(medicine.expiry_date));
+                            }
+                            if (candidates.length === 0) return null;
+                            return Math.min(...candidates);
+                        };
+
+                        const matchesExpiryStatus = (() => {
+                            if (!hasExpiryStatusFilter) return true;
+                            const minDays = getMedicineMinDaysUntilExpiry();
+                            if (minDays === null) return false;
+
+                            if (this.selectedExpiryStatus === 'expired') return minDays < 0;
+                            if (this.selectedExpiryStatus === 'expiring') return minDays >= 0 && minDays <= 30;
+                            if (this.selectedExpiryStatus === 'valid') return minDays > 30;
+                            return true;
+                        })();
+
+                        if (!matchesExpiryStatus) return false;
+
+                        const matchesExpiryRange = (() => {
+                            if (!hasExpiryRangeFilter) return true;
+
+                            const inRange = (dateObj) => {
+                                if (!dateObj) return false;
+                                if (fromDate && dateObj < fromDate) return false;
+                                if (toDate && dateObj > toDate) return false;
+                                return true;
+                            };
+
+                            if (medicine.batches && medicine.batches.length > 0) {
+                                return medicine.batches.some(b => inRange(parseDateOnly(b.expiry_date)));
+                            }
+
+                            return inRange(parseDateOnly(medicine.expiry_date));
+                        })();
+
+                        if (!matchesExpiryRange) return false;
+
+                        // Preserve current default behavior: by default, show only medicines with at least one batch > 30 days
+                        if (!hasExpiryRangeFilter && !hasExpiryStatusFilter) {
+                            let hasActiveBatches = false;
+
+                            if (medicine.batches && medicine.batches.length > 0) {
+                                hasActiveBatches = medicine.batches.some(batch => {
+                                    const daysUntilExpiry = this.getDaysUntilExpiry(batch.expiry_date);
+                                    return daysUntilExpiry > 30;
+                                });
+                            } else {
+                                const daysUntilExpiry = this.getDaysUntilExpiry(medicine.expiry_date);
+                                hasActiveBatches = daysUntilExpiry > 30;
+                            }
+
+                            if (!hasActiveBatches) {
+                                return false;
+                            }
                         }
                         
                         // Search filter - check medicine name, brand name, and generic name

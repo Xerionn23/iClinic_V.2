@@ -7,6 +7,9 @@ from datetime import datetime, timedelta
 import os
 import json
 import smtplib
+import threading
+import time
+import socket
 import secrets
 import random
 import uuid
@@ -54,6 +57,399 @@ EMAIL_CONFIG = {
     'password': 'xtsweijcxsntwhld',   # Gmail App Password (same as account creation)
     'from_name': 'iClinic System'
 }
+
+
+def _get_email_config():
+    smtp_server = (os.environ.get('ICLINIC_SMTP_SERVER') or EMAIL_CONFIG.get('smtp_server') or '').strip() or 'smtp.gmail.com'
+    smtp_port_raw = (os.environ.get('ICLINIC_SMTP_PORT') or str(EMAIL_CONFIG.get('smtp_port') or '')).strip() or '587'
+    try:
+        smtp_port = int(smtp_port_raw)
+    except Exception:
+        smtp_port = 587
+
+    sender_email = (os.environ.get('ICLINIC_EMAIL') or EMAIL_CONFIG.get('email') or '').strip()
+    sender_password = (os.environ.get('ICLINIC_EMAIL_PASSWORD') or EMAIL_CONFIG.get('password') or '').strip()
+    from_name = (os.environ.get('ICLINIC_EMAIL_FROM_NAME') or EMAIL_CONFIG.get('from_name') or '').strip() or 'iClinic System'
+
+    return {
+        'smtp_server': smtp_server,
+        'smtp_port': smtp_port,
+        'email': sender_email,
+        'password': sender_password,
+        'from_name': from_name,
+    }
+
+
+def _is_truthy_env(var_name: str) -> bool:
+    value = (os.environ.get(var_name) or '').strip().lower()
+    return value in ['1', 'true', 'yes', 'y', 'on']
+
+
+def _send_email_html(to_email: str, subject: str, html_content: str) -> bool:
+    cfg = _get_email_config()
+    if not cfg.get('email') or not cfg.get('password'):
+        print('⚠️ Email config missing (ICLINIC_EMAIL / ICLINIC_EMAIL_PASSWORD). Email not sent.')
+        return False
+
+    msg = MIMEMultipart('alternative')
+    msg['Subject'] = subject
+    msg['From'] = f"{cfg.get('from_name')} <{cfg.get('email')}>" if cfg.get('from_name') else cfg.get('email')
+    msg['To'] = to_email
+    msg.attach(MIMEText(html_content, 'html'))
+
+    try:
+        debug_smtp = _is_truthy_env('ICLINIC_SMTP_DEBUG')
+
+        def _send_with_starttls():
+            s = smtplib.SMTP(cfg['smtp_server'], cfg['smtp_port'], timeout=30)
+            if debug_smtp:
+                s.set_debuglevel(1)
+            s.ehlo()
+            s.starttls()
+            s.ehlo()
+            s.login(cfg['email'], cfg['password'])
+            s.send_message(msg)
+            s.quit()
+            return True
+
+        def _send_with_ssl():
+            # Gmail SSL
+            s = smtplib.SMTP_SSL(cfg['smtp_server'], 465, timeout=30)
+            if debug_smtp:
+                s.set_debuglevel(1)
+            s.ehlo()
+            s.login(cfg['email'], cfg['password'])
+            s.send_message(msg)
+            s.quit()
+            return True
+
+        # Prefer STARTTLS, but fallback to SSL if the server disconnects (common on some networks/firewalls)
+        try:
+            return _send_with_starttls()
+        except (smtplib.SMTPServerDisconnected, smtplib.SMTPConnectError, smtplib.SMTPHeloError, socket.timeout, ConnectionResetError, OSError) as e:
+            print(f"⚠️ STARTTLS SMTP failed ({type(e).__name__}: {e}). Trying SSL (465)...")
+            return _send_with_ssl()
+    except smtplib.SMTPAuthenticationError as auth_error:
+        print(f"❌ Gmail Authentication Failed: {auth_error}")
+        return False
+    except Exception as email_error:
+        print(f"❌ Failed to send email: {email_error}")
+        return False
+
+
+def _get_all_patient_emails():
+    conn = DatabaseConfig.get_connection()
+    if not conn:
+        return []
+
+    cursor = conn.cursor(dictionary=True)
+    try:
+        emails = []
+
+        try:
+            cursor.execute("SELECT email FROM users WHERE LOWER(TRIM(position)) = 'student' AND email IS NOT NULL AND TRIM(email) <> ''")
+            for row in cursor.fetchall() or []:
+                emails.append((row.get('email') or '').strip())
+        except Exception:
+            pass
+
+        try:
+            cursor.execute("SELECT std_EmailAdd AS email FROM students WHERE std_EmailAdd IS NOT NULL AND TRIM(std_EmailAdd) <> ''")
+            for row in cursor.fetchall() or []:
+                emails.append((row.get('email') or '').strip())
+        except Exception:
+            pass
+
+        cleaned = []
+        seen = set()
+        for e in emails:
+            e = (e or '').strip()
+            if not e or '@' not in e:
+                continue
+            key = e.lower()
+            if key in seen:
+                continue
+            seen.add(key)
+            cleaned.append(e)
+
+        return cleaned
+    finally:
+        try:
+            cursor.close()
+        except Exception:
+            pass
+        try:
+            conn.close()
+        except Exception:
+            pass
+
+
+def _send_clinic_event_notifications_background(event_payload: dict):
+    try:
+        recipients = _get_all_patient_emails()
+
+        max_recipients_raw = (os.environ.get('ICLINIC_EMAIL_MAX_RECIPIENTS') or '').strip()
+        if max_recipients_raw:
+            try:
+                max_recipients = int(max_recipients_raw)
+            except Exception:
+                max_recipients = None
+            if max_recipients is not None and max_recipients >= 0:
+                recipients = recipients[:max_recipients]
+
+        print(f"📧 Clinic event notification recipients: {len(recipients)}")
+
+        title = (event_payload.get('title') or '').strip() or 'Clinic Event'
+        description = (event_payload.get('description') or '').strip()
+        event_type = (event_payload.get('event_type') or '').strip()
+        start_date = (event_payload.get('start_date') or '').strip()
+        end_date = (event_payload.get('end_date') or '').strip()
+        is_all_day = bool(event_payload.get('is_all_day', False))
+        start_time = (event_payload.get('start_time') or '').strip()
+        end_time = (event_payload.get('end_time') or '').strip()
+
+        def _fmt_date(date_str: str) -> str:
+            try:
+                return datetime.strptime(date_str, '%Y-%m-%d').strftime('%B %d, %Y')
+            except Exception:
+                return date_str
+
+        def _fmt_time(time_str: str) -> str:
+            try:
+                return datetime.strptime(time_str, '%H:%M').strftime('%-I:%M %p')
+            except Exception:
+                try:
+                    return datetime.strptime(time_str, '%H:%M:%S').strftime('%-I:%M %p')
+                except Exception:
+                    return time_str
+
+        # Windows strftime doesn't support %-I
+        def _fmt_time_windows_safe(time_str: str) -> str:
+            t = _fmt_time(time_str)
+            return t.replace(' 0', ' ')
+
+        start_date_h = _fmt_date(start_date) if start_date else ''
+        end_date_h = _fmt_date(end_date) if end_date else ''
+        start_time_h = _fmt_time_windows_safe(start_time) if start_time else ''
+        end_time_h = _fmt_time_windows_safe(end_time) if end_time else ''
+
+        when_line = ''
+        if is_all_day:
+            if start_date_h and end_date_h and start_date != end_date:
+                when_line = f"{start_date_h} to {end_date_h} (All Day)"
+            elif start_date_h:
+                when_line = f"{start_date_h} (All Day)"
+            else:
+                when_line = "All Day"
+        else:
+            if start_date_h and end_date_h and start_date == end_date and start_time_h and end_time_h:
+                when_line = f"{start_date_h} • {start_time_h} to {end_time_h}"
+            elif start_date_h and end_date_h and start_time_h and end_time_h:
+                when_line = f"{start_date_h} {start_time_h} to {end_date_h} {end_time_h}"
+            elif start_date_h and end_date_h and start_date != end_date:
+                when_line = f"{start_date_h} to {end_date_h}"
+            elif start_date_h:
+                when_line = start_date_h
+
+        subject = f"Clinic Schedule Update: {title}"
+
+        badge_label_map = {
+            'holiday': 'Holiday / Break',
+            'limited_hours': 'Limited Hours',
+            'no_appointments': 'No Appointments',
+            'maintenance': 'Maintenance',
+            'emergency_only': 'Emergency Only',
+        }
+        badge_label = badge_label_map.get((event_type or '').strip().lower(), (event_type or '').strip() or 'Clinic Event')
+        badge_bg_map = {
+            'holiday': '#DCFCE7',
+            'limited_hours': '#FEF3C7',
+            'no_appointments': '#FEE2E2',
+            'maintenance': '#DBEAFE',
+            'emergency_only': '#EDE9FE',
+        }
+        badge_text_map = {
+            'holiday': '#166534',
+            'limited_hours': '#92400E',
+            'no_appointments': '#991B1B',
+            'maintenance': '#1E40AF',
+            'emergency_only': '#5B21B6',
+        }
+        badge_bg = badge_bg_map.get((event_type or '').strip().lower(), '#E5E7EB')
+        badge_text = badge_text_map.get((event_type or '').strip().lower(), '#111827')
+
+        iclinic_url = (os.environ.get('ICLINIC_BASE_URL') or '').strip()
+        view_url = f"{iclinic_url}/appointments" if iclinic_url else ''
+
+        html_content = f"""
+        <!doctype html>
+        <html lang=\"en\">
+        <head>
+          <meta charset=\"UTF-8\" />
+          <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\" />
+          <title>Clinic Schedule Update</title>
+        </head>
+        <body style=\"margin:0; padding:0; background:#F3F4F6;\">
+          <table role=\"presentation\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\" width=\"100%\" style=\"background:#F3F4F6;\">
+            <tr>
+              <td align=\"center\" style=\"padding:24px;\">
+                <table role=\"presentation\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\" width=\"600\" style=\"width:600px; max-width:600px; background:#ffffff; border-radius:16px; overflow:hidden; border:1px solid #E5E7EB;\">
+                  <tr>
+                    <td style=\"padding:22px 24px; background:linear-gradient(135deg,#1E40AF 0%,#3B82F6 100%);\">
+                      <div style=\"font-family:Arial,Helvetica,sans-serif;\">
+                        <div style=\"font-size:14px; color:rgba(255,255,255,0.92); letter-spacing:0.3px;\">iClinic Healthcare System</div>
+                        <div style=\"font-size:22px; font-weight:700; color:#ffffff; margin-top:6px;\">Clinic Schedule Update</div>
+                      </div>
+                    </td>
+                  </tr>
+
+                  <tr>
+                    <td style=\"padding:22px 24px 6px 24px;\">
+                      <div style=\"font-family:Arial,Helvetica,sans-serif; color:#111827;\">
+                        <div style=\"display:inline-block; padding:6px 10px; border-radius:999px; background:{badge_bg}; color:{badge_text}; font-size:12px; font-weight:700;\">{badge_label}</div>
+                        <div style=\"font-size:20px; font-weight:800; margin-top:12px; line-height:1.25;\">{title}</div>
+                      </div>
+                    </td>
+                  </tr>
+
+                  <tr>
+                    <td style=\"padding:12px 24px;\">
+                      <table role=\"presentation\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\" width=\"100%\" style=\"background:#F8FAFC; border:1px solid #E5E7EB; border-radius:14px;\">
+                        <tr>
+                          <td style=\"padding:14px 16px; font-family:Arial,Helvetica,sans-serif;\">
+                            <div style=\"font-size:12px; font-weight:700; color:#6B7280; text-transform:uppercase; letter-spacing:0.6px;\">Schedule</div>
+                            <div style=\"font-size:14px; font-weight:700; color:#111827; margin-top:6px;\">{when_line or 'See details below'}</div>
+                          </td>
+                        </tr>
+                      </table>
+                    </td>
+                  </tr>
+
+                  <tr>
+                    <td style=\"padding:6px 24px 8px 24px;\">
+                      <div style=\"font-family:Arial,Helvetica,sans-serif; color:#374151; font-size:14px; line-height:1.6;\">
+                        {f"<div style='font-weight:800; margin:10px 0 6px 0; color:#111827;'>Details</div><div style='white-space:pre-line;'>{description}</div>" if description else ""}
+                      </div>
+                    </td>
+                  </tr>
+
+                  <tr>
+                    <td style=\"padding:10px 24px 20px 24px;\">
+                      <table role=\"presentation\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\" width=\"100%\">
+                        <tr>
+                          <td align=\"left\">
+                            {f"<a href='{view_url}' style='display:inline-block; background:#2563EB; color:#ffffff; font-family:Arial,Helvetica,sans-serif; font-size:14px; font-weight:800; text-decoration:none; padding:12px 14px; border-radius:12px;'>View in iClinic</a>" if view_url else ""}
+                          </td>
+                        </tr>
+                      </table>
+                    </td>
+                  </tr>
+
+                  <tr>
+                    <td style=\"padding:16px 24px; background:#F9FAFB; border-top:1px solid #E5E7EB;\">
+                      <div style=\"font-family:Arial,Helvetica,sans-serif; font-size:12px; color:#6B7280; line-height:1.5;\">
+                        This is an automated email from iClinic. Please do not reply.
+                      </div>
+                    </td>
+                  </tr>
+                </table>
+
+                <div style=\"font-family:Arial,Helvetica,sans-serif; font-size:11px; color:#9CA3AF; margin-top:10px;\">
+                  © {datetime.now().year} iClinic
+                </div>
+              </td>
+            </tr>
+          </table>
+        </body>
+        </html>
+        """
+
+        cfg = _get_email_config()
+        if not cfg.get('email') or not cfg.get('password'):
+            print('⚠️ Email config missing (ICLINIC_EMAIL / ICLINIC_EMAIL_PASSWORD). Bulk email not sent.')
+            return
+
+        batch_size_raw = (os.environ.get('ICLINIC_EMAIL_BCC_BATCH_SIZE') or '').strip()
+        try:
+            batch_size = int(batch_size_raw) if batch_size_raw else 40
+        except Exception:
+            batch_size = 40
+        if batch_size <= 0:
+            batch_size = 40
+
+        def _chunks(items, size):
+            for i in range(0, len(items), size):
+                yield items[i:i + size]
+
+        def _connect_smtp():
+            try:
+                debug_smtp = _is_truthy_env('ICLINIC_SMTP_DEBUG')
+                use_ssl = _is_truthy_env('ICLINIC_SMTP_USE_SSL')
+
+                if use_ssl:
+                    s = smtplib.SMTP_SSL(cfg['smtp_server'], 465, timeout=30)
+                    if debug_smtp:
+                        s.set_debuglevel(1)
+                    s.ehlo()
+                    s.login(cfg['email'], cfg['password'])
+                    return s
+
+                s = smtplib.SMTP(cfg['smtp_server'], cfg['smtp_port'], timeout=30)
+                if debug_smtp:
+                    s.set_debuglevel(1)
+                s.ehlo()
+                s.starttls()
+                s.ehlo()
+                s.login(cfg['email'], cfg['password'])
+                return s
+            except Exception as conn_err:
+                print(f"❌ SMTP connect/login failed: {type(conn_err).__name__}: {conn_err}")
+                raise
+
+        # Gmail is much more stable when sending to batches via BCC instead of one SMTP send per recipient.
+        total_batches = (len(recipients) + batch_size - 1) // batch_size if recipients else 0
+        print(f"📦 Sending clinic event emails in {total_batches} batch(es), batch_size={batch_size}")
+
+        batches_sent = 0
+        batches_failed = 0
+        recipients_sent_estimate = 0
+
+        for batch_index, batch in enumerate(_chunks(recipients, batch_size), start=1):
+            server = None
+            try:
+                server = _connect_smtp()
+
+                msg = MIMEMultipart('alternative')
+                msg['Subject'] = subject
+                msg['From'] = f"{cfg.get('from_name')} <{cfg.get('email')}>" if cfg.get('from_name') else cfg.get('email')
+                # Use sender as To, put real recipients in BCC
+                msg['To'] = cfg.get('email')
+                msg['Bcc'] = ', '.join(batch)
+                msg.attach(MIMEText(html_content, 'html'))
+
+                # sendmail requires explicit recipient list when using BCC
+                server.sendmail(cfg.get('email'), [cfg.get('email')] + batch, msg.as_string())
+                batches_sent += 1
+                recipients_sent_estimate += len(batch)
+
+                # small delay per batch to reduce Gmail throttling
+                time.sleep(1.2)
+                print(f"✅ Batch {batch_index}/{total_batches} sent ({len(batch)} recipients)")
+            except Exception as send_err:
+                batches_failed += 1
+                print(f"❌ Batch {batch_index}/{total_batches} failed: {type(send_err).__name__}: {send_err}")
+                # backoff before next batch
+                time.sleep(min(10, 2 + batch_index))
+            finally:
+                try:
+                    if server:
+                        server.quit()
+                except Exception:
+                    pass
+
+        print(f"✅ Clinic event notification batches sent: {batches_sent}, failed: {batches_failed} (estimated recipients emailed: {recipients_sent_estimate})")
+    except Exception as e:
+        print(f"❌ Clinic event notification background job failed: {e}")
 
 def _resolve_medical_record_table(role):
     role_normalized = (role or '').strip().lower()
@@ -4014,11 +4410,11 @@ def send_verification_email(email, verification_link, role, id_number):
 def send_appointment_notification(patient_email, patient_name, appointment_date, appointment_time, appointment_type):
     """Send email notification for appointment confirmation"""
     try:
-        # Email configuration - Using Gmail SMTP
-        smtp_server = "smtp.gmail.com"
-        smtp_port = 587
-        sender_email = "norzagaraycollege.clinic@gmail.com"  # iClinic system email
-        sender_password = "xtsweijcxsntwhld"  # Gmail App Password
+        cfg = _get_email_config()
+        smtp_server = cfg['smtp_server']
+        smtp_port = cfg['smtp_port']
+        sender_email = cfg['email']
+        sender_password = cfg['password']
         
         # Format date and time for display
         from datetime import datetime
@@ -12705,7 +13101,7 @@ def api_get_clinic_events():
                 end_time,
                 is_all_day
             FROM clinic_events 
-            WHERE end_date >= CURDATE()
+            WHERE end_date >= DATE(CONCAT(YEAR(CURDATE()), '-01-01'))
             ORDER BY start_date, start_time
         ''')
         
@@ -12713,6 +13109,18 @@ def api_get_clinic_events():
         
         # Add clinic events to calendar
         for event in clinic_events:
+            event_colors = {
+                'no_appointments': ('#DC2626', '#DC2626', '#FFFFFF'),
+                'limited_hours': ('#F59E0B', '#F59E0B', '#111827'),
+                'emergency_only': ('#7C3AED', '#7C3AED', '#FFFFFF'),
+                'maintenance': ('#2563EB', '#2563EB', '#FFFFFF'),
+                'holiday': ('#16A34A', '#16A34A', '#FFFFFF'),
+            }
+            bg_color, border_color, text_color = event_colors.get(
+                event.get('event_type'),
+                ('#6B7280', '#6B7280', '#FFFFFF')
+            )
+
             if event['is_all_day']:
                 # All day event
                 calendar_events.append({
@@ -12729,9 +13137,9 @@ def api_get_clinic_events():
                     'allDay': True,
                     'start_time': None,
                     'end_time': None,
-                    'backgroundColor': '#DC2626',
-                    'borderColor': '#DC2626',
-                    'textColor': '#FFFFFF'
+                    'backgroundColor': bg_color,
+                    'borderColor': border_color,
+                    'textColor': text_color
                 })
             else:
                 # Timed event
@@ -12754,9 +13162,9 @@ def api_get_clinic_events():
                     'is_all_day': False,
                     'start_time': start_time_str,
                     'end_time': end_time_str,
-                    'backgroundColor': '#DC2626',
-                    'borderColor': '#DC2626',
-                    'textColor': '#FFFFFF'
+                    'backgroundColor': bg_color,
+                    'borderColor': border_color,
+                    'textColor': text_color
                 })
         
         # NOTE: Appointments are handled separately via /api/appointments endpoint
@@ -12903,6 +13311,26 @@ def api_create_clinic_event():
         conn.commit()
         cursor.close()
         conn.close()
+
+        try:
+            thread = threading.Thread(
+                target=_send_clinic_event_notifications_background,
+                args=({
+                    'id': event_id,
+                    'title': data.get('title'),
+                    'description': data.get('description', ''),
+                    'event_type': data.get('event_type'),
+                    'start_date': data.get('start_date'),
+                    'end_date': data.get('end_date'),
+                    'start_time': data.get('start_time'),
+                    'end_time': data.get('end_time'),
+                    'is_all_day': data.get('is_all_day', False),
+                },),
+                daemon=True,
+            )
+            thread.start()
+        except Exception as notify_error:
+            print(f"⚠️ Failed to start clinic event notification thread: {notify_error}")
         
         print(f"âœ… Clinic event created successfully: {data['title']} (ID: {event_id})")
         return jsonify({
@@ -13040,6 +13468,161 @@ def api_check_appointment_availability():
     except Exception as e:
         print(f"âŒ Error checking appointment availability: {str(e)}")
         return jsonify({'error': f'Failed to check availability: {str(e)}'}), 500
+
+@app.route('/api/sync-holidays', methods=['POST'])
+def api_sync_holidays():
+    """Sync PH national holidays from Google Calendar into clinic_events."""
+    if 'user_id' not in session:
+        return jsonify({'error': 'Authentication required'}), 401
+
+    try:
+        # Staff-only: prevent students from running a system-wide sync
+        conn = DatabaseConfig.get_connection()
+        if not conn:
+            return jsonify({'error': 'Database connection failed'}), 500
+
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute('SELECT id, position FROM users WHERE id = %s LIMIT 1', (session['user_id'],))
+        current_user = cursor.fetchone()
+        cursor.close()
+        conn.close()
+
+        if not current_user:
+            return jsonify({'error': 'User not found'}), 404
+
+        if (current_user.get('position') or '').strip().lower() == 'student':
+            return jsonify({'error': 'Forbidden'}), 403
+
+        data = request.get_json(silent=True) or {}
+
+        # Prefer environment variable, but allow request payload fallback for local development.
+        google_api_key = (os.environ.get('GOOGLE_CALENDAR_API_KEY') or '').strip() or (data.get('api_key') or '').strip()
+        if not google_api_key:
+            return jsonify({'error': 'Missing GOOGLE_CALENDAR_API_KEY'}), 400
+
+        calendar_id = (data.get('calendar_id') or 'en.philippines#holiday@group.v.calendar.google.com').strip()
+        year = int(data.get('year') or datetime.now().year)
+        years_ahead = int(data.get('years_ahead') or 1)
+
+        time_min = f"{year}-01-01T00:00:00Z"
+        time_max = f"{year + years_ahead}-12-31T23:59:59Z"
+
+        from urllib.parse import quote
+
+        url = (
+            "https://www.googleapis.com/calendar/v3/calendars/"
+            f"{quote(calendar_id, safe='')}"
+            "/events"
+        )
+
+        params = {
+            'key': google_api_key,
+            'timeMin': time_min,
+            'timeMax': time_max,
+            'singleEvents': 'true',
+            'orderBy': 'startTime',
+            'maxResults': 2500,
+        }
+
+        response = http_requests.get(url, params=params, timeout=30)
+        if not response.ok:
+            return jsonify({
+                'error': 'Failed to fetch holidays from Google Calendar',
+                'status_code': response.status_code,
+                'details': response.text
+            }), 502
+
+        payload = response.json() or {}
+        items = payload.get('items') or []
+
+        conn = DatabaseConfig.get_connection()
+        if not conn:
+            return jsonify({'error': 'Database connection failed'}), 500
+
+        cursor = conn.cursor(dictionary=True)
+
+        cursor.execute(''' 
+            CREATE TABLE IF NOT EXISTS clinic_events (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                title VARCHAR(255) NOT NULL,
+                description TEXT,
+                event_type VARCHAR(100) NOT NULL,
+                start_date DATE NOT NULL,
+                end_date DATE NOT NULL,
+                start_time TIME,
+                end_time TIME,
+                is_all_day BOOLEAN DEFAULT FALSE,
+                created_by INT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                FOREIGN KEY (created_by) REFERENCES users(id)
+            )
+        ''')
+
+        inserted = 0
+        skipped = 0
+        errors = 0
+
+        from datetime import datetime, timedelta
+
+        for item in items:
+            try:
+                title = (item.get('summary') or '').strip() or 'Holiday'
+                description = (item.get('description') or '').strip()
+                start = (item.get('start') or {})
+                end = (item.get('end') or {})
+
+                start_date = start.get('date')
+                end_date_exclusive = end.get('date')
+                if not start_date or not end_date_exclusive:
+                    skipped += 1
+                    continue
+
+                # Google all-day events use an exclusive end date
+                end_date = (datetime.strptime(end_date_exclusive, '%Y-%m-%d') - timedelta(days=1)).strftime('%Y-%m-%d')
+
+                cursor.execute(''' 
+                    SELECT id
+                    FROM clinic_events
+                    WHERE event_type = 'holiday'
+                      AND title = %s
+                      AND start_date = %s
+                      AND end_date = %s
+                    LIMIT 1
+                ''', (title, start_date, end_date))
+
+                existing = cursor.fetchone()
+                if existing:
+                    skipped += 1
+                    continue
+
+                cursor.execute(''' 
+                    INSERT INTO clinic_events
+                    (title, description, event_type, start_date, end_date, start_time, end_time, is_all_day, created_by)
+                    VALUES (%s, %s, 'holiday', %s, %s, NULL, NULL, 1, %s)
+                ''', (title, description, start_date, end_date, session['user_id']))
+
+                inserted += 1
+            except Exception:
+                errors += 1
+
+        conn.commit()
+        cursor.close()
+        conn.close()
+
+        return jsonify({
+            'success': True,
+            'calendar_id': calendar_id,
+            'year': year,
+            'years_ahead': years_ahead,
+            'inserted': inserted,
+            'skipped': skipped,
+            'errors': errors,
+        }), 200
+
+    except Exception as e:
+        print(f"âŒ Error syncing holidays: {str(e)}")
+        return jsonify({'error': f'Failed to sync holidays: {str(e)}'}), 500
 
 @app.route('/api/medical-record/<int:record_id>', methods=['GET'])
 def api_get_medical_record(record_id):

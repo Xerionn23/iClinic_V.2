@@ -1803,6 +1803,43 @@
                 },
 
                 // Medicine management functions
+                normalizeText(value) {
+                    return (value || '').toString().trim().toLowerCase();
+                },
+
+                getMedicineAllergyTokens() {
+                    const raw = this.normalizeText(this.newRecord.medicine_allergies);
+                    if (!raw) return [];
+                    return raw
+                        .split(/[\n,;]+/)
+                        .map(s => this.normalizeText(s))
+                        .filter(Boolean);
+                },
+
+                isMedicineAllergic(med) {
+                    const medName = this.normalizeText(med?.medicine_name);
+                    if (!medName) return false;
+                    const tokens = this.getMedicineAllergyTokens();
+                    if (tokens.length === 0) return false;
+
+                    return tokens.some(t => t === medName || medName.includes(t) || t.includes(medName));
+                },
+
+                onMedicineAllergyChanged() {
+                    if (!this.newRecord?.prescribed_medicines?.length) return;
+
+                    const before = this.newRecord.prescribed_medicines.length;
+                    this.newRecord.prescribed_medicines = this.newRecord.prescribed_medicines.filter(p => {
+                        const med = this.availableMedicines.find(m => m.id == p.medicine_id);
+                        if (!med) return true;
+                        return !this.isMedicineAllergic(med);
+                    });
+
+                    if (this.newRecord.prescribed_medicines.length !== before) {
+                        this.showError('Selected prescribed medicine was removed because it matches the medicine allergy.');
+                    }
+                },
+
                 addPrescribedMedicine() {
                     this.newRecord.prescribed_medicines.push({
                         medicine_id: '',
@@ -1820,6 +1857,12 @@
                 updateMedicineName(index, medicineId) {
                     const medicine = this.availableMedicines.find(med => med.id == medicineId);
                     if (medicine) {
+                        if (this.isMedicineAllergic(medicine)) {
+                            this.newRecord.prescribed_medicines[index].medicine_name = '';
+                            this.newRecord.prescribed_medicines[index].medicine_id = '';
+                            this.showError('Cannot prescribe this medicine because it matches the patient\'s medicine allergy.');
+                            return;
+                        }
                         this.newRecord.prescribed_medicines[index].medicine_name = medicine.medicine_name;
                         this.newRecord.prescribed_medicines[index].medicine_id = medicineId;
                         // Auto-fill dosage if strength is available
@@ -4246,8 +4289,13 @@
                                                 </div>
                                                 <div class="space-y-1.5">
                                                     <label class="block text-xs font-semibold text-gray-700">Medicine Allergy</label>
-                                                    <input type="text" x-model="newRecord.medicine_allergies" placeholder="e.g., penicillin"
+                                                    <input type="text" x-model="newRecord.medicine_allergies" @input.debounce.250ms="onMedicineAllergyChanged()" list="medicineAllergyOptions" placeholder="Type or select from inventory"
                                                            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors text-sm">
+                                                    <datalist id="medicineAllergyOptions">
+                                                        <template x-for="med in availableMedicines" :key="med.id">
+                                                            <option :value="med.medicine_name"></option>
+                                                        </template>
+                                                    </datalist>
                                                 </div>
                                                 <div class="space-y-1.5">
                                                     <label class="block text-xs font-semibold text-gray-700">Fever Duration</label>
@@ -4407,6 +4455,7 @@
                                                                     <option value="">Select medicine...</option>
                                                                     <template x-for="med in availableMedicines" :key="med.id">
                                                                         <option :value="med.id" 
+                                                                                :disabled="isMedicineAllergic(med)"
                                                                                 x-text="`${med.medicine_name}${med.strength ? ' ' + med.strength : ''}${med.dosage_form ? ' (' + med.dosage_form + ')' : ''} - Stock: ${med.quantity}${med.expiry_date ? ' | Exp: ' + med.expiry_date : ''}`"></option>
                                                                     </template>
                                                                 </select>
