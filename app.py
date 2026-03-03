@@ -3318,7 +3318,7 @@ def login():
         # Determine redirect URL based on user role
         print(f"ðŸ” User role from database: '{user[3]}'")  # Debug: Check exact role value
         
-        if user[3] in ['student', 'teaching_staff', 'non_teaching_staff']:
+        if user[3] in ['student', 'teaching_staff', 'non_teaching_staff', 'deans', 'president']:
             redirect_url = url_for('student_dashboard')
             print(f"âœ… Redirecting to student dashboard")
         elif user[3] == 'admin':
@@ -3327,9 +3327,6 @@ def login():
         elif user[3] in ['staff', 'Nurse']:
             redirect_url = url_for('staff_dashboard')
             print(f"âœ… Redirecting to staff dashboard")
-        elif user[3] in ['president', 'deans']:
-            redirect_url = url_for('deans_president_dashboard')
-            print(f"âœ… Redirecting to deans/president dashboard")
         else:
             redirect_url = url_for('student_dashboard')
             print(f"âš ï¸ Unknown role, defaulting to student dashboard")
@@ -5026,15 +5023,7 @@ def deans_president_dashboard():
         flash('Access denied. This page is for Deans and President only.', 'error')
         return redirect(url_for('login_page'))
     
-    user_info = {
-        'username': session.get('username'),
-        'first_name': session.get('first_name'),
-        'last_name': session.get('last_name'),
-        'position': session.get('position'),
-        'role': session.get('role'),
-        'identifier_id': session.get('identifier_id')  # President ID or Dean ID
-    }
-    return render_template('pages/deans_president/DEANS_REPORT.html', user=user_info)
+    return redirect(url_for('student_dashboard'))
 
 @app.route('/deans-president/consultation-chat')
 def deans_president_consultation_chat():
@@ -5047,15 +5036,7 @@ def deans_president_consultation_chat():
         flash('Access denied. This page is for Deans and President only.', 'error')
         return redirect(url_for('login_page'))
     
-    user_info = {
-        'username': session.get('username'),
-        'first_name': session.get('first_name'),
-        'last_name': session.get('last_name'),
-        'position': session.get('position'),
-        'role': session.get('role'),
-        'identifier_id': session.get('identifier_id')  # President ID or Dean ID
-    }
-    return render_template('pages/deans_president/Deans_consultationchat.html', user=user_info)
+    return redirect(url_for('student_dashboard'))
 
 @app.route('/api/deans-president/dashboard-stats')
 def api_deans_president_dashboard_stats():
@@ -5696,7 +5677,7 @@ def deans_president_reports():
         'role': session.get('role'),
         'position': session.get('position')
     }
-    return render_template('pages/deans_president/DEANS_REPORT.html', user=user_info)
+    return redirect(url_for('student_dashboard'))
 
 @app.route('/patients')
 def staff_patients():
@@ -12455,7 +12436,7 @@ def api_get_appointments():
         user_role = session.get('role', '')
         
         # For students, teaching staff, and non-teaching staff, filter by their name from the session
-        if user_role in ['student', 'teaching_staff', 'non_teaching_staff']:
+        if user_role in ['student', 'teaching_staff', 'non_teaching_staff', 'deans', 'president']:
             user_name = f"{session.get('first_name', '')} {session.get('last_name', '')}".strip()
             cursor.execute('''
                 SELECT id, patient, contact, date, time, type, status, notes, created_at
@@ -12555,7 +12536,7 @@ def api_get_appointment_requests():
         user_role = session.get('role', '')
         
         # For students, teaching staff, and non-teaching staff, filter by their name from the session
-        if user_role in ['student', 'teaching_staff', 'non_teaching_staff']:
+        if user_role in ['student', 'teaching_staff', 'non_teaching_staff', 'deans', 'president']:
             user_name = f"{session.get('first_name', '')} {session.get('last_name', '')}".strip()
             cursor.execute('''
                 SELECT id, patient_name, patient_contact, appointment_type, reason,
@@ -12611,29 +12592,44 @@ def api_get_appointments_availability():
             return jsonify({'error': 'Database connection failed'}), 500
         
         cursor = conn.cursor(dictionary=True)
+
+        user_role = session.get('role', '')
+        is_staff_view = user_role in ['staff', 'Nurse', 'admin']
         
         # Get ALL confirmed appointments for availability checking
         # This is needed to prevent double-booking across all users
-        cursor.execute('''
-            SELECT id, patient, contact, date, time, type, status, notes, created_at
-            FROM appointments 
-            WHERE status IN ('confirmed', 'Confirmed')
-            ORDER BY date DESC, time DESC
-        ''')
+        if is_staff_view:
+            cursor.execute('''
+                SELECT id, patient, contact, date, time, type, status, notes, created_at
+                FROM appointments 
+                WHERE status IN ('confirmed', 'Confirmed')
+                ORDER BY date DESC, time DESC
+            ''')
+        else:
+            cursor.execute('''
+                SELECT a.date, a.time, a.status
+                FROM appointments a
+                WHERE a.status IN ('confirmed', 'Confirmed')
+                UNION ALL
+                SELECT ar.preferred_date AS date, ar.preferred_time AS time, ar.status
+                FROM appointment_requests ar
+                WHERE ar.status = 'pending'
+                ORDER BY date DESC, time DESC
+            ''')
         
         appointments = cursor.fetchall()
         
         # Convert datetime objects to strings for JSON serialization
         for appointment in appointments:
-            if appointment['date']:
+            if appointment.get('date'):
                 appointment['date'] = appointment['date'].strftime('%Y-%m-%d')
-            if appointment['time']:
+            if appointment.get('time'):
                 # Convert timedelta to HH:MM format
                 total_seconds = int(appointment['time'].total_seconds())
                 hours = total_seconds // 3600
                 minutes = (total_seconds % 3600) // 60
                 appointment['time'] = f"{hours:02d}:{minutes:02d}"
-            if appointment['created_at']:
+            if appointment.get('created_at'):
                 appointment['created_at'] = appointment['created_at'].strftime('%Y-%m-%d %H:%M:%S')
         
         cursor.close()
@@ -12658,7 +12654,7 @@ def api_create_appointment_request():
             return jsonify({'error': 'No data provided'}), 400
         
         # Validate required fields
-        required_fields = ['patient_name', 'patient_contact', 'appointment_type', 'reason', 'preferred_date', 'preferred_time']
+        required_fields = ['patient_name', 'appointment_type', 'reason', 'preferred_date', 'preferred_time']
         for field in required_fields:
             if not data.get(field):
                 return jsonify({'error': f'Missing required field: {field}'}), 400
@@ -12783,7 +12779,7 @@ def api_create_appointment_request():
             VALUES (%s, %s, %s, %s, %s, 'Confirmed', %s, %s)
         ''', (
             data['patient_name'],
-            data['patient_contact'], 
+            (data.get('patient_contact') or ''), 
             data['preferred_date'],
             data['preferred_time'],
             data['appointment_type'],
@@ -12924,7 +12920,7 @@ def api_approve_appointment_request(request_id):
             VALUES (%s, %s, %s, %s, %s, 'Confirmed', %s, %s)
         ''', (
             request_data['patient_name'],
-            request_data['patient_contact'],
+            (request_data.get('patient_contact') or ''),
             request_data['preferred_date'],
             request_data['preferred_time'],
             request_data['appointment_type'],
