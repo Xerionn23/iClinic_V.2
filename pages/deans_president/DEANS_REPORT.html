@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>System Admin  Reports - iClinic Admin Dashboard</title>
+    <title>Dean's Student Health Reports - iClinic Dean Dashboard</title>
     
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>    <!-- Suppress Tailwind CDN Warning -->
@@ -170,42 +170,6 @@
         }
     </style>
 
-    
-    <style>
-        /* Custom scrollbar for tables */
-        .scrollbar-thin::-webkit-scrollbar {
-            height: 6px;
-        }
-        
-        .scrollbar-thin::-webkit-scrollbar-track {
-            background: #f1f1f1;
-            border-radius: 3px;
-        }
-        
-        .scrollbar-thin::-webkit-scrollbar-thumb {
-            background: #888;
-            border-radius: 3px;
-        }
-        
-        .scrollbar-thin::-webkit-scrollbar-thumb:hover {
-            background: #555;
-        }
-        
-        /* Responsive font sizes */
-        @media (max-width: 640px) {
-            h1 { font-size: 1.5rem !important; }
-            h2 { font-size: 1.25rem !important; }
-            h3 { font-size: 1.125rem !important; }
-        }
-        
-        /* Mobile-optimized spacing */
-        @media (max-width: 640px) {
-            .gap-6 { gap: 1rem !important; }
-            .gap-8 { gap: 1.5rem !important; }
-            .space-y-6 > * + * { margin-top: 1rem !important; }
-        }
-    </style>
-
     <!-- Print Styles -->
     <style>
         @media print {
@@ -268,12 +232,58 @@
             }
         }
     </style>
+    
+    <style>
+        /* Custom scrollbar for tables */
+        .scrollbar-thin::-webkit-scrollbar {
+            height: 6px;
+        }
+        
+        .scrollbar-thin::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 3px;
+        }
+        
+        .scrollbar-thin::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 3px;
+        }
+        
+        .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+        
+        /* Responsive font sizes */
+        @media (max-width: 640px) {
+            h1 { font-size: 1.5rem !important; }
+            h2 { font-size: 1.25rem !important; }
+            h3 { font-size: 1.125rem !important; }
+        }
+        
+        /* Mobile-optimized spacing */
+        @media (max-width: 640px) {
+            .gap-6 { gap: 1rem !important; }
+            .gap-8 { gap: 1.5rem !important; }
+            .space-y-6 > * + * { margin-top: 1rem !important; }
+        }
+    </style>
 </head>
 <body class="bg-white transition-colors duration-200" x-data="reportsModule()" x-init="init()">
     
     <div class="flex h-screen overflow-hidden">
+        <!-- Mobile Overlay -->
+        <div x-show="!sidebarCollapsed" 
+             x-transition:enter="transition-opacity ease-linear duration-300"
+             x-transition:enter-start="opacity-0"
+             x-transition:enter-end="opacity-100"
+             x-transition:leave="transition-opacity ease-linear duration-300"
+             x-transition:leave-start="opacity-100"
+             x-transition:leave-end="opacity-0"
+             @click="sidebarCollapsed = true"
+             class="fixed inset-0 bg-black bg-opacity-50 z-30 md:hidden"></div>
+
         <!-- Sidebar -->
-        <aside :class="sidebarCollapsed ? 'w-20' : 'w-64'" 
+        <aside :class="sidebarCollapsed ? 'md:w-20 -translate-x-full md:translate-x-0' : 'w-64'" 
                class="fixed left-0 top-0 h-screen gradient-bg-sidebar text-white transition-all duration-300 shadow-2xl z-40"
                @mouseenter="sidebarHovered = true"
                @mouseleave="sidebarHovered = false">
@@ -282,51 +292,24 @@
             <div class="relative p-6">
                 <div class="flex items-center gap-3" :class="sidebarCollapsed && !sidebarHovered ? 'justify-center' : ''">
                     <div class="flex items-center justify-center">
-                        <img src="{{ url_for('static', filename='img/iclinic-logo.png') }}" alt="Norzagaray College" class="w-14 h-14 object-contain">
+                        <img src="/assets/img/iclinic-logo.png" alt="Norzagaray College" class="w-14 h-14 object-contain">
                     </div>
                     <div x-show="!sidebarCollapsed || sidebarHovered" x-transition>
-                        <h1 class="text-xl font-bold text-white text-base sm:text-lg md:text-xl">iClinic</h1>
+                        <h1 class="text-xl font-bold text-white">iClinic</h1>
                         <p class="text-xs text-yellow-300">Norzagaray College</p>
                     </div>
                 </div>
             </div>
             
             <!-- Navigation -->
-            <nav class="relative mt-8 px-4 space-y-2">
-                <!-- Dashboard -->
-                <a href="{{ url_for('admin_dashboard') }}"
-                   class="flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all group hover:bg-white/10">
+            <nav class="relative mt-8 px-4 space-y-3">
+                <!-- Reports -->
+                <a href="/deans-president/dashboard"
+                   class="sidebar-item-active flex items-center gap-3 px-4 py-3 rounded-lg transition-all group">
                     <div class="flex items-center justify-center" :class="sidebarCollapsed && !sidebarHovered ? 'w-full' : ''">
-                        <i data-feather="home" class="w-5 h-5 group-hover:scale-110 transition-transform"></i>
+                        <i data-feather="activity" class="w-5 h-5 group-hover:scale-110 transition-transform"></i>
                     </div>
-                    <span x-show="!sidebarCollapsed || sidebarHovered" x-transition class="font-medium">Dashboard</span>
-                </a>
-                
-                <!-- User Management -->
-                <a href="{{ url_for('admin_user_management') }}"
-                   class="flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all group hover:bg-white/10">
-                    <div class="flex items-center justify-center" :class="sidebarCollapsed && !sidebarHovered ? 'w-full' : ''">
-                        <i data-feather="users" class="w-5 h-5 group-hover:scale-110 transition-transform"></i>
-                    </div>
-                    <span x-show="!sidebarCollapsed || sidebarHovered" x-transition class="font-medium">User Management</span>
-                </a>
-                
-                <!-- Patient Management -->
-                <a href="{{ url_for('admin_patient_management') }}"
-                   class="flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all group hover:bg-white/10">
-                    <div class="flex items-center justify-center" :class="sidebarCollapsed && !sidebarHovered ? 'w-full' : ''">
-                        <i data-feather="heart" class="w-5 h-5 group-hover:scale-110 transition-transform"></i>
-                    </div>
-                    <span x-show="!sidebarCollapsed || sidebarHovered" x-transition class="font-medium">Patient Management</span>
-                </a>
-                
-                <!-- Reports & Analytics -->
-                <a href="{{ url_for('admin_reports') }}"
-                   class="sidebar-item-active flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all group">
-                    <div class="flex items-center justify-center" :class="sidebarCollapsed && !sidebarHovered ? 'w-full' : ''">
-                        <i data-feather="bar-chart-2" class="w-5 h-5 group-hover:scale-110 transition-transform"></i>
-                    </div>
-                    <span x-show="!sidebarCollapsed || sidebarHovered" x-transition class="font-medium">Reports & Analytics</span>
+                    <span x-show="!sidebarCollapsed || sidebarHovered" x-transition class="font-medium">Reports</span>
                 </a>
             
             </nav>
@@ -338,11 +321,23 @@
                         class="w-full flex items-center gap-3 p-2 rounded-lg hover:bg-white/10 transition-colors" 
                         :class="sidebarCollapsed && !sidebarHovered ? 'justify-center' : ''">
                     <div class="w-10 h-10 bg-gradient-to-br from-yellow-400 to-yellow-500 rounded-full flex items-center justify-center shadow-lg">
-                        <span class="text-blue-900 font-bold">AU</span>
+                        <span class="text-blue-900 font-bold">
+                            {% if user.role == 'president' %}PR{% else %}DN{% endif %}
+                        </span>
                     </div>
                     <div x-show="!sidebarCollapsed || sidebarHovered" x-transition class="flex-1 text-left">
-                        <p class="text-sm font-medium text-white">Admin User</p>
-                        <p class="text-xs text-yellow-300">System Administrator</p>
+                        <p class="text-sm font-medium text-white">
+                            {% if user.first_name and user.last_name %}
+                                {{ user.first_name }} {{ user.last_name }}
+                            {% else %}
+                                {{ user.position or 'User' }}
+                            {% endif %}
+                        </p>
+                        {% if user.identifier_id %}
+                        <p class="text-xs text-yellow-300 font-mono">
+                            {{ user.identifier_id }}
+                        </p>
+                        {% endif %}
                     </div>
                     <i x-show="!sidebarCollapsed || sidebarHovered" data-feather="chevron-up" class="w-4 h-4 text-white/70"></i>
                 </button>
@@ -351,10 +346,10 @@
                 <div x-show="userDropdown" 
                      x-transition
                      class="absolute bottom-full left-4 right-4 mb-2 bg-white rounded-lg shadow-lg border border-gray-200 py-1">
-                    <button @click="showLogoutConfirm = true; userDropdown = false" class="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-md mx-1">
+                    <a href="/logout" class="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-md mx-1">
                         <i data-feather="log-out" class="w-4 h-4"></i>
                         Logout
-                    </button>
+                    </a>
                 </div>
             </div>
         </div>
@@ -362,22 +357,24 @@
     
         
         <!-- Main Content Area -->
-        <div :class="sidebarCollapsed ? 'md:ml-20' : 'md:ml-64'" class="flex-1 flex flex-col transition-all duration-300">
+        <div :class="sidebarCollapsed ? 'ml-0 md:ml-20' : 'ml-0 md:ml-64'" class="flex-1 flex flex-col transition-all duration-300">
             
             <!-- Mobile Header -->
-            <div class="md:hidden bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between">
+            <div class="md:hidden bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between sticky top-0 z-20">
                 <button @click="sidebarCollapsed = !sidebarCollapsed" class="p-2 rounded-lg hover:bg-gray-100">
                     <i data-feather="menu" class="w-6 h-6 text-gray-600"></i>
                 </button>
-                <div class="flex items-center space-x-2">
-                    <img src="{{ url_for('static', filename='img/iclinic-logo.png') }}" alt="iClinic" class="w-8 h-8">
-                    <h1 class="text-lg font-bold text-gray-900">System Administration Reports</h1>
+                <div class="flex items-center gap-2">
+                    <img src="/assets/img/iclinic-logo.png" alt="iClinic" class="w-8 h-8">
+                    <h1 class="text-sm sm:text-base font-bold text-gray-900">
+                        {% if user.role == 'president' %}President's{% else %}Dean's{% endif %} Reports
+                    </h1>
                 </div>
                 <div class="w-10"></div> <!-- Spacer for centering -->
             </div>
             
             <!-- Main Reports Content -->
-            <main class="flex-1 overflow-hidden bg-gray-50 p-6 p-3 sm:p-4 md:p-6">
+            <main class="flex-1 overflow-hidden bg-gray-50 p-3 sm:p-6">
                 <!-- Enhanced Reports Header -->
                 <div class="gradient-bg-sidebar text-white shadow-2xl relative overflow-hidden rounded-[2rem] ml-1">
                     <!-- Decorative Elements -->
@@ -396,13 +393,13 @@
                                 </div>
                                 <div>
                                     <div class="flex items-center gap-2 mb-1">
-                                        <h1 class="text-2xl sm:text-3xl font-bold text-white text-xl sm:text-2xl md:text-3xl text-lg sm:text-xl md:text-2xl text-base sm:text-lg md:text-xl">
-                                            System Administration Reports
+                                        <h1 class="text-2xl sm:text-3xl font-bold text-white">
+                                            {% if user.role == 'president' %}
+                                                President Reports
+                                            {% else %}
+                                                Dean's Reports
+                                            {% endif %}
                                         </h1>
-                                    </div>
-                                    <div class="flex items-center gap-2 text-blue-100">
-                                        <i data-feather="activity" class="w-3 h-3"></i>
-                                        <span class="text-sm">System administration & monitoring insights</span>
                                     </div>
                                 </div>
                             </div>
@@ -461,23 +458,7 @@
                                 <i data-feather="calendar" class="w-4 h-4 text-green-600 mr-1"></i>
                                 <span class="text-green-600 font-semibold">All time</span>
                             </div>
-                        </div>
 
-                        <!-- Active Consultations Card -->
-                        <div class="bg-gradient-to-br from-purple-50 to-purple-100 rounded-2xl p-6 border border-purple-200 shadow-lg hover:shadow-xl transition-all duration-300">
-                            <div class="flex items-center justify-between mb-4">
-                                <div class="w-12 h-12 bg-purple-500 rounded-xl flex items-center justify-center shadow-md">
-                                    <i data-feather="message-circle" class="w-6 h-6 text-white"></i>
-                                </div>
-                                <div class="text-right">
-                                    <div class="text-3xl font-bold text-purple-900" x-text="activeConsultations">0</div>
-                                    <div class="text-sm text-purple-600 font-medium">Active Consultations</div>
-                                </div>
-                            </div>
-                            <div class="flex items-center text-sm">
-                                <i data-feather="clock" class="w-4 h-4 text-purple-600 mr-1"></i>
-                                <span class="text-purple-600 font-semibold">Ongoing</span>
-                            </div>
                         </div>
                     </div>
 
@@ -548,7 +529,7 @@
                     </div>
 
                     <!-- Medical Records Trends Chart -->
-                    <div class="bg-white rounded-2xl shadow-lg border border-gray-100 p-8 mt-6">
+                    <div class="bg-white rounded-2xl shadow-lg border border-gray-100 p-8 hover:shadow-xl transition-shadow duration-300">
                         <div class="flex items-center justify-between mb-6">
                             <div>
                                 <h4 class="text-xl font-bold text-gray-900">Medical Records Trends</h4>
@@ -583,14 +564,7 @@
         function reportsModule() {
             return {
                 async init() {
-                    console.log('🚀 Initializing Admin Reports...');
-                    
-                    // Prevent double initialization
-                    if (this._initialized) {
-                        console.log('⚠️ Already initialized, skipping...');
-                        return;
-                    }
-                    this._initialized = true;
+                    console.log('🚀 Initializing Deans/President Reports...');
                     
                     // Initialize feather icons
                     if (typeof feather !== 'undefined') {
@@ -599,20 +573,24 @@
                         setTimeout(() => feather.replace(), 1000);
                     }
                     
-                    // Load data and initialize charts
+                    // Load data and initialize charts ONCE
                     await this.loadAllData();
+                    
+                    // Wait for DOM to be ready, then init charts only if not already initialized
                     setTimeout(() => {
-                        this.initMonthlyVisitsChart();
-                        this.initMedicalRecordsChart();
+                        if (!this.monthlyVisitsChart) {
+                            this.initMonthlyVisitsChart();
+                        }
+                        if (!this.medicalRecordsChart) {
+                            this.initMedicalRecordsChart();
+                        }
                     }, 1000);
                 },
                 
                 // State
-                _initialized: false,
-                sidebarCollapsed: false,
+                sidebarCollapsed: window.innerWidth < 768,
                 sidebarHovered: false,
                 userDropdown: false,
-                showLogoutConfirm: false,
                 
                 // Chart instances
                 monthlyVisitsChart: null,
@@ -633,25 +611,27 @@
                 // Raw data storage
                 rawData: null,
                 
-                // Load all data from API
+                // Load all data from API (same as Staff Reports)
                 async loadAllData() {
                     console.log('📥 Loading all data from API...');
                     try {
-                        // Load visits
+                        // Load visits/medical records (same endpoint as Staff)
                         const visitsResponse = await fetch('/api/visits');
                         const visits = visitsResponse.ok ? await visitsResponse.json() : [];
+                        console.log('✅ Visits API loaded:', visits.length, 'records');
                         
-                        // Load patients
-                        const patientsResponse = await fetch('/api/admin/patients');
-                        const patientsData = patientsResponse.ok ? await patientsResponse.json() : { patients: [] };
-                        const patients = patientsData.patients || [];
+                        // Load all patients
+                        const patientsResponse = await fetch('/api/all-patients');
+                        const patients = patientsResponse.ok ? await patientsResponse.json() : [];
+                        console.log('✅ Patients API loaded:', patients.length, 'records');
                         
                         // Load consultations
                         const consultationsResponse = await fetch('/api/online-consultations');
                         const consultations = consultationsResponse.ok ? await consultationsResponse.json() : [];
+                        console.log('✅ Consultations API loaded:', consultations.length, 'records');
                         
                         this.rawData = { visits, patients, consultations };
-                        console.log('✅ Data loaded:', visits.length, 'visits,', patients.length, 'patients,', consultations.length, 'consultations');
+                        console.log('✅ Total data loaded:', visits.length, 'visits,', patients.length, 'patients,', consultations.length, 'consultations');
                     } catch (error) {
                         console.error('❌ Error loading data:', error);
                         this.rawData = { visits: [], patients: [], consultations: [] };
@@ -684,7 +664,7 @@
                     try {
                         // Destroy existing chart if it exists
                         if (this.monthlyVisitsChart) {
-                            console.log('🗑️ Destroying existing Monthly Visits Chart...');
+                            console.log('🔄 Destroying existing Monthly Visits Chart...');
                             this.monthlyVisitsChart.destroy();
                             this.monthlyVisitsChart = null;
                         }
@@ -695,6 +675,7 @@
                         }
                         
                         const visits = this.rawData.visits;
+                        // Use 'visit_date' field from API response
                         const monthlyData = this.aggregateByMonth(visits, 'visit_date');
 
                         this.monthlyVisitsChart = new Chart(canvas, {
@@ -754,8 +735,8 @@
                     console.log('📅 Period:', this.monthlyVisitsPeriod);
                     console.log('🏢 Department:', this.monthlyVisitsDepartment);
                     
-                    if (!this.monthlyVisitsChart || !this.rawData) {
-                        console.warn('⚠️ Chart or data not ready');
+                    if (!this.rawData || !this.rawData.visits) {
+                        console.warn('⚠️ Data not ready');
                         return;
                     }
                     
@@ -800,19 +781,16 @@
                                 aggregatedData = this.aggregateByMonth(filteredVisits, 'visit_date');
                         }
                         
-                        // Get canvas element
+                        // Check if canvas still exists
                         const canvas = document.getElementById('monthlyVisitsChart');
                         if (!canvas) {
-                            console.error('❌ Canvas element not found');
+                            console.error('❌ Canvas element not found!');
                             return;
                         }
                         
-                        // Safely destroy existing chart
+                        // Always destroy existing chart to avoid corruption
                         if (this.monthlyVisitsChart) {
                             try {
-                                // Stop all animations first
-                                this.monthlyVisitsChart.stop();
-                                // Then destroy
                                 this.monthlyVisitsChart.destroy();
                             } catch (e) {
                                 console.warn('⚠️ Error destroying chart:', e);
@@ -820,23 +798,10 @@
                             this.monthlyVisitsChart = null;
                         }
                         
-                        // Wait for Chart.js to fully clean up
-                        await new Promise(resolve => setTimeout(resolve, 100));
+                        // Small delay to ensure canvas is ready
+                        await new Promise(resolve => setTimeout(resolve, 50));
                         
-                        // Verify canvas still exists after delay
-                        const canvasCheck = document.getElementById('monthlyVisitsChart');
-                        if (!canvasCheck) {
-                            console.error('❌ Canvas disappeared after destroy');
-                            return;
-                        }
-                        
-                        // Clear any existing context
-                        const ctx = canvasCheck.getContext('2d');
-                        if (ctx) {
-                            ctx.clearRect(0, 0, canvasCheck.width, canvasCheck.height);
-                        }
-                        
-                        // Recreate with new data and chart type
+                        // Create fresh chart with new data
                         this.monthlyVisitsChart = new Chart(canvas, {
                             type: this.monthlyVisitsChartType || 'line',
                             data: {
@@ -1027,46 +992,62 @@
                 // Initialize Medical Records Chart
                 async initMedicalRecordsChart() {
                     console.log('🏥 Initializing Medical Records Chart...');
+                    
+                    // Destroy existing chart if it exists
+                    if (this.medicalRecordsChart) {
+                        console.log('🔄 Destroying existing Medical Records Chart...');
+                        this.medicalRecordsChart.destroy();
+                        this.medicalRecordsChart = null;
+                    }
+                    
                     const canvas = document.getElementById('medicalRecordsChart');
                     if (!canvas) {
-                        console.warn('⚠️ Canvas not found');
+                        console.error('❌ Canvas element not found for medicalRecordsChart');
                         return;
                     }
-
+                    
+                    // Try to get medical records from multiple sources (same as Staff Reports)
+                    let medicalData = [];
+                    
+                    // First try visits data
+                    if (this.rawData?.visits && this.rawData.visits.length > 0) {
+                        console.log('🏥 Using visits data for medical records');
+                        medicalData = this.rawData.visits;
+                    } else {
+                        // Try to fetch from medical records API
+                        try {
+                            console.log('🏥 Trying to fetch from medical records API...');
+                            const response = await fetch('/api/medical-records');
+                            if (response.ok) {
+                                medicalData = await response.json();
+                                console.log('✅ Medical records API loaded:', medicalData.length, 'records');
+                            }
+                        } catch (error) {
+                            console.log('⚠️ Medical records API not available');
+                        }
+                    }
+                    
+                    console.log('🏥 Processing', medicalData.length, 'medical records from database');
+                    
+                    // Analyze common chief complaints from database (same as Staff Reports)
+                    const complaintCount = {};
+                    medicalData.forEach(record => {
+                        // Use chief_complaint from database (from /api/visits)
+                        const complaint = record.chief_complaint || record.diagnosis || record.symptoms || 'General Checkup';
+                        const count = record.count || 1;
+                        complaintCount[complaint] = (complaintCount[complaint] || 0) + count;
+                    });
+                    
+                    // Get top 6 chief complaints
+                    const topComplaints = Object.entries(complaintCount)
+                        .sort(([,a], [,b]) => b - a)
+                        .slice(0, 6);
+                    
+                    console.log('📊 Top chief complaints from database:', topComplaints);
+                    
                     try {
-                        // Destroy existing chart if it exists
-                        if (this.medicalRecordsChart) {
-                            console.log('🗑️ Destroying existing Medical Records Chart...');
-                            this.medicalRecordsChart.destroy();
-                            this.medicalRecordsChart = null;
-                        }
-                        
-                        // Use visits data for medical records
-                        let medicalData = [];
-                        
-                        if (this.rawData?.visits && this.rawData.visits.length > 0) {
-                            console.log('🏥 Using visits data for medical records');
-                            medicalData = this.rawData.visits;
-                        }
-                        
-                        console.log('🏥 Processing', medicalData.length, 'medical records');
-                        
-                        // Analyze common chief complaints
-                        const complaintCount = {};
-                        medicalData.forEach(record => {
-                            const complaint = record.chief_complaint || record.diagnosis || record.symptoms || 'General Checkup';
-                            complaintCount[complaint] = (complaintCount[complaint] || 0) + 1;
-                        });
-
-                        // Get top 6 chief complaints
-                        const topComplaints = Object.entries(complaintCount)
-                            .sort(([,a], [,b]) => b - a)
-                            .slice(0, 6);
-                            
-                        console.log('📊 Top chief complaints:', topComplaints);
-
                         this.medicalRecordsChart = new Chart(canvas, {
-                            type: 'bar',
+                            type: this.medicalRecordsChartType,
                             data: {
                                 labels: topComplaints.map(([name]) => name.length > 15 ? name.substring(0, 15) + '...' : name),
                                 datasets: [{
@@ -1081,31 +1062,22 @@
                                 responsive: true,
                                 maintainAspectRatio: false,
                                 plugins: {
-                                    legend: { display: false },
-                                    tooltip: {
-                                        backgroundColor: 'rgba(0, 0, 0, 0.8)',
-                                        padding: 12,
-                                        titleFont: { size: 14 },
-                                        bodyFont: { size: 13 }
-                                    }
+                                    legend: { display: false }
                                 },
                                 scales: {
                                     y: {
                                         beginAtZero: true,
-                                        grid: { color: 'rgba(0, 0, 0, 0.05)' },
-                                        ticks: { font: { size: 12 } }
+                                        grid: { color: 'rgba(0, 0, 0, 0.05)' }
                                     },
                                     x: {
-                                        grid: { display: false },
-                                        ticks: { font: { size: 12 } }
+                                        grid: { display: false }
                                     }
                                 }
                             }
                         });
-                        
                         console.log('✅ Medical Records Chart initialized');
                     } catch (error) {
-                        console.error('❌ Error initializing medical records chart:', error);
+                        console.error('❌ Error creating Medical Records Chart:', error);
                     }
                 },
 
@@ -1113,7 +1085,7 @@
                 async updateMedicalRecordsChart() {
                     console.log('🔄 Updating Medical Records Chart...');
                     
-                    if (!this.rawData) {
+                    if (!this.rawData || !this.rawData.visits) {
                         console.warn('⚠️ Data not ready');
                         return;
                     }
@@ -1134,19 +1106,16 @@
                             .sort(([,a], [,b]) => b - a)
                             .slice(0, 6);
                         
-                        // Get canvas element
+                        // Check if canvas still exists
                         const canvas = document.getElementById('medicalRecordsChart');
                         if (!canvas) {
-                            console.error('❌ Canvas element not found');
+                            console.error('❌ Canvas element not found!');
                             return;
                         }
                         
-                        // Safely destroy existing chart
+                        // Always destroy existing chart to avoid corruption
                         if (this.medicalRecordsChart) {
                             try {
-                                // Stop all animations first
-                                this.medicalRecordsChart.stop();
-                                // Then destroy
                                 this.medicalRecordsChart.destroy();
                             } catch (e) {
                                 console.warn('⚠️ Error destroying chart:', e);
@@ -1154,23 +1123,10 @@
                             this.medicalRecordsChart = null;
                         }
                         
-                        // Wait for Chart.js to fully clean up
-                        await new Promise(resolve => setTimeout(resolve, 100));
+                        // Small delay to ensure canvas is ready
+                        await new Promise(resolve => setTimeout(resolve, 50));
                         
-                        // Verify canvas still exists after delay
-                        const canvasCheck = document.getElementById('medicalRecordsChart');
-                        if (!canvasCheck) {
-                            console.error('❌ Canvas disappeared after destroy');
-                            return;
-                        }
-                        
-                        // Clear any existing context
-                        const ctx = canvasCheck.getContext('2d');
-                        if (ctx) {
-                            ctx.clearRect(0, 0, canvasCheck.width, canvasCheck.height);
-                        }
-                        
-                        // Recreate with new chart type
+                        // Create fresh chart with new data
                         this.medicalRecordsChart = new Chart(canvas, {
                             type: this.medicalRecordsChartType || 'bar',
                             data: {
@@ -1211,7 +1167,7 @@
                     }
                 },
                 
-                // Export chart (Print functionality - same as Dean's Reports)
+                // Export chart (Print functionality - same as Nurse Reports)
                 exportChart(chartId, filename) {
                     // Store which chart to print
                     this.selectedChartForPrint = chartId;
@@ -1293,56 +1249,21 @@
         }
     </script>
 
-    <!-- Logout Confirmation Modal -->
-    <div x-show="showLogoutConfirm" x-cloak
-         x-transition:enter="transition ease-out duration-300"
-         x-transition:enter-start="opacity-0"
-         x-transition:enter-end="opacity-100"
-         x-transition:leave="transition ease-in duration-200"
-         x-transition:leave-start="opacity-100"
-         x-transition:leave-end="opacity-0"
-         class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
-         @click.self="showLogoutConfirm = false">
-        <div class="bg-white rounded-lg shadow-xl w-full max-w-md mx-4">
-            <div class="p-6">
-                <div class="flex items-center mb-4">
-                    <div class="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mr-4">
-                        <i data-feather="log-out" class="w-6 h-6 text-red-600"></i>
-                    </div>
-                    <h3 class="text-lg font-semibold text-gray-900">Confirm Logout</h3>
-                </div>
-                
-                <p class="text-gray-600 mb-6">Are you sure you want to logout? You will need to login again to access the system.</p>
-                
-                <div class="flex justify-end gap-3">
-                    <button @click="showLogoutConfirm = false"
-                            class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors">
-                        Cancel
-                    </button>
-                    <button @click="window.location.href = '{{ url_for('logout') }}'"
-                            class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors">
-                        Yes, Logout
-                    </button>
-                </div>
-            </div>
-        </div>
-    </div>
-
     <!-- HIDDEN PRINT SECTION - Only shows when printing -->
     <div class="print-only" style="position: absolute; left: -9999px; width: 210mm; padding: 40px;">
         <!-- Official Header -->
         <div style="text-align: center; margin-bottom: 40px;">
             <div style="display: flex; align-items: center; justify-content: center; gap: 40px; margin-bottom: 20px;">
-                <img src="{{ url_for('static', filename='img/iclinic-logo.png') }}" alt="Norzagaray College Logo" style="width: 80px; height: 80px; object-fit: contain;">
+                <img src="/assets/img/iclinic-logo.png" alt="Norzagaray College Logo" style="width: 80px; height: 80px; object-fit: contain;">
                 <div>
                     <h1 style="font-size: 16px; font-weight: 900; color: black; margin: 0; letter-spacing: 1px;">NORZAGARAY COLLEGE</h1>
                     <p style="font-size: 12px; font-weight: 600; color: black; margin: 2px 0;">Municipal Compound, Brgy. Poblacion</p>
                     <p style="font-size: 12px; font-weight: 600; color: black; margin: 2px 0;">Norzagaray, Bulacan</p>
                 </div>
-                <img src="{{ url_for('static', filename='img/Picture1.jpg') }}" alt="School Building" style="width: 80px; height: 80px; object-fit: contain;">
+                <img src="/assets/img/Picture1.jpg" alt="School Building" style="width: 80px; height: 80px; object-fit: contain;">
             </div>
             <h2 style="font-size: 20px; font-weight: 900; color: black; margin: 30px 0; letter-spacing: 2px;">
-                SYSTEM ADMINISTRATION REPORTS
+                {% if user.role == 'president' %}PRESIDENT REPORTS{% else %}DEAN'S REPORTS{% endif %}
             </h2>
         </div>
         
@@ -1384,7 +1305,11 @@
                             </div>
                             <div style="font-size: 10px; color: #666; margin-top: 10px;">
                                 <strong>Generated By:</strong><br>
-                                System Administrator
+                                {% if user.first_name and user.last_name %}
+                                    {{ user.first_name }} {{ user.last_name }}
+                                {% else %}
+                                    {{ user.position or 'Administrator' }}
+                                {% endif %}
                             </div>
                             <div style="font-size: 10px; color: #666; margin-top: 10px;">
                                 <strong>Academic Year:</strong><br>
@@ -1417,7 +1342,7 @@
             <div style="display: inline-block; width: 300px;">
                 <div style="border-bottom: 2px solid black; margin-bottom: 5px; padding-bottom: 20px;"></div>
                 <p style="font-weight: 700; font-size: 11px; margin: 0;">
-                    System Administrator
+                    {% if user.role == 'president' %}College President{% else %}Dean{% endif %}
                 </p>
                 <p style="font-size: 10px; color: #666; margin: 2px 0;">Prepared By</p>
             </div>

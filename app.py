@@ -1148,7 +1148,7 @@ def validate_id_and_get_info(cursor, role, id_number, full_name, email):
                 }
             }
             
-        elif role == 'admin':
+        elif role in ['admin', 'it_staff']:
             # Check if admin exists with this admin_id
             cursor.execute('''
                 SELECT id, first_name, last_name, email, position, access_level
@@ -3321,9 +3321,9 @@ def login():
         if user[3] in ['student', 'teaching_staff', 'non_teaching_staff', 'deans', 'president']:
             redirect_url = url_for('student_dashboard')
             print(f"âœ… Redirecting to student dashboard")
-        elif user[3] == 'admin':
-            redirect_url = url_for('admin_dashboard')
-            print(f"âœ… Redirecting to admin dashboard")
+        elif user[3] in ['admin', 'it_staff']:
+            redirect_url = url_for('it_dashboard')
+            print(f"âœ… Redirecting to IT dashboard")
         elif user[3] in ['staff', 'Nurse']:
             redirect_url = url_for('staff_dashboard')
             print(f"âœ… Redirecting to staff dashboard")
@@ -3799,6 +3799,7 @@ def verify_email():
             'teaching_staff': 'teaching_staff',  # Fixed: Keep as teaching_staff
             'nurse': 'staff',  # Nurses get 'staff' role
             'admin': 'admin',  # Admins get 'admin' role
+            'it_staff': 'it_staff',  # IT Staff get 'it_staff' role
             'non_teaching_staff': 'non_teaching_staff',  # Fixed: Keep as non_teaching_staff
             'president': 'president',
             'deans': 'deans'
@@ -3809,6 +3810,7 @@ def verify_email():
             'teaching_staff': 'Teaching Staff',
             'nurse': 'Registered Nurse',
             'admin': 'System Administrator',
+            'it_staff': 'IT Staff',
             'non_teaching_staff': 'Non-Teaching Staff',
             'president': 'President',
             'deans': 'Dean'
@@ -4185,6 +4187,7 @@ def complete_registration():
                 'student': ('student', 'Student'),
                 'nurse': ('staff', 'Nurse Staff'),
                 'admin': ('admin', 'System Admin'),  # âœ¨ FIXED: Admin position = System Admin
+                'it_staff': ('it_staff', 'IT Staff'),
                 'teaching_staff': ('teaching_staff', 'Teaching Staff'),  # Fixed: Keep as teaching_staff
                 'non_teaching_staff': ('non_teaching_staff', 'Non-Teaching Staff'),  # Fixed: Keep as non_teaching_staff
                 'president': ('president', 'President'),  # Fixed: Keep as president
@@ -4264,7 +4267,7 @@ def get_institutional_email(cursor, role, id_number):
             cursor.execute('SELECT email FROM nurses WHERE nurse_id = %s AND status = "Active"', (id_number,))
             result = cursor.fetchone()
             return result[0] if result else None
-        elif role == 'admin':
+        elif role in ['admin', 'it_staff']:
             # Look up admin email from admins table
             cursor.execute('SELECT email FROM admins WHERE admin_id = %s AND status = "Active"', (id_number,))
             result = cursor.fetchone()
@@ -4994,15 +4997,20 @@ def staff_dashboard():
 
 @app.route('/admin/dashboard')
 def admin_dashboard():
-    """Serve the admin dashboard"""
+    """Backward-compatible route: redirect to IT dashboard"""
+    return redirect(url_for('it_dashboard'))
+
+
+@app.route('/it/dashboard')
+def it_dashboard():
+    """Serve the IT dashboard (admin-equivalent)"""
     if 'user_id' not in session:
         return redirect(url_for('login_page'))
-    
-    # Check if user is actually an admin
-    if session.get('role') != 'admin':
-        flash('Access denied. Admins only.', 'error')
+
+    if session.get('role') not in ['admin', 'it_staff']:
+        flash('Access denied. IT Staff only.', 'error')
         return redirect(url_for('login_page'))
-    
+
     user_info = {
         'username': session.get('username'),
         'first_name': session.get('first_name'),
@@ -5461,15 +5469,20 @@ def api_deans_president_monthly_visits_data():
 
 @app.route('/admin/user-management')
 def admin_user_management():
-    """Serve the admin user management page"""
+    """Backward-compatible route: redirect to IT user management"""
+    return redirect(url_for('it_user_management'))
+
+
+@app.route('/it/user-management')
+def it_user_management():
+    """Serve the IT user management page (admin-equivalent)"""
     if 'user_id' not in session:
         return redirect(url_for('login_page'))
-    
-    # Check if user is actually an admin
-    if session.get('role') != 'admin':
-        flash('Access denied. Admins only.', 'error')
+
+    if session.get('role') not in ['admin', 'it_staff']:
+        flash('Access denied. IT Staff only.', 'error')
         return redirect(url_for('login_page'))
-    
+
     user_info = {
         'username': session.get('username'),
         'first_name': session.get('first_name'),
@@ -5481,15 +5494,20 @@ def admin_user_management():
 
 @app.route('/admin/patient-management')
 def admin_patient_management():
-    """Serve the admin patient management page"""
+    """Backward-compatible route: redirect to IT patient management"""
+    return redirect(url_for('it_patient_management'))
+
+
+@app.route('/it/patient-management')
+def it_patient_management():
+    """Serve the IT patient management page (admin-equivalent)"""
     if 'user_id' not in session:
         return redirect(url_for('login_page'))
-    
-    # Check if user is actually an admin
-    if session.get('role') != 'admin':
-        flash('Access denied. Admins only.', 'error')
+
+    if session.get('role') not in ['admin', 'it_staff']:
+        flash('Access denied. IT Staff only.', 'error')
         return redirect(url_for('login_page'))
-    
+
     user_info = {
         'username': session.get('username'),
         'first_name': session.get('first_name'),
@@ -5501,15 +5519,25 @@ def admin_patient_management():
 
 @app.route('/admin/reports')
 def admin_reports():
-    """Serve the admin reports page"""
+    """Redirect old admin reports route"""
+    return redirect(url_for('it_inventory'))
+
+@app.route('/admin/inventory')
+def admin_inventory():
+    """Backward-compatible route: redirect to IT inventory"""
+    return redirect(url_for('it_inventory'))
+
+
+@app.route('/it/inventory')
+def it_inventory():
+    """Serve the IT inventory page (admin-equivalent)"""
     if 'user_id' not in session:
         return redirect(url_for('login_page'))
-    
-    # Check if user is actually an admin
-    if session.get('role') != 'admin':
-        flash('Access denied. Admins only.', 'error')
+
+    if session.get('role') not in ['admin', 'it_staff']:
+        flash('Access denied. IT Staff only.', 'error')
         return redirect(url_for('login_page'))
-    
+
     user_info = {
         'username': session.get('username'),
         'first_name': session.get('first_name'),
@@ -5517,7 +5545,7 @@ def admin_reports():
         'position': session.get('position'),
         'role': session.get('role')
     }
-    return render_template('pages/admin/REPORTS.html', user=user_info)
+    return render_template('pages/admin/ADMIN_INVENTORY.html', user=user_info)
 
 @app.route('/staff/print-reports')
 def staff_print_reports():
@@ -15478,7 +15506,7 @@ def get_users():
         return jsonify({'error': 'Authentication required'}), 401
     
     # Check if user is admin
-    if session.get('role') != 'admin':
+    if session.get('role') not in ['admin', 'it_staff']:
         return jsonify({'error': 'Admin access required'}), 403
     
     try:
@@ -15564,6 +15592,84 @@ def get_users():
         print(f"Error fetching users: {e}")
         return jsonify({'error': f'Database error: {str(e)}'}), 500
 
+@app.route('/api/users/<int:user_id>', methods=['PUT'])
+def update_user(user_id):
+    """Update a user's basic information and role"""
+    if 'user_id' not in session:
+        return jsonify({'error': 'Authentication required'}), 401
+    
+    if session.get('role') not in ['admin', 'it_staff']:
+        return jsonify({'error': 'Admin access required'}), 403
+    
+    data = request.get_json() or {}
+    
+    name = (data.get('name') or '').strip()
+    email = (data.get('email') or '').strip()
+    role_in = (data.get('role') or '').strip()
+    
+    if not name:
+        return jsonify({'error': 'Name is required'}), 400
+    if not email:
+        return jsonify({'error': 'Email is required'}), 400
+    if not role_in:
+        return jsonify({'error': 'Role is required'}), 400
+    
+    role_key = role_in.lower().replace('-', '_').replace(' ', '_')
+    
+    role_position_map = {
+        'student': ('student', 'Student'),
+        'nurse': ('staff', 'Nurse Staff'),
+        'staff': ('staff', 'Nurse Staff'),
+        'teaching_staff': ('teaching_staff', 'Teaching Staff'),
+        'non_teaching_staff': ('non_teaching_staff', 'Non-Teaching Staff'),
+        'dean': ('deans', 'Dean'),
+        'deans': ('deans', 'Dean'),
+        'president': ('president', 'President'),
+        'admin': ('admin', 'System Admin'),
+        'administrator': ('admin', 'System Admin'),
+        'it_staff': ('it_staff', 'IT Staff')
+    }
+    
+    if role_key not in role_position_map:
+        return jsonify({'error': f'Invalid role: {role_in}'}), 400
+    
+    db_role, position = role_position_map[role_key]
+    
+    name_parts = name.split()
+    first_name = name_parts[0] if name_parts else name
+    last_name = ' '.join(name_parts[1:]) if len(name_parts) > 1 else ''
+    
+    try:
+        conn = DatabaseConfig.get_connection()
+        if not conn:
+            return jsonify({'error': 'Database connection failed'}), 500
+        
+        cursor = conn.cursor()
+        cursor.execute('''
+            UPDATE users
+            SET email = %s,
+                username = %s,
+                first_name = %s,
+                last_name = %s,
+                role = %s,
+                position = %s
+            WHERE id = %s
+        ''', (email, email, first_name, last_name, db_role, position, user_id))
+        
+        conn.commit()
+        if cursor.rowcount == 0:
+            cursor.close()
+            conn.close()
+            return jsonify({'error': 'User not found'}), 404
+        
+        cursor.close()
+        conn.close()
+        
+        return jsonify({'success': True, 'message': 'User updated successfully'}), 200
+    except Exception as e:
+        print(f"Error updating user: {e}")
+        return jsonify({'error': f'Database error: {str(e)}'}), 500
+
 @app.route('/api/users/<int:user_id>/reset-password', methods=['POST'])
 def reset_user_password(user_id):
     """Reset a user's password"""
@@ -15571,7 +15677,7 @@ def reset_user_password(user_id):
         return jsonify({'error': 'Authentication required'}), 401
     
     # Check if user is admin
-    if session.get('role') != 'admin':
+    if session.get('role') not in ['admin', 'it_staff']:
         return jsonify({'error': 'Admin access required'}), 403
     
     try:
@@ -15877,7 +15983,7 @@ def get_admin_patients():
         return jsonify({'error': 'Authentication required'}), 401
     
     # Check if user is admin
-    if session.get('role', '').lower() != 'admin':
+    if session.get('role') not in ['admin', 'it_staff']:
         return jsonify({'error': 'Admin access required'}), 403
     
     conn = None
@@ -16072,7 +16178,7 @@ def update_patient_status(patient_id):
         return jsonify({'error': 'Authentication required'}), 401
     
     # Check if user is admin
-    if session.get('role', '').lower() != 'admin':
+    if session.get('role') not in ['admin', 'it_staff']:
         return jsonify({'error': 'Admin access required'}), 403
     
     try:
@@ -16241,7 +16347,7 @@ def delete_patient(patient_id):
         return jsonify({'error': 'Authentication required'}), 401
     
     # Check if user is admin
-    if session.get('role', '').lower() != 'admin':
+    if session.get('role') not in ['admin', 'it_staff']:
         return jsonify({'error': 'Admin access required'}), 403
     
     try:

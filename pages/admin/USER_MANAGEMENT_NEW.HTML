@@ -300,10 +300,19 @@
     },
     openEditModal(user) {
         this.selectedUser = user;
+
+        const roleKey = (user.role || '').toString().toLowerCase().trim();
+        const normalizedRole =
+            roleKey === 'system admin' || roleKey === 'system administrator' || roleKey === 'administrator' || roleKey === 'admin'
+                ? 'Admin'
+                : roleKey === 'it staff' || roleKey === 'it_staff'
+                    ? 'IT Staff'
+                    : user.role;
+
         this.editForm = {
             name: user.name,
             email: user.email,
-            role: user.role,
+            role: normalizedRole,
             status: user.status
         };
         this.showEditModal = true;
@@ -489,7 +498,7 @@
             <!-- Navigation -->
             <nav class="relative mt-8 px-4 space-y-2">
                 <!-- Dashboard -->
-                <a href="{{ url_for('admin_dashboard') }}"
+                <a href="{{ url_for('it_dashboard') }}"
                    class="flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all group hover:bg-white/10">
                     <div class="flex items-center justify-center" :class="sidebarCollapsed && !sidebarHovered ? 'w-full' : ''">
                         <i data-feather="home" class="w-5 h-5 group-hover:scale-110 transition-transform"></i>
@@ -498,7 +507,7 @@
                 </a>
                 
                 <!-- User Management -->
-                <a href="{{ url_for('admin_user_management') }}"
+                <a href="{{ url_for('it_user_management') }}"
                    class="sidebar-item-active flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all group">
                     <div class="flex items-center justify-center" :class="sidebarCollapsed && !sidebarHovered ? 'w-full' : ''">
                         <i data-feather="users" class="w-5 h-5 group-hover:scale-110 transition-transform"></i>
@@ -507,7 +516,7 @@
                 </a>
                 
                 <!-- Patient Management -->
-                <a href="{{ url_for('admin_patient_management') }}"
+                <a href="{{ url_for('it_patient_management') }}"
                    class="flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all group hover:bg-white/10">
                     <div class="flex items-center justify-center" :class="sidebarCollapsed && !sidebarHovered ? 'w-full' : ''">
                         <i data-feather="heart" class="w-5 h-5 group-hover:scale-110 transition-transform"></i>
@@ -515,13 +524,13 @@
                     <span x-show="!sidebarCollapsed || sidebarHovered" x-transition class="font-medium">Patient Management</span>
                 </a>
                 
-                <!-- Reports & Analytics -->
-                <a href="{{ url_for('admin_reports') }}"
+                <!-- Inventory -->
+                <a href="{{ url_for('it_inventory') }}"
                    class="flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all group hover:bg-white/10">
                     <div class="flex items-center justify-center" :class="sidebarCollapsed && !sidebarHovered ? 'w-full' : ''">
-                        <i data-feather="bar-chart-2" class="w-5 h-5 group-hover:scale-110 transition-transform"></i>
+                        <i data-feather="package" class="w-5 h-5 group-hover:scale-110 transition-transform"></i>
                     </div>
-                    <span x-show="!sidebarCollapsed || sidebarHovered" x-transition class="font-medium">Reports & Analytics</span>
+                    <span x-show="!sidebarCollapsed || sidebarHovered" x-transition class="font-medium">Inventory</span>
                 </a>
             </nav>
         
@@ -535,8 +544,8 @@
                         <span class="text-blue-900 font-bold">{% if user %}{{ user.first_name[0] }}{{ user.last_name[0] }}{% else %}AD{% endif %}</span>
                     </div>
                     <div x-show="!sidebarCollapsed || sidebarHovered" x-transition class="flex-1 text-left">
-                        <p class="text-sm font-medium text-white">{% if user %}{{ user.first_name }} {{ user.last_name }}{% else %}Admin User{% endif %}</p>
-                        <p class="text-xs text-yellow-300">{% if user.position %}{{ user.position }}{% else %}System Administrator{% endif %}</p>
+                        <p class="text-sm font-medium text-white">{% if user %}{{ user.first_name }} {{ user.last_name }}{% else %}IT Staff User{% endif %}</p>
+                        <p class="text-xs text-yellow-300">{% if user.position %}{{ user.position }}{% else %}IT Staff{% endif %}</p>
                     </div>
                     <i x-show="!sidebarCollapsed || sidebarHovered" data-feather="chevron-up" class="w-4 h-4 text-white/70"></i>
                 </button>
@@ -599,7 +608,7 @@
                                     </div>
                                     <div class="flex items-center gap-2 text-blue-100">
                                         <i data-feather="shield" class="w-3.5 h-3.5"></i>
-                                        <span class="text-sm">Manage students, staff, and administrators in the clinic system.</span>
+                                        <span class="text-sm">Manage students, staff, and IT staff accounts in the clinic system.</span>
                                     </div>
                                 </div>
                             </div>
@@ -939,7 +948,8 @@
                                 <option value="Nurse">Nurse</option>
                                 <option value="Teaching Staff">Teaching Staff</option>
                                 <option value="Non-Teaching Staff">Non-Teaching Staff</option>
-                                <option value="Admin">Administrator</option>
+                                <option value="Admin">Admin</option>
+                                <option value="IT Staff">IT Staff</option>
                             </select>
                         </div>
                         <div>
@@ -1029,6 +1039,8 @@
                                 <option value="Non-Teaching Staff">Non-Teaching Staff</option>
                                 <option value="Dean">Dean</option>
                                 <option value="President">President</option>
+                                <option value="IT Staff">IT Staff</option>
+                                <option value="Admin">Admin</option>
                             </select>
                         </div>
                         <div>

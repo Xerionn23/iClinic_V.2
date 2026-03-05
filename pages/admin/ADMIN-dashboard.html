@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin Dashboard - iClinic Healthcare Management System</title>
+    <title>IT Staff Dashboard - iClinic Healthcare Management System</title>
     
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>    <!-- Suppress Tailwind CDN Warning -->
@@ -474,7 +474,7 @@
     },
     async loadDashboardData() {
         try {
-            console.log('📥 Loading admin dashboard data...');
+            console.log('📥 Loading IT dashboard data...');
             
             // Load all patients count (students + visitors + staff)
             console.log('🔍 Fetching /api/all-patients...');
@@ -672,7 +672,7 @@
             <!-- Navigation -->
             <nav class="relative mt-8 px-4 space-y-2">
                 <!-- Dashboard -->
-                <a href="{{ url_for('admin_dashboard') }}"
+                <a href="{{ url_for('it_dashboard') }}"
                    class="sidebar-item-active flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all group">
                     <div class="flex items-center justify-center" :class="sidebarCollapsed && !sidebarHovered ? 'w-full' : ''">
                         <i data-feather="home" class="w-5 h-5 group-hover:scale-110 transition-transform"></i>
@@ -681,7 +681,7 @@
                 </a>
                 
                 <!-- User Management -->
-                <a href="{{ url_for('admin_user_management') }}"
+                <a href="{{ url_for('it_user_management') }}"
                    class="flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all group hover:bg-white/10">
                     <div class="flex items-center justify-center" :class="sidebarCollapsed && !sidebarHovered ? 'w-full' : ''">
                         <i data-feather="users" class="w-5 h-5 group-hover:scale-110 transition-transform"></i>
@@ -690,7 +690,7 @@
                 </a>
                 
                 <!-- Patient Management -->
-                <a href="{{ url_for('admin_patient_management') }}"
+                <a href="{{ url_for('it_patient_management') }}"
                    class="flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all group hover:bg-white/10">
                     <div class="flex items-center justify-center" :class="sidebarCollapsed && !sidebarHovered ? 'w-full' : ''">
                         <i data-feather="heart" class="w-5 h-5 group-hover:scale-110 transition-transform"></i>
@@ -698,13 +698,13 @@
                     <span x-show="!sidebarCollapsed || sidebarHovered" x-transition class="font-medium">Patient Management</span>
                 </a>
                 
-                <!-- Reports & Analytics -->
-                <a href="{{ url_for('admin_reports') }}"
+                <!-- Inventory -->
+                <a href="{{ url_for('it_inventory') }}"
                    class="flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all group hover:bg-white/10">
                     <div class="flex items-center justify-center" :class="sidebarCollapsed && !sidebarHovered ? 'w-full' : ''">
-                        <i data-feather="bar-chart-2" class="w-5 h-5 group-hover:scale-110 transition-transform"></i>
+                        <i data-feather="package" class="w-5 h-5 group-hover:scale-110 transition-transform"></i>
                     </div>
-                    <span x-show="!sidebarCollapsed || sidebarHovered" x-transition class="font-medium">Reports & Analytics</span>
+                    <span x-show="!sidebarCollapsed || sidebarHovered" x-transition class="font-medium">Inventory</span>
                 </a>
             </nav>
         
@@ -718,8 +718,8 @@
                         <span class="text-blue-900 font-bold">{% if user %}{{ user.first_name[0] }}{{ user.last_name[0] }}{% else %}AD{% endif %}</span>
                     </div>
                     <div x-show="!sidebarCollapsed || sidebarHovered" x-transition class="flex-1 text-left">
-                        <p class="text-sm font-medium text-white">{% if user %}{{ user.first_name }} {{ user.last_name }}{% else %}Admin User{% endif %}</p>
-                        <p class="text-xs text-yellow-300">{% if user.position %}{{ user.position }}{% else %}System Administrator{% endif %}</p>
+                        <p class="text-sm font-medium text-white">{% if user %}{{ user.first_name }} {{ user.last_name }}{% else %}IT Staff User{% endif %}</p>
+                        <p class="text-xs text-yellow-300">{% if user.position %}{{ user.position }}{% else %}IT Staff{% endif %}</p>
                     </div>
                     <i x-show="!sidebarCollapsed || sidebarHovered" data-feather="chevron-up" class="w-4 h-4 text-white/70"></i>
                 </button>
@@ -835,14 +835,14 @@
                 </button>
                 <div class="flex items-center gap-2">
                     <img src="{{ url_for('static', filename='img/iclinic-logo.png') }}" alt="iClinic" class="w-8 h-8">
-                    <h1 class="text-lg font-bold text-gray-900">iClinic Admin</h1>
+                    <h1 class="text-lg font-bold text-gray-900">iClinic IT Staff</h1>
                 </div>
                 <div class="w-10"></div> <!-- Spacer for centering -->
             </header>
             
             <!-- Main Dashboard Content -->
             <main class="flex-1 overflow-y-auto bg-gray-50 p-6 p-3 sm:p-4 md:p-6" style="max-height: calc(100vh - 80px);">
-                <!-- Enhanced Admin Dashboard Header -->
+                <!-- Enhanced IT Staff Dashboard Header -->
                 <div class="gradient-bg-sidebar text-white shadow-2xl relative overflow-hidden rounded-[2rem] ml-1">
                         <!-- Decorative Elements -->
                         <div class="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -translate-y-32 translate-x-32"></div>
@@ -861,7 +861,7 @@
                                     <div>
                                         <div class="flex items-center gap-2 mb-1">
                                             <h1 class="text-2xl sm:text-3xl font-bold text-white text-xl sm:text-2xl md:text-3xl text-lg sm:text-xl md:text-2xl text-base sm:text-lg md:text-xl">
-                                                Admin Dashboard
+                                                IT Staff Dashboard
                                             </h1>
                                         </div>
                                         <div class="flex items-center gap-2 text-blue-100">
@@ -975,7 +975,7 @@
                         <div class="bg-white rounded-xl p-6 shadow-lg border border-gray-100 sm:p-6 p-4 p-4 sm:p-5 md:p-6">
                             <div class="flex items-center justify-between mb-4">
                                 <h3 class="text-lg font-bold text-gray-900">Recent Registrations</h3>
-                                <a href="{{ url_for('admin_user_management') }}" class="text-sm text-blue-600 hover:text-blue-700 font-semibold">View All →</a>
+                                <a href="{{ url_for('it_user_management') }}" class="text-sm text-blue-600 hover:text-blue-700 font-semibold">View All →</a>
                             </div>
                             
                             <!-- Loading State -->
@@ -1040,8 +1040,8 @@
                             <span class="text-white font-bold text-xl text-base sm:text-lg md:text-xl">AD</span>
                         </div>
                         <div>
-                            <h2 class="text-2xl font-bold text-lg sm:text-xl md:text-2xl text-base sm:text-lg md:text-xl">Admin User</h2>
-                            <p class="text-blue-100">System Administrator Profile</p>
+                            <h2 class="text-2xl font-bold text-lg sm:text-xl md:text-2xl text-base sm:text-lg md:text-xl">IT Staff User</h2>
+                            <p class="text-blue-100">IT Staff Profile</p>
                         </div>
                     </div>
                     <button @click="profileModal = false" class="p-2 hover:bg-white/20 rounded-lg transition-colors">
@@ -1065,19 +1065,19 @@
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-4 grid-cols-1 sm:grid-cols-2">
                                 <div>
                                     <label class="text-sm font-medium text-gray-600">Full Name</label>
-                                    <p class="text-gray-900 font-medium">Administrator User</p>
+                                    <p class="text-gray-900 font-medium">IT Staff User</p>
                                 </div>
                                 <div>
                                     <label class="text-sm font-medium text-gray-600">Employee ID</label>
-                                    <p class="text-gray-900 font-medium">ADMIN-001</p>
+                                    <p class="text-gray-900 font-medium">IT-001</p>
                                 </div>
                                 <div>
                                     <label class="text-sm font-medium text-gray-600">Department</label>
-                                    <p class="text-gray-900 font-medium">IT Administration</p>
+                                    <p class="text-gray-900 font-medium">IT Department</p>
                                 </div>
                                 <div>
                                     <label class="text-sm font-medium text-gray-600">Role</label>
-                                    <p class="text-gray-900 font-medium">System Administrator</p>
+                                    <p class="text-gray-900 font-medium">IT Staff</p>
                                 </div>
                             </div>
                         </div>
@@ -1091,7 +1091,7 @@
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-4 grid-cols-1 sm:grid-cols-2">
                                 <div>
                                     <label class="text-sm font-medium text-gray-600">Email Address</label>
-                                    <p class="text-gray-900 font-medium">admin@norzagaray.edu.ph</p>
+                                    <p class="text-gray-900 font-medium">itstaff@norzagaray.edu.ph</p>
                                 </div>
                                 <div>
                                     <label class="text-sm font-medium text-gray-600">Phone Number</label>
@@ -1105,7 +1105,7 @@
                         </div>
                     </div>
                     
-                    <!-- Admin Stats & Quick Actions -->
+                    <!-- IT Staff Stats & Quick Actions -->
                     <div class="space-y-6">
                         <!-- System Statistics -->
                         <div class="bg-gradient-to-br from-blue-50 to-green-50 rounded-xl p-6 border border-blue-200 p-4 sm:p-5 md:p-6">
@@ -1141,7 +1141,7 @@
                         <div class="bg-green-50 rounded-xl p-6 border border-green-200 p-4 sm:p-5 md:p-6">
                             <h3 class="text-lg font-semibold text-green-900 mb-4 flex items-center gap-2">
                                 <i data-feather="check-circle" class="w-5 h-5 text-green-600"></i>
-                                Admin Permissions
+                                IT Staff Permissions
                             </h3>
                             <div class="space-y-3">
                                 <div class="flex items-center gap-2">
@@ -1158,7 +1158,7 @@
                                 </div>
                                 <div class="flex items-center gap-2">
                                     <div class="w-2 h-2 bg-green-500 rounded-full"></div>
-                                    <span class="text-sm text-green-800">Reports & Analytics</span>
+                                    <span class="text-sm text-green-800">Inventory</span>
                                 </div>
                             </div>
                         </div>
