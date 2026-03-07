@@ -5705,7 +5705,7 @@ def deans_president_reports():
         'role': session.get('role'),
         'position': session.get('position')
     }
-    return redirect(url_for('student_dashboard'))
+    return render_template('pages/deans_president/DEANS_REPORT.html', user=user_info)
 
 @app.route('/patients')
 def staff_patients():

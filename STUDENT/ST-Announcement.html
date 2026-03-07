@@ -499,6 +499,17 @@
                     </div>
                     <span x-show="!sidebarCollapsed" class="font-medium">Onsite Queue</span>
                 </a>
+
+                <!-- Deans Reports (ONLY for Deans and President) -->
+                {% if user and user.role in ['deans', 'president'] %}
+                <a href="{{ url_for('deans_president_reports') }}"
+                   class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all group hover:bg-white/10">
+                    <div class="flex items-center justify-center" :class="sidebarCollapsed ? 'w-full' : ''">
+                        <i data-feather="bar-chart-2" class="w-5 h-5 group-hover:scale-110 transition-transform"></i>
+                    </div>
+                    <span x-show="!sidebarCollapsed" class="font-medium">Deans Reports</span>
+                </a>
+                {% endif %}
             </nav>
         
             <!-- User Profile -->

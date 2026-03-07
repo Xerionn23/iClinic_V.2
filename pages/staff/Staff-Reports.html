@@ -669,16 +669,7 @@
         <div :class="sidebarCollapsed ? 'md:ml-20' : 'md:ml-64'" class="flex-1 flex flex-col transition-all duration-300">
             
             <!-- Mobile Header -->
-            <div class="md:hidden bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between">
-                <button @click="sidebarCollapsed = !sidebarCollapsed" class="p-2 rounded-lg hover:bg-gray-100">
-                    <i data-feather="menu" class="w-6 h-6 text-gray-600"></i>
-                </button>
-                <div class="flex items-center space-x-2">
-                    <img src="../assets/img/iclinic-logo.png" alt="iClinic" class="w-8 h-8">
-                    <h1 class="text-lg font-bold text-gray-900">Reports</h1>
-                </div>
-                <div class="w-10"></div> <!-- Spacer for centering -->
-            </div>
+            
             
             <!-- Main Reports Content -->
             <main class="flex-1 overflow-hidden bg-gray-50 p-6">
@@ -5793,25 +5784,30 @@
                         console.warn('Chart not found:', chartId);
                         return;
                     }
+
+                    const sourceType = sourceChart?.config?.type;
+                    const printType = sourceType;
+                    const isCircular = ['pie', 'doughnut', 'polarArea'].includes(printType);
+
+                    const sourceOptions = sourceChart?.options ? JSON.parse(JSON.stringify(sourceChart.options)) : {};
+                    sourceOptions.responsive = true;
+                    sourceOptions.maintainAspectRatio = false;
+                    sourceOptions.animation = false;
+
+                    sourceOptions.plugins = sourceOptions.plugins || {};
+                    sourceOptions.plugins.legend = sourceOptions.plugins.legend || {};
+                    if (isCircular) {
+                        sourceOptions.plugins.legend.display = true;
+                        sourceOptions.plugins.legend.position = sourceOptions.plugins.legend.position || 'bottom';
+                    }
                     
                     // Create new print chart
                     window.printChartInstance = new Chart(printChartCtx, {
-                        type: sourceChart.config.type,
-                        data: JSON.parse(JSON.stringify(sourceChart.data)),
-                        options: {
-                            responsive: true,
-                            maintainAspectRatio: false,
-                            animation: false,
-                            plugins: {
-                                legend: {
-                                    display: true,
-                                    position: 'bottom'
-                                }
-                            },
-                            scales: sourceChart.config.type === 'line' || sourceChart.config.type === 'bar' ? {
-                                y: { beginAtZero: true }
-                            } : undefined
-                        }
+                        type: printType,
+                        data: (() => {
+                            return JSON.parse(JSON.stringify(sourceChart.data));
+                        })(),
+                        options: sourceOptions
                     });
                 },
 
@@ -6611,94 +6607,121 @@ this would contain the actual report data and formatting.
     </script>
 
 
-    <!-- HIDDEN PRINT SECTION - Only shows when printing -->
-    <div class="print-only" style="position: absolute; left: -9999px; width: 210mm; padding: 40px;">
-        <!-- Official Header -->
-        <div style="text-align: center; margin-bottom: 40px;">
-            <div style="display: flex; align-items: center; justify-content: center; gap: 40px; margin-bottom: 20px;">
-                <img src="{{ url_for('static', filename='img/iclinic-logo.png') }}" alt="Norzagaray College Logo" style="width: 80px; height: 80px; object-fit: contain;">
-                <div>
-                    <h1 style="font-size: 16px; font-weight: 900; color: black; margin: 0; letter-spacing: 1px;">NORZAGARAY COLLEGE</h1>
-                    <p style="font-size: 12px; font-weight: 600; color: black; margin: 2px 0;">Municipal Compound, Brgy. Poblacion</p>
-                    <p style="font-size: 12px; font-weight: 600; color: black; margin: 2px 0;">Norzagaray, Bulacan</p>
-                </div>
-                <img src="{{ url_for('static', filename='img/Picture1.jpg') }}" alt="School Building" style="width: 80px; height: 80px; object-fit: contain;">
-            </div>
-            <h2 style="font-size: 20px; font-weight: 900; color: black; margin: 30px 0; letter-spacing: 2px;">REPORTS</h2>
-        </div>
+    <!-- HIDDEN PRINT SECTION - Formal Institutional Report Layout -->
+    <div class="print-only" style="position: absolute; left: -9999px; width: 210mm; height: 297mm; background: white; padding: 8mm 15mm 12mm 15mm; color: #111827; font-family: 'Times New Roman', Cambria, Georgia, serif; box-sizing: border-box; overflow: hidden;">
         
-        <!-- Main Table Layout -->
-        <table style="width: 100%; border-collapse: collapse; border: 2px solid black;">
-            <tr>
-                <!-- SUMMARY Column -->
-                <td style="width: 40%; border: 2px solid black; vertical-align: top; padding: 0;">
-                    <div style="background: black; color: white; text-align: center; padding: 8px; font-weight: 700; font-size: 14px;">
-                        SUMMARY
-                    </div>
-                    <div style="padding: 20px;">
-                        <!-- Chart Summary Data -->
-                        <div style="margin-bottom: 20px;">
-                            <h4 style="font-size: 12px; font-weight: 700; color: black; margin-bottom: 15px; text-align: center;">Top Data Points</h4>
-                            <template x-for="(item, index) in chartSummaryData" :key="index">
-                                <div style="border-bottom: 1px solid #e5e7eb; padding: 12px 0; display: flex; justify-content: space-between; align-items: center;">
-                                    <div style="flex: 1;">
-                                        <div style="font-size: 10px; color: #6b7280; margin-bottom: 2px;" x-text="'#' + (index + 1)"></div>
-                                        <div style="font-size: 11px; font-weight: 600; color: #1f2937;" x-text="item.label"></div>
-                                    </div>
-                                    <div style="font-size: 20px; font-weight: 900; color: #2563eb;" x-text="item.value"></div>
-                                </div>
-                            </template>
-                            
-                            <!-- Fallback if no data -->
-                            <template x-if="chartSummaryData.length === 0">
-                                <div style="text-align: center; padding: 20px; color: #9ca3af;">
-                                    <p style="font-size: 11px; margin: 0;">No data available</p>
-                                </div>
-                            </template>
-                        </div>
-                        
-                        <!-- Additional Info -->
-                        <div style="margin-top: 30px; padding-top: 20px; border-top: 2px solid black;">
-                            <div style="font-size: 10px; color: #666; margin-bottom: 5px;">
-                                <strong>Report Date:</strong><br>
-                                <span x-text="new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })"></span>
-                            </div>
-                            <div style="font-size: 10px; color: #666; margin-top: 10px;">
-                                <strong>Generated By:</strong><br>
-                                {{ user.first_name }} {{ user.last_name }}
-                            </div>
-                            <div style="font-size: 10px; color: #666; margin-top: 10px;">
-                                <strong>Academic Year:</strong><br>
-                                <span x-text="reportPeriod">2024-2025</span>
-                            </div>
-                        </div>
-                    </div>
-                </td>
-                
-                <!-- REPORTS Column -->
-            <td style="width: 60%; border: 2px solid black; vertical-align: top; padding: 0;">
-                <div style="background: black; color: white; text-align: center; padding: 8px; font-weight: 700; font-size: 14px;">
-                    REPORTS
+        <!-- Optional Watermark -->
+        <div style="position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; pointer-events: none; z-index: 0;">
+            <div style="text-align: center; opacity: 0.05; transform: rotate(-20deg);">
+                <div style="font-size: 56px; font-weight: 700; letter-spacing: 2px;">NORZAGARAY COLLEGE</div>
+                <div style="font-size: 26px; font-weight: 600; margin-top: 10px;">Health Services Division</div>
+            </div>
+        </div>
+
+        <!-- Content Wrapper (above watermark) -->
+        <div style="position: relative; z-index: 1; padding-bottom: 22mm;">
+            
+            <!-- Header -->
+            <div style="display: grid; grid-template-columns: 85px 1fr 85px; align-items: center; gap: 12px;">
+                <div style="display: flex; justify-content: center;">
+                    <img src="{{ url_for('static', filename='img/iclinic-logo.png') }}" alt="College Logo" style="width: 70px; height: 70px; object-fit: contain;">
                 </div>
-                <div style="padding: 20px;">
-                    <!-- Dynamic Chart Title -->
-                    <h4 style="font-size: 14px; font-weight: 700; color: black; margin-bottom: 20px; text-align: center; text-transform: uppercase;" x-text="selectedChartTitle || 'Clinic Statistics'"></h4>
-                    
-                    <!-- Dynamic Chart -->
-                    <div style="margin: 20px 0;">
+                <div style="text-align: center;">
+                    <div style="font-size: 18px; font-weight: 700; letter-spacing: 1px;">NORZAGARAY COLLEGE</div>
+                    <div style="font-size: 11px; margin-top: 3px;">Municipal Compound, Brgy. Poblacion, Norzagaray, Bulacan</div>
+                    <div style="font-size: 12px; font-weight: 700; margin-top: 8px; text-transform: uppercase; color: #374151;">HEALTH SERVICES DIVISION</div>
+                </div>
+                <div style="display: flex; justify-content: center;">
+                    <img src="{{ url_for('static', filename='img/Picture1.jpg') }}" alt="Department Logo" style="width: 70px; height: 70px; object-fit: contain;">
+                </div>
+            </div>
+
+            <div style="border-top: 2px solid #1e3a5f; margin: 10px 0 0 0;"></div>
+            <div style="border-top: 1px solid #111827; margin: 3px 0 10px 0;"></div>
+
+            <!-- Report Title -->
+            <div style="text-align: center;">
+                <div style="font-size: 16px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #374151;" x-text="selectedChartTitle ? selectedChartTitle.replace(/_/g, ' ') + ' REPORT' : 'CLINIC REPORT'"></div>
+                <div style="margin-top: 6px; display: flex; justify-content: space-between; font-family: Arial, Helvetica, sans-serif; font-size: 11px;">
+                    <div><strong>Academic Year:</strong> <span x-text="reportPeriod">2024-2025</span></div>
+                    <div><strong>Report Generated:</strong> <span x-text="new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })"></span></div>
+                </div>
+            </div>
+
+            <div style="border-top: 1px solid #111827; margin: 10px 0;"></div>
+
+            <!-- TABLE 1 -->
+            <div style="font-family: Arial, Helvetica, sans-serif; page-break-inside: avoid;">
+                <div style="font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #374151; margin-bottom: 6px;">TABLE 1: Distribution Summary</div>
+                <table style="width: 100%; border-collapse: collapse; border: 1px solid #111827;">
+                    <thead>
+                        <tr style="background: #f3f4f6;">
+                            <th style="border: 1px solid #111827; padding: 6px 8px; font-size: 11px; text-align: left; width: 60px;">Rank</th>
+                            <th style="border: 1px solid #111827; padding: 6px 8px; font-size: 11px; text-align: left;">Item</th>
+                            <th style="border: 1px solid #111827; padding: 6px 8px; font-size: 11px; text-align: right; width: 140px;">Total</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <template x-for="(item, index) in chartSummaryData" :key="index">
+                            <tr>
+                                <td style="border: 1px solid #111827; padding: 6px 8px; font-size: 11px;" x-text="index + 1"></td>
+                                <td style="border: 1px solid #111827; padding: 6px 8px; font-size: 11px;" x-text="item.label"></td>
+                                <td style="border: 1px solid #111827; padding: 6px 8px; font-size: 11px; text-align: right;" x-text="item.value"></td>
+                            </tr>
+                        </template>
+                        <template x-if="chartSummaryData.length === 0">
+                            <tr>
+                                <td colspan="3" style="border: 1px solid #111827; padding: 10px 8px; font-size: 11px; text-align: center; color: #6b7280;">No data available</td>
+                            </tr>
+                        </template>
+                    </tbody>
+                </table>
+            </div>
+
+            <div style="border-top: 1px solid #111827; margin: 10px 0;"></div>
+
+            <!-- FIGURE 1 -->
+            <div style="font-family: Arial, Helvetica, sans-serif; page-break-inside: avoid;">
+                <div style="font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #374151; margin-bottom: 6px;">FIGURE 1: Distribution Chart</div>
+                <div style="border: 1px solid #111827; padding: 10px;">
+                    <div style="height: 200px;">
                         <canvas id="printDynamicChart" style="max-height: 200px; height: 200px;"></canvas>
                     </div>
                 </div>
-            </td>
-            </tr>
-        </table>
-        
-        <!-- Signature -->
-        <div style="margin-top: 60px; text-align: center;">
-            <div style="display: inline-block; width: 300px;">
-                <div style="border-bottom: 2px solid black; margin-bottom: 5px; padding-bottom: 20px;"></div>
-                <p style="font-weight: 700; font-size: 11px; margin: 0;">Clinic Nurse</p>
-                <p style="font-size: 10px; color: #666; margin: 2px 0;">Prepared By</p>
+            </div>
+
+            <div style="border-top: 1px solid #111827; margin: 12px 0;"></div>
+
+            <!-- Prepared / Approved -->
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14mm; font-family: Arial, Helvetica, sans-serif; font-size: 11px; page-break-inside: avoid;">
+                <div>
+                    <div style="margin-bottom: 12mm;"></div>
+                    <div style="border-top: 1px solid #111827; padding-top: 6px;">
+                        <div style="font-weight: 700;">Prepared by:</div>
+                        <div>{{ user.first_name }} {{ user.last_name }}</div>
+                        <div style="color: #374151;">Clinic Staff</div>
+                    </div>
+                </div>
+                <div>
+                    <div style="margin-bottom: 12mm;"></div>
+                    <div style="border-top: 1px solid #111827; padding-top: 6px;">
+                        <div style="font-weight: 700;">Approved by:</div>
+                        <div>Health Services Head</div>
+                        <div style="color: #374151;">Health Services Division</div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Official Footer (fixed to page bottom) -->
+        <div style="position: absolute; left: 15mm; right: 15mm; bottom: 12mm; font-family: Arial, Helvetica, sans-serif; font-size: 10px; color: #374151; page-break-inside: avoid;">
+            <div style="border-top: 1px solid #111827; padding-top: 8px;">
+                <div>This report is generated electronically by the Norzagaray College Health Services System.</div>
+                <div style="margin-top: 4px; display: flex; justify-content: space-between;">
+                    <div><strong>System:</strong> iClinic Health Management System</div>
+                    <div><strong>Date:</strong> <span x-text="new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })"></span></div>
+                </div>
             </div>
         </div>
     </div>
