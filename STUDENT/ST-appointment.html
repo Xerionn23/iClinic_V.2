@@ -579,10 +579,22 @@
                                                      'ring-2 ring-gray-400': day.isSelected && day.isPastDate
                                                  }">
                                                 <span x-text="day.day"></span>
-                                                <!-- Appointment indicator - ALWAYS show if has appointments -->
-                                                <div x-show="day.hasAppointments" class="absolute bottom-1 left-1/2 transform -translate-x-1/2 w-1 h-1 rounded-full" :class="day.isPastDate ? 'bg-gray-400' : 'bg-red-500'"></div>
-                                                <!-- Event indicator -->
-                                                <div x-show="day.hasEvent && !day.isPastDate" class="absolute top-1 right-1 w-1.5 h-1.5 bg-white rounded-full shadow-sm"></div>
+                                                <!-- Appointment indicator - small count badge (more literal than a dot) -->
+                                                <div x-show="day.hasAppointments" class="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full text-[10px] font-bold flex items-center justify-center shadow"
+                                                     :class="day.isPastDate ? 'bg-gray-400 text-white' : 'bg-red-600 text-white'"
+                                                     x-text="day.appointmentCount > 0 ? day.appointmentCount : '•'"></div>
+
+                                                <!-- Event/Schedule indicator - clear label badge -->
+                                                <div x-show="day.hasEvent && !day.isPastDate" class="absolute -bottom-1 left-1/2 -translate-x-1/2 px-1.5 py-0.5 rounded text-[9px] font-semibold leading-none shadow-sm border"
+                                                     :class="{
+                                                        'bg-red-50 text-red-800 border-red-200': day.eventType === 'no_appointments',
+                                                        'bg-yellow-50 text-yellow-900 border-yellow-200': day.eventType === 'limited_hours',
+                                                        'bg-purple-50 text-purple-800 border-purple-200': day.eventType === 'emergency_only',
+                                                        'bg-blue-50 text-blue-800 border-blue-200': day.eventType === 'maintenance',
+                                                        'bg-green-50 text-green-800 border-green-200': day.eventType === 'holiday',
+                                                        'bg-gray-50 text-gray-800 border-gray-200': !day.eventType
+                                                     }"
+                                                     x-text="day.eventType === 'holiday' ? 'HOL' : day.eventType === 'limited_hours' ? 'LH' : day.eventType === 'no_appointments' ? 'NA' : day.eventType === 'emergency_only' ? 'EMR' : day.eventType === 'maintenance' ? 'MAIN' : 'EVT'"></div>
                                             </div>
                                         </template>
                                     </div>
@@ -639,7 +651,7 @@
                                         <div class="flex items-center gap-2">
                                             <button @click="openAppointmentModal()" 
                                                     :disabled="isDateBlocked(selectedDate)"
-                                                    class="px-4 py-2 rounded-lg hover:shadow-lg transition-all duration-200 flex items-center space-x-2"
+                                                    class="px-4 py-2 rounded-lg hover:shadow-lg transition-colors"
                                                     :class="{
                                                         'bg-blue-600 hover:bg-blue-700 text-white cursor-pointer': !isDateBlocked(selectedDate),
                                                         'bg-gray-400 text-gray-200 cursor-not-allowed': isDateBlocked(selectedDate)
@@ -1098,6 +1110,16 @@
                         const requests = Array.isArray(this.appointmentRequests) ? this.appointmentRequests : [];
                         const events = Array.isArray(this.clinicEvents) ? this.clinicEvents : [];
                         
+                        const appointmentsOnDate = appointments.filter(a => a.date === dateStr);
+                        const requestsOnDate = requests.filter(r => {
+                            if (!r || !r.preferred_date) return false;
+                            const reqDate = new Date(r.preferred_date + 'T00:00:00');
+                            const reqDateStr = reqDate.getFullYear() + '-' +
+                                             String(reqDate.getMonth() + 1).padStart(2, '0') + '-' +
+                                             String(reqDate.getDate()).padStart(2, '0');
+                            return reqDateStr === dateStr;
+                        });
+                        
                         const hasAppointments = appointments.some(a => a.date === dateStr) || 
                                               requests.some(r => {
                                                   const reqDate = new Date(r.preferred_date + 'T00:00:00');
@@ -1106,6 +1128,8 @@
                                                                    String(reqDate.getDate()).padStart(2, '0');
                                                   return reqDateStr === dateStr;
                                               });
+
+                        const appointmentCount = (appointmentsOnDate.length || 0) + (requestsOnDate.length || 0);
                         
                         // Check for clinic events on this date
                         const dayEvents = events.filter(event => {
@@ -1171,6 +1195,7 @@
                             isSelected: dateStr === this.selectedDate,
                             isPastDate: isPastDate,
                             hasAppointments: hasAppointments,
+                            appointmentCount: appointmentCount,
                             hasEvent: dayEvents.length > 0,
                             eventType: eventType,
                             eventInfo: eventInfo

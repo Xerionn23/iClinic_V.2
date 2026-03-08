@@ -563,8 +563,6 @@
                     </div>
                     <span x-show="!sidebarCollapsed || sidebarHovered" x-transition class="font-medium">Reports</span>
                 </a>
-                
-
             </nav>
         
         <!-- User Profile -->
@@ -798,8 +796,22 @@
                                                      'ring-4 ring-blue-500 ring-opacity-50': day.isSelected && day.hasEvents && !day.isPastDate
                                                  }">
                                                 <span x-text="day.day"></span>
-                                                <!-- Appointment indicator - show for all appointments including past -->
-                                                <div x-show="day.hasAppointments" class="absolute top-1 right-1 w-1.5 h-1.5 rounded-full" :class="day.isPastDate ? 'bg-gray-400' : 'bg-red-500'"></div>
+                                                <!-- Appointment indicator - use a small count badge (more literal than a dot) -->
+                                                <div x-show="day.hasAppointments" class="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full text-[10px] font-bold flex items-center justify-center shadow"
+                                                     :class="day.isPastDate ? 'bg-gray-400 text-white' : 'bg-red-600 text-white'"
+                                                     x-text="day.appointmentCount > 0 ? day.appointmentCount : '•'"></div>
+
+                                                <!-- Event/Schedule indicator - show a clear label badge (instead of just a circle) -->
+                                                <div x-show="day.hasEvents" class="absolute -bottom-1 left-1/2 -translate-x-1/2 px-1.5 py-0.5 rounded text-[9px] font-semibold leading-none shadow-sm border"
+                                                     :class="{
+                                                        'bg-red-50 text-red-800 border-red-200': day.eventType === 'no_appointments',
+                                                        'bg-yellow-50 text-yellow-900 border-yellow-200': day.eventType === 'limited_hours',
+                                                        'bg-purple-50 text-purple-800 border-purple-200': day.eventType === 'emergency_only',
+                                                        'bg-blue-50 text-blue-800 border-blue-200': day.eventType === 'maintenance',
+                                                        'bg-green-50 text-green-800 border-green-200': day.eventType === 'holiday',
+                                                        'bg-gray-50 text-gray-800 border-gray-200': !day.eventType
+                                                     }"
+                                                     x-text="day.eventType === 'holiday' ? 'HOL' : day.eventType === 'limited_hours' ? 'LH' : day.eventType === 'no_appointments' ? 'NA' : day.eventType === 'emergency_only' ? 'EMR' : day.eventType === 'maintenance' ? 'MAIN' : 'EVT'"></div>
                                             </div>
                                         </template>
                                     </div>
