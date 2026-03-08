@@ -6541,7 +6541,9 @@ def api_all_patients():
         
         if visitors_table_exists:
             cursor.execute('''
-                SELECT id, first_name, middle_name, last_name, age, blood_type, contact_number, created_at
+                SELECT id, first_name, middle_name, last_name, age, blood_type, contact_number,
+                       emergency_contact_name, emergency_contact_relationship, emergency_contact_number,
+                       created_at
                 FROM visitors 
                 WHERE is_active = TRUE
                 ORDER BY last_name, first_name
@@ -6550,7 +6552,8 @@ def api_all_patients():
             
             # Convert visitors to patient format
             for v in visitors:
-                # v[0]=id, v[1]=first_name, v[2]=middle_name, v[3]=last_name, v[4]=age, v[5]=blood_type, v[6]=contact_number, v[7]=created_at
+                # v[0]=id, v[1]=first_name, v[2]=middle_name, v[3]=last_name, v[4]=age, v[5]=blood_type, v[6]=contact_number,
+                # v[7]=emergency_contact_name, v[8]=emergency_contact_relationship, v[9]=emergency_contact_number, v[10]=created_at
                 full_name = f"{v[1]} {v[2] + ' ' if v[2] else ''}{v[3]}".strip()
                 all_patients.append({
                     'id': f'V{v[0]}',  # Prefix with V to distinguish from students
@@ -6572,6 +6575,9 @@ def api_all_patients():
                     'picture': None,
                     'birthdate': None,
                     'blood_type': v[5] or 'N/A',
+                    'emergency_contact_name': v[7] or 'N/A',
+                    'emergency_contact_relationship': v[8] or 'N/A',
+                    'emergency_contact_number': v[9] or 'N/A',
                     'role': 'Visitor'
                 })
         
@@ -6582,7 +6588,9 @@ def api_all_patients():
         if teaching_table_exists:
             cursor.execute('''
                 SELECT id, faculty_id, faculty_number, first_name, last_name, email, 
-                       rank, hire_date, specialization, age, gender, contact_number, is_archived
+                       rank, hire_date, specialization, age, gender, contact_number,
+                       emergency_contact_name, emergency_contact_relationship, emergency_contact_number,
+                       is_archived
                 FROM teaching 
                 WHERE is_archived = FALSE AND is_active = TRUE
                 ORDER BY last_name, first_name
@@ -6615,6 +6623,9 @@ def api_all_patients():
                     'rank': t[6] or 'N/A',
                     'hire_date': str(t[7]) if t[7] else None,
                     'specialization': t[8] or 'N/A',
+                    'emergency_contact_name': t[12] or 'N/A',
+                    'emergency_contact_relationship': t[13] or 'N/A',
+                    'emergency_contact_number': t[14] or 'N/A',
                     'role': 'Teaching Staff'
                 })
         
@@ -13651,12 +13662,14 @@ def api_sync_holidays():
 @app.route('/api/medical-record/<int:record_id>', methods=['GET'])
 def api_get_medical_record(record_id):
     """Get complete medical record details by ID"""
+    conn = None
+    cursor = None
     try:
         conn = DatabaseConfig.get_connection()
         if not conn:
             return jsonify({'error': 'Database connection failed'}), 500
         
-        cursor = conn.cursor(dictionary=True)
+        cursor = conn.cursor(dictionary=True, buffered=True)
         cursor.execute('''
             SELECT mr.*, 
                    CONCAT(s.std_Firstname, ' ', s.std_Surname) as patient_name, 
@@ -13669,8 +13682,6 @@ def api_get_medical_record(record_id):
         record = cursor.fetchone()
         
         if not record:
-            cursor.close()
-            conn.close()
             return jsonify({'error': 'Medical record not found'}), 404
         
         # Convert datetime objects to strings for JSON serialization
@@ -13689,9 +13700,6 @@ def api_get_medical_record(record_id):
         if record.get('endorsed_at'):
             record['endorsed_at'] = record['endorsed_at'].strftime('%Y-%m-%d %H:%M:%S')
         
-        cursor.close()
-        conn.close()
-        
         return jsonify(record)
         
     except Exception as e:
@@ -13699,6 +13707,13 @@ def api_get_medical_record(record_id):
         import traceback
         traceback.print_exc()
         return jsonify({'error': 'Failed to fetch medical record'}), 500
+    finally:
+        try:
+            if cursor:
+                cursor.close()
+        finally:
+            if conn:
+                conn.close()
 
 @app.route('/api/fix-print-history-dates', methods=['POST'])
 def fix_print_history_dates():
