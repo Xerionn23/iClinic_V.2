@@ -504,8 +504,8 @@
         @media print {
             /* Hide browser header/footer and title */
             @page {
-                margin: 0;
-                size: auto;
+                margin: 12mm 15mm;
+                size: A4;
             }
             
             html {
@@ -520,12 +520,27 @@
             
             /* Show only print section */
             .print-only {
-                position: static !important;
+                position: relative !important;
                 left: auto !important;
                 display: block !important;
                 max-width: 210mm;
-                margin: 0 auto;
-                padding: 20mm;
+                margin: 0 auto !important;
+                width: 100% !important;
+                height: auto !important;
+                padding: 8mm 15mm 12mm 15mm !important;
+                box-sizing: border-box !important;
+                overflow: visible !important;
+            }
+
+            .print-content {
+                padding-bottom: 30mm !important;
+            }
+
+            .print-footer {
+                position: fixed !important;
+                left: 15mm !important;
+                right: 15mm !important;
+                bottom: 12mm !important;
             }
             
             /* Ensure colors print */
@@ -6614,12 +6629,12 @@ this would contain the actual report data and formatting.
         <div style="position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; pointer-events: none; z-index: 0;">
             <div style="text-align: center; opacity: 0.05; transform: rotate(-20deg);">
                 <div style="font-size: 56px; font-weight: 700; letter-spacing: 2px;">NORZAGARAY COLLEGE</div>
-                <div style="font-size: 26px; font-weight: 600; margin-top: 10px;">Health Services Division</div>
+                <div style="font-size: 26px; font-weight: 600; margin-top: 10px;">iClinic</div>
             </div>
         </div>
 
         <!-- Content Wrapper (above watermark) -->
-        <div style="position: relative; z-index: 1; padding-bottom: 22mm;">
+        <div class="print-content" style="position: relative; z-index: 1; padding-bottom: 22mm;">
             
             <!-- Header -->
             <div style="display: grid; grid-template-columns: 85px 1fr 85px; align-items: center; gap: 12px;">
@@ -6629,10 +6644,10 @@ this would contain the actual report data and formatting.
                 <div style="text-align: center;">
                     <div style="font-size: 18px; font-weight: 700; letter-spacing: 1px;">NORZAGARAY COLLEGE</div>
                     <div style="font-size: 11px; margin-top: 3px;">Municipal Compound, Brgy. Poblacion, Norzagaray, Bulacan</div>
-                    <div style="font-size: 12px; font-weight: 700; margin-top: 8px; text-transform: uppercase; color: #374151;">HEALTH SERVICES DIVISION</div>
+                    <div style="font-size: 12px; font-weight: 700; margin-top: 8px; text-transform: uppercase; color: #374151;">iClinic</div>
                 </div>
                 <div style="display: flex; justify-content: center;">
-                    <img src="{{ url_for('static', filename='img/Picture1.jpg') }}" alt="Department Logo" style="width: 70px; height: 70px; object-fit: contain;">
+                    <img src="/assets/img/Bagong_Pilipinas_logo.png" alt="Bagong Pilipinas Logo" style="width: 70px; height: 70px; object-fit: contain;">
                 </div>
             </div>
 
@@ -6643,8 +6658,8 @@ this would contain the actual report data and formatting.
             <div style="text-align: center;">
                 <div style="font-size: 16px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #374151;" x-text="selectedChartTitle ? selectedChartTitle.replace(/_/g, ' ') + ' REPORT' : 'CLINIC REPORT'"></div>
                 <div style="margin-top: 6px; display: flex; justify-content: space-between; font-family: Arial, Helvetica, sans-serif; font-size: 11px;">
-                    <div><strong>Academic Year:</strong> <span x-text="reportPeriod">2024-2025</span></div>
-                    <div><strong>Report Generated:</strong> <span x-text="new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })"></span></div>
+                    
+                    
                 </div>
             </div>
 
@@ -6693,33 +6708,24 @@ this would contain the actual report data and formatting.
             <div style="border-top: 1px solid #111827; margin: 12px 0;"></div>
 
             <!-- Prepared / Approved -->
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14mm; font-family: Arial, Helvetica, sans-serif; font-size: 11px; page-break-inside: avoid;">
-                <div>
-                    <div style="margin-bottom: 12mm;"></div>
-                    <div style="border-top: 1px solid #111827; padding-top: 6px;">
-                        <div style="font-weight: 700;">Prepared by:</div>
-                        <div>{{ user.first_name }} {{ user.last_name }}</div>
-                        <div style="color: #374151;">Clinic Staff</div>
-                    </div>
-                </div>
-                <div>
-                    <div style="margin-bottom: 12mm;"></div>
-                    <div style="border-top: 1px solid #111827; padding-top: 6px;">
-                        <div style="font-weight: 700;">Approved by:</div>
-                        <div>Health Services Head</div>
-                        <div style="color: #374151;">Health Services Division</div>
+            <div style="display: flex; justify-content: flex-end; font-family: 'Times New Roman', Cambria, Georgia, serif; font-size: 12px; page-break-inside: avoid;">
+                <div style="width: 40mm;">
+                    <div style="margin-bottom: 14mm;"></div>
+                    <div style="border-top: 1px solid #111827; padding-top: 6px; text-align: center;">
+                        <div style="font-weight: 700; letter-spacing: 0.2px;">Prepared by:</div>
+                        <div style="font-weight: 700; margin-top: 2px;">{{ user.first_name }} {{ user.last_name }}</div>
+                        <div style="color: #374151; margin-top: 1px;">Clinic Nurse</div>
                     </div>
                 </div>
             </div>
-
         </div>
 
         <!-- Official Footer (fixed to page bottom) -->
-        <div style="position: absolute; left: 15mm; right: 15mm; bottom: 12mm; font-family: Arial, Helvetica, sans-serif; font-size: 10px; color: #374151; page-break-inside: avoid;">
+        <div class="print-footer" style="position: absolute; left: 15mm; right: 15mm; bottom: 12mm; font-family: Arial, Helvetica, sans-serif; font-size: 10px; color: #374151; page-break-inside: avoid;">
             <div style="border-top: 1px solid #111827; padding-top: 8px;">
                 <div>This report is generated electronically by the Norzagaray College Health Services System.</div>
                 <div style="margin-top: 4px; display: flex; justify-content: space-between;">
-                    <div><strong>System:</strong> iClinic Health Management System</div>
+                    <div><i>iClinic Health Management System</i></div>
                     <div><strong>Date:</strong> <span x-text="new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })"></span></div>
                 </div>
             </div>

@@ -571,7 +571,7 @@
                                     <i data-feather="users" class="w-4 h-4 text-blue-600"></i>
                                     Patient Type
                                 </label>
-                                <select x-model="selectedRole" 
+                                <select x-model="selectedRole" @change="currentPage = 1"
                                         class="w-full px-4 py-2.5 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-900 transition-all hover:border-blue-300">
                                     <option value="">All Patient Types</option>
                                     <option value="Student">👨‍🎓 Students</option>
@@ -589,7 +589,7 @@
                                     <i data-feather="calendar" class="w-4 h-4 text-blue-600"></i>
                                     Date Range
                                 </label>
-                                <select x-model="selectedDateFilter" 
+                                <select x-model="selectedDateFilter" @change="currentPage = 1"
                                         class="w-full px-4 py-2.5 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-900 transition-all hover:border-blue-300">
                                     <option value="">All Dates</option>
                                     <option value="today">📅 Today</option>
@@ -605,7 +605,7 @@
                                     Search Patient
                                 </label>
                                 <div class="relative">
-                                    <input type="text" x-model="searchTerm" 
+                                    <input type="text" x-model="searchTerm" @input="currentPage = 1"
                                            placeholder="Enter name or ID..." 
                                            class="w-full px-4 py-2.5 pl-10 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-900 transition-all hover:border-blue-300">
                                     <i data-feather="search" class="w-4 h-4 text-gray-400 absolute left-3 top-1/2 transform -translate-y-1/2"></i>
@@ -633,7 +633,7 @@
                     </div>
 
                     <!-- Results Counter -->
-                    <div class="mb-4 bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+                     <div class="mb-4 bg-white rounded-lg shadow-sm border border-gray-200 p-4">
                         <div class="flex items-center justify-between">
                             <div class="flex items-center gap-3">
                                 <div class="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
@@ -641,12 +641,24 @@
                                 </div>
                                 <div>
                                     <p class="text-sm font-medium text-gray-900">
-                                        Showing <span class="text-blue-600 font-bold" x-text="filteredConsultations.length"></span> 
-                                        of <span class="text-gray-600 font-bold" x-text="consultations.length"></span> records
+                                        Showing <span class="text-blue-600 font-bold" x-text="paginatedConsultations.length"></span> 
+                                        of <span class="text-gray-600 font-bold" x-text="filteredConsultations.length"></span> records
                                     </p>
                                     <p class="text-xs text-gray-500">Medical consultation records</p>
                                 </div>
                             </div>
+
+                             <div class="flex items-center gap-2">
+                                 <span class="text-xs font-medium text-gray-600">Rows</span>
+                                 <select x-model.number="pageSize" @change="currentPage = 1"
+                                         class="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                                     <option :value="5">5</option>
+                                     <option :value="10">10</option>
+                                     <option :value="25">25</option>
+                                     <option :value="50">50</option>
+                                     <option :value="0">All</option>
+                                 </select>
+                             </div>
                         </div>
                     </div>
 
@@ -666,9 +678,9 @@
                                     </tr>
                                 </thead>
                                 <tbody class="bg-white divide-y divide-gray-200">
-                                    <template x-for="consultation in filteredConsultations" :key="consultation.id">
+                                    <template x-for="(consultation, idx) in paginatedConsultations" :key="consultation.id">
                                         <tr @click="viewConsultation(consultation)" class="hover:bg-blue-50 transition-colors cursor-pointer">
-                                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900" x-text="filteredConsultations.indexOf(consultation) + 1"></td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900" x-text="((currentPage - 1) * pageSize) + idx + 1"></td>
                                             <td class="px-6 py-4 whitespace-nowrap">
                                                 <div class="text-sm font-medium text-gray-900" x-text="consultation.patient"></div>
                                             </td>
@@ -698,8 +710,42 @@
                                 </tbody>
                             </table>
                         </div>
-                    </div>
-                </div>
+                     </div>
+
+                     <div class="mt-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                         <div class="text-xs text-gray-500" x-show="pageSize !== 0 && totalPages > 1">
+                             Page <span class="font-semibold text-gray-700" x-text="currentPage"></span>
+                             of <span class="font-semibold text-gray-700" x-text="totalPages"></span>
+                         </div>
+
+                         <div class="flex items-center gap-1 justify-center sm:justify-end" x-show="pageSize !== 0 && totalPages > 1">
+                             <button @click="prevPage()" :disabled="currentPage <= 1"
+                                     :class="currentPage <= 1 ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-50'"
+                                     class="px-3 py-2 rounded-lg border border-gray-300 bg-white text-sm font-medium text-gray-700">
+                                 Prev
+                             </button>
+
+                             <template x-for="item in paginationItems" :key="item.key">
+                                 <template x-if="item.type === 'page'">
+                                     <button @click="goToPage(item.page)"
+                                             :class="currentPage === item.page ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'"
+                                             class="min-w-[40px] px-3 py-2 rounded-lg border text-sm font-semibold">
+                                         <span x-text="item.page"></span>
+                                     </button>
+                                 </template>
+                                 <template x-if="item.type === 'ellipsis'">
+                                     <span class="px-2 text-sm text-gray-400">...</span>
+                                 </template>
+                             </template>
+
+                             <button @click="nextPage()" :disabled="currentPage >= totalPages"
+                                     :class="currentPage >= totalPages ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-50'"
+                                     class="px-3 py-2 rounded-lg border border-gray-300 bg-white text-sm font-medium text-gray-700">
+                                 Next
+                             </button>
+                         </div>
+                     </div>
+                 </div>
 
                 <!-- Onsite Queue Tab -->
                 <div x-show="activeTab === 'queue'" class="p-6 h-full overflow-y-auto">
@@ -1402,6 +1448,9 @@
                 // Medical records data from database
                 consultations: [],
 
+                pageSize: 10,
+                currentPage: 1,
+
                 // Onsite consultation queue
                 tickets: [],
                 isLoadingTickets: false,
@@ -1452,11 +1501,57 @@
                         return matchesRole && matchesDate && matchesSearch;
                     });
                 },
+
+                get totalPages() {
+                    const size = Number(this.pageSize);
+                    if (!Number.isFinite(size) || size <= 0) return 1;
+                    const total = Math.ceil((this.filteredConsultations || []).length / size);
+                    return Math.max(1, total);
+                },
+
+                get paginatedConsultations() {
+                    const total = this.totalPages;
+                    if (this.currentPage > total) this.currentPage = total;
+                    if (this.currentPage < 1) this.currentPage = 1;
+                    const size = Number(this.pageSize);
+                    if (!Number.isFinite(size) || size <= 0) return (this.filteredConsultations || []);
+                    const start = (this.currentPage - 1) * size;
+                    const end = start + size;
+                    return (this.filteredConsultations || []).slice(start, end);
+                },
+
+                get paginationItems() {
+                    if (Number(this.pageSize) === 0) return [];
+                    const total = this.totalPages;
+                    const current = this.currentPage;
+                    const items = [];
+
+                    const pushPage = (p) => items.push({ type: 'page', page: p, key: `p-${p}` });
+                    const pushEllipsis = (k) => items.push({ type: 'ellipsis', key: k });
+
+                    if (total <= 7) {
+                        for (let p = 1; p <= total; p++) pushPage(p);
+                        return items;
+                    }
+
+                    pushPage(1);
+
+                    const start = Math.max(2, current - 1);
+                    const end = Math.min(total - 1, current + 1);
+
+                    if (start > 2) pushEllipsis('e-start');
+                    for (let p = start; p <= end; p++) pushPage(p);
+                    if (end < total - 1) pushEllipsis('e-end');
+
+                    pushPage(total);
+                    return items;
+                },
                 
                 clearFilters() {
                     this.selectedRole = '';
                     this.selectedDateFilter = '';
                     this.searchTerm = '';
+                    this.currentPage = 1;
                     
                     // Reinitialize feather icons after Alpine updates DOM
                     this.$nextTick(() => {
@@ -1464,6 +1559,20 @@
                             feather.replace();
                         }
                     });
+                },
+
+                goToPage(page) {
+                    const target = Number(page);
+                    if (!Number.isFinite(target)) return;
+                    this.currentPage = Math.min(this.totalPages, Math.max(1, target));
+                },
+
+                nextPage() {
+                    if (this.currentPage < this.totalPages) this.currentPage += 1;
+                },
+
+                prevPage() {
+                    if (this.currentPage > 1) this.currentPage -= 1;
                 },
 
                 get filteredStudents() {

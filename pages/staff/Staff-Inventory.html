@@ -1661,21 +1661,24 @@
 
                         if (!matchesExpiryRange) return false;
 
-                        // Preserve current default behavior: by default, show only medicines with at least one batch > 30 days
+                        // Default behavior: show medicines that are NOT expired (including expiring soon)
                         if (!hasExpiryRangeFilter && !hasExpiryStatusFilter) {
-                            let hasActiveBatches = false;
+                            let hasNonExpiredBatch = false;
 
                             if (medicine.batches && medicine.batches.length > 0) {
-                                hasActiveBatches = medicine.batches.some(batch => {
+                                hasNonExpiredBatch = medicine.batches.some(batch => {
                                     const daysUntilExpiry = this.getDaysUntilExpiry(batch.expiry_date);
-                                    return daysUntilExpiry > 30;
+                                    return daysUntilExpiry >= 0;
                                 });
-                            } else {
+                            } else if (medicine.expiry_date) {
                                 const daysUntilExpiry = this.getDaysUntilExpiry(medicine.expiry_date);
-                                hasActiveBatches = daysUntilExpiry > 30;
+                                hasNonExpiredBatch = daysUntilExpiry >= 0;
+                            } else {
+                                // If no expiry info, still show it in active list
+                                hasNonExpiredBatch = true;
                             }
 
-                            if (!hasActiveBatches) {
+                            if (!hasNonExpiredBatch) {
                                 return false;
                             }
                         }

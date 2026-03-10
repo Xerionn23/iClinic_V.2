@@ -6473,319 +6473,99 @@ def api_all_patients():
     if not conn:
         return jsonify({'error': 'Database connection failed'}), 500
     
-    cursor = conn.cursor()
+    cursor = conn.cursor(dictionary=True)
     all_patients = []
-    
+
     try:
-        # Get students from students table (using student_number as primary key) - ACTIVE ONLY
         cursor.execute('''
-            SELECT student_number, std_Firstname, std_Surname, std_Middlename, std_Suffix, 
-                   std_Gender, std_Age, std_EmailAdd, std_ContactNum, std_Course, 
-                   std_Level, std_Status, std_2x2, std_Birthdate,
+            SELECT patient_id, role, source_id, identifier, first_name, middle_name, last_name, suffix,
+                   gender, age, birthdate, email, contact_number,
+                   department, course, level, position, rank,
+                   blood_type, allergies, medical_conditions,
                    emergency_contact_name, emergency_contact_relationship, emergency_contact_number, emergency_contact_email,
-                   blood_type, allergies, medical_conditions
-            FROM students 
-            WHERE is_active = TRUE
-            ORDER BY std_Surname, std_Firstname
+                   is_active
+            FROM patients_unified
+            WHERE is_active = 1
+            ORDER BY last_name, first_name
         ''')
-        students = cursor.fetchall()
-        
-        # Convert students to patient format (matching correct column order)
-        for s in students:
-            # s[0]=student_number, s[1]=std_Firstname, s[2]=std_Surname, s[3]=std_Middlename, s[4]=std_Suffix,
-            # s[5]=std_Gender, s[6]=std_Age, s[7]=std_EmailAdd, s[8]=std_ContactNum, s[9]=std_Course,
-            # s[10]=std_Level, s[11]=std_Status, s[12]=std_2x2, s[13]=std_Birthdate,
-            # s[14]=emergency_contact_name, s[15]=emergency_contact_relationship, s[16]=emergency_contact_number,
-            # s[17]=emergency_contact_email, s[18]=blood_type, s[19]=allergies, s[20]=medical_conditions
-            full_name = f"{s[1]} {s[3] + ' ' if s[3] else ''}{s[2]}{' ' + s[4] if s[4] else ''}"
-            patient_data = {
-                'id': s[0],  # student_number
-                'identifier': s[0],  # Use student_number as identifier
-                'name': full_name.strip(),
-                'firstname': s[1] or '',
-                'surname': s[2] or '',
-                'middlename': s[3] or '',
-                'suffix': s[4] or '',
-                'gender': s[5] or 'N/A',
-                'age': s[6] or 'N/A',
-                'email': s[7] or 'N/A',
-                'contact_num': s[8] or 'N/A',
-                'contact': s[8] or 'N/A',  # Add contact alias for frontend compatibility
-                'course': s[9] or 'N/A',
-                'level': s[10] or 'N/A',
-                'department': s[9] or 'N/A',  # Using course as department
-                'status': s[11] or 'Active',
-                'picture': s[12],
-                'birthdate': str(s[13]) if s[13] else None,
-                'emergency_contact_name': s[14] or 'N/A',
-                'emergency_contact_relationship': s[15] or 'N/A',
-                'emergency_contact_number': s[16] or 'N/A',
-                'emergency_contact_email': s[17] or 'N/A',
-                'blood_type': s[18] or 'N/A',
-                'allergies': s[19] or 'None',
-                'medical_conditions': s[20] or 'None',
-                'role': 'Student'
-            }
-            # Debug log for first student to check emergency contact data
-            if len(all_patients) == 0:
-                print(f"ðŸ” Sample student data: {s[1]} {s[2]}")
-                print(f"   Emergency Contact Name: {s[14]}")
-                print(f"   Emergency Contact Relationship: {s[15]}")
-                print(f"   Emergency Contact Number: {s[16]}")
-                print(f"   Emergency Contact Email: {s[17]}")
-            all_patients.append(patient_data)
-        
-        # Check if visitors table exists and get visitors
-        cursor.execute("SHOW TABLES LIKE 'visitors'")
-        visitors_table_exists = cursor.fetchone()
-        
-        if visitors_table_exists:
-            cursor.execute('''
-                SELECT id, first_name, middle_name, last_name, age, blood_type, contact_number,
-                       emergency_contact_name, emergency_contact_relationship, emergency_contact_number,
-                       created_at
-                FROM visitors 
-                WHERE is_active = TRUE
-                ORDER BY last_name, first_name
-            ''')
-            visitors = cursor.fetchall()
-            
-            # Convert visitors to patient format
-            for v in visitors:
-                # v[0]=id, v[1]=first_name, v[2]=middle_name, v[3]=last_name, v[4]=age, v[5]=blood_type, v[6]=contact_number,
-                # v[7]=emergency_contact_name, v[8]=emergency_contact_relationship, v[9]=emergency_contact_number, v[10]=created_at
-                full_name = f"{v[1]} {v[2] + ' ' if v[2] else ''}{v[3]}".strip()
-                all_patients.append({
-                    'id': f'V{v[0]}',  # Prefix with V to distinguish from students
-                    'identifier': f'VIS-{v[0]:05d}',
-                    'name': full_name,
-                    'firstname': v[1] or '',
-                    'surname': v[3] or '',
-                    'middlename': v[2] or '',
-                    'suffix': '',
-                    'gender': 'N/A',
-                    'age': v[4] or 'N/A',
-                    'email': 'N/A',
-                    'contact_num': v[6] or 'N/A',
-                    'contact': v[6] or 'N/A',  # Add contact field for frontend compatibility
-                    'course': 'N/A',
-                    'level': 'N/A',
-                    'department': 'N/A',
-                    'status': 'Visitor',
-                    'picture': None,
-                    'birthdate': None,
-                    'blood_type': v[5] or 'N/A',
-                    'emergency_contact_name': v[7] or 'N/A',
-                    'emergency_contact_relationship': v[8] or 'N/A',
-                    'emergency_contact_number': v[9] or 'N/A',
-                    'role': 'Visitor'
-                })
-        
-        # Check if teaching table exists and get teaching staff
-        cursor.execute("SHOW TABLES LIKE 'teaching'")
-        teaching_table_exists = cursor.fetchone()
-        
-        if teaching_table_exists:
-            cursor.execute('''
-                SELECT id, faculty_id, faculty_number, first_name, last_name, email, 
-                       rank, hire_date, specialization, age, gender, contact_number,
-                       emergency_contact_name, emergency_contact_relationship, emergency_contact_number,
-                       is_archived
-                FROM teaching 
-                WHERE is_archived = FALSE AND is_active = TRUE
-                ORDER BY last_name, first_name
-            ''')
-            teaching_staff = cursor.fetchall()
-            
-            # Convert teaching staff to patient format
-            for t in teaching_staff:
-                full_name = f"{t[3]} {t[4]}"  # first_name + last_name
-                all_patients.append({
-                    'id': f'T{t[0]}',  # Prefix with T to distinguish from students/visitors
-                    'identifier': t[1],  # faculty_id (e.g., FAC-CS-001)
-                    'name': full_name,
-                    'firstname': t[3] or '',
-                    'surname': t[4] or '',
-                    'middlename': '',
-                    'suffix': '',
-                    'gender': t[10] or 'N/A',  # gender from teaching table
-                    'age': t[9] or 'N/A',  # age from teaching table
-                    'email': t[5] or 'N/A',
-                    'contact_num': t[11] or 'N/A',  # contact_number from teaching table
-                    'contact': t[11] or 'N/A',  # Add contact field for frontend compatibility
-                    'course': 'N/A',
-                    'level': 'N/A',
-                    'department': t[8] or 'N/A',  # specialization as department
-                    'status': 'Active',  # Default status since teaching table doesn't have status column
-                    'picture': None,
-                    'birthdate': None,
-                    'faculty_number': t[2],
-                    'rank': t[6] or 'N/A',
-                    'hire_date': str(t[7]) if t[7] else None,
-                    'specialization': t[8] or 'N/A',
-                    'emergency_contact_name': t[12] or 'N/A',
-                    'emergency_contact_relationship': t[13] or 'N/A',
-                    'emergency_contact_number': t[14] or 'N/A',
-                    'role': 'Teaching Staff'
-                })
-        
-        # Check if non_teaching_staff table exists and get non-teaching staff
-        cursor.execute("SHOW TABLES LIKE 'non_teaching_staff'")
-        non_teaching_table_exists = cursor.fetchone()
-        
-        if non_teaching_table_exists:
-            cursor.execute('''
-                SELECT id, staff_id, employee_number, first_name, last_name, middle_name, email, 
-                       position, department, status, hire_date, age, gender, contact_number, 
-                       address, blood_type, emergency_contact_name, emergency_contact_relationship, 
-                       emergency_contact_number, allergies, medical_conditions
-                FROM non_teaching_staff 
-                WHERE is_archived = FALSE AND is_active = TRUE
-                ORDER BY last_name, first_name
-            ''')
-            non_teaching_staff = cursor.fetchall()
-            
-            # Convert non-teaching staff to patient format
-            for nt in non_teaching_staff:
-                full_name = f"{nt[3]} {nt[5] + ' ' if nt[5] else ''}{nt[4]}"  # first_name + middle_name + last_name
-                all_patients.append({
-                    'id': f'NT{nt[0]}',  # Prefix with NT to distinguish
-                    'identifier': nt[1],  # staff_id (e.g., NTS-001)
-                    'name': full_name.strip(),
-                    'firstname': nt[3] or '',
-                    'surname': nt[4] or '',
-                    'middlename': nt[5] or '',
-                    'suffix': '',
-                    'gender': nt[12] or 'N/A',
-                    'age': nt[11] or 'N/A',
-                    'email': nt[6] or 'N/A',
-                    'contact_num': nt[13] or 'N/A',
-                    'contact': nt[13] or 'N/A',
-                    'course': 'N/A',
-                    'level': 'N/A',
-                    'department': nt[8] or 'N/A',
-                    'status': nt[9] or 'Active',
-                    'picture': None,
-                    'birthdate': None,
-                    'employee_number': nt[2],
-                    'position': nt[7] if nt[7] else None,
-                    'hire_date': str(nt[10]) if nt[10] else None,
-                    'blood_type': nt[15] or 'N/A',
-                    'emergency_contact_name': nt[16] or 'N/A',
-                    'emergency_contact_relationship': nt[17] or 'N/A',
-                    'emergency_contact_number': nt[18] or 'N/A',
-                    'allergies': nt[19] or 'None',
-                    'medical_conditions': nt[20] or 'None',
-                    'role': 'Non-Teaching Staff'
-                })
-        
-        # Check if deans table exists and get deans
-        cursor.execute("SHOW TABLES LIKE 'deans'")
-        deans_table_exists = cursor.fetchone()
-        
-        if deans_table_exists:
-            cursor.execute('''
-                SELECT id, dean_id, employee_number, first_name, last_name, middle_name, email, 
-                       college, department, status, appointment_date, age, gender, contact_number, 
-                       address, blood_type, emergency_contact_name, emergency_contact_relationship, 
-                       emergency_contact_number, allergies, medical_conditions
-                FROM deans 
-                WHERE is_archived = FALSE AND is_active = TRUE
-                ORDER BY last_name, first_name
-            ''')
-            deans = cursor.fetchall()
-            
-            # Convert deans to patient format
-            for d in deans:
-                full_name = f"{d[3]} {d[5] + ' ' if d[5] else ''}{d[4]}"  # first_name + middle_name + last_name
-                all_patients.append({
-                    'id': f'D{d[0]}',  # Prefix with D to distinguish
-                    'identifier': d[1],  # dean_id (e.g., DEAN-001)
-                    'name': full_name.strip(),
-                    'firstname': d[3] or '',
-                    'surname': d[4] or '',
-                    'middlename': d[5] or '',
-                    'suffix': '',
-                    'gender': d[12] or 'N/A',
-                    'age': d[11] or 'N/A',
-                    'email': d[6] or 'N/A',
-                    'contact_num': d[13] or 'N/A',
-                    'contact': d[13] or 'N/A',
-                    'course': 'N/A',
-                    'level': 'N/A',
-                    'department': d[8] or 'N/A',
-                    'status': d[9] or 'Active',
-                    'picture': None,
-                    'birthdate': None,
-                    'employee_number': d[2],
-                    'college': d[7] or 'N/A',
-                    'appointment_date': str(d[10]) if d[10] else None,
-                    'blood_type': d[15] or 'N/A',
-                    'emergency_contact_name': d[16] or 'N/A',
-                    'emergency_contact_relationship': d[17] or 'N/A',
-                    'emergency_contact_number': d[18] or 'N/A',
-                    'allergies': d[19] or 'None',
-                    'medical_conditions': d[20] or 'None',
-                    'role': 'Dean'
-                })
-        
-        # Check if president table exists and get president
-        cursor.execute("SHOW TABLES LIKE 'president'")
-        president_table_exists = cursor.fetchone()
-        
-        if president_table_exists:
-            cursor.execute('''
-                SELECT id, president_id, employee_number, first_name, last_name, middle_name, email, 
-                       status, appointment_date, age, gender, contact_number, address, blood_type, 
-                       emergency_contact_name, emergency_contact_relationship, emergency_contact_number, 
-                       allergies, medical_conditions
-                FROM president 
-                WHERE is_archived = FALSE
-                ORDER BY last_name, first_name
-            ''')
-            presidents = cursor.fetchall()
-            
-            # Convert president to patient format
-            for p in presidents:
-                full_name = f"{p[3]} {p[5] + ' ' if p[5] else ''}{p[4]}"  # first_name + middle_name + last_name
-                all_patients.append({
-                    'id': f'P{p[0]}',  # Prefix with P to distinguish
-                    'identifier': p[1],  # president_id (e.g., PRES-001)
-                    'name': full_name.strip(),
-                    'firstname': p[3] or '',
-                    'surname': p[4] or '',
-                    'middlename': p[5] or '',
-                    'suffix': '',
-                    'gender': p[10] or 'N/A',
-                    'age': p[9] or 'N/A',
-                    'email': p[6] or 'N/A',
-                    'contact_num': p[11] or 'N/A',
-                    'contact': p[11] or 'N/A',
-                    'course': 'N/A',
-                    'level': 'N/A',
-                    'department': 'Office of the President',
-                    'status': p[7] or 'Active',
-                    'picture': None,
-                    'birthdate': None,
-                    'employee_number': p[2],
-                    'appointment_date': str(p[8]) if p[8] else None,
-                    'blood_type': p[13] or 'N/A',
-                    'emergency_contact_name': p[14] or 'N/A',
-                    'emergency_contact_relationship': p[15] or 'N/A',
-                    'emergency_contact_number': p[16] or 'N/A',
-                    'allergies': p[17] or 'None',
-                    'medical_conditions': p[18] or 'None',
-                    'role': 'President'
-                })
-        
+
+        rows = cursor.fetchall()
+        for r in rows:
+            role = r.get('role') or 'Unknown'
+            source_id = r.get('source_id')
+
+            legacy_id = None
+            if role == 'Student':
+                legacy_id = source_id
+            elif role == 'Visitor':
+                legacy_id = f"V{source_id}" if source_id is not None else None
+            elif role == 'Teaching Staff':
+                legacy_id = f"T{source_id}" if source_id is not None else None
+            elif role == 'Non-Teaching Staff':
+                legacy_id = f"NT{source_id}" if source_id is not None else None
+            elif role == 'Dean':
+                legacy_id = f"D{source_id}" if source_id is not None else None
+            elif role == 'President':
+                legacy_id = f"P{source_id}" if source_id is not None else None
+            elif role == 'Nurse':
+                legacy_id = f"N{source_id}" if source_id is not None else None
+            elif role == 'Admin':
+                legacy_id = f"A{source_id}" if source_id is not None else None
+
+            if not legacy_id:
+                legacy_id = f"U{r.get('patient_id')}"
+            identifier = r.get('identifier')
+            if not identifier:
+                identifier = f"PT-{r.get('patient_id')}"
+
+            full_name = (r.get('full_name') if 'full_name' in r else None)
+            if not full_name:
+                first = r.get('first_name') or ''
+                middle = r.get('middle_name') or ''
+                last = r.get('last_name') or ''
+                suffix = r.get('suffix') or ''
+                full_name = f"{first} {middle + ' ' if middle else ''}{last}{' ' + suffix if suffix else ''}".strip()
+
+            all_patients.append({
+                'id': legacy_id,
+                'patient_id': r.get('patient_id'),
+                'identifier': identifier,
+                'name': full_name or 'Unknown Patient',
+                'firstname': r.get('first_name') or '',
+                'surname': r.get('last_name') or '',
+                'middlename': r.get('middle_name') or '',
+                'suffix': r.get('suffix') or '',
+                'gender': r.get('gender') or 'N/A',
+                'age': r.get('age') if r.get('age') is not None else 'N/A',
+                'email': r.get('email') or 'N/A',
+                'contact_num': r.get('contact_number') or 'N/A',
+                'contact': r.get('contact_number') or 'N/A',
+                'course': r.get('course') or 'N/A',
+                'level': r.get('level') or 'N/A',
+                'department': r.get('department') or (r.get('course') or 'N/A'),
+                'status': 'Active',
+                'picture': None,
+                'birthdate': str(r.get('birthdate')) if r.get('birthdate') else None,
+                'position': r.get('position'),
+                'rank': r.get('rank'),
+                'blood_type': r.get('blood_type') or 'N/A',
+                'allergies': r.get('allergies') or 'None',
+                'medical_conditions': r.get('medical_conditions') or 'None',
+                'emergency_contact_name': r.get('emergency_contact_name') or 'N/A',
+                'emergency_contact_relationship': r.get('emergency_contact_relationship') or 'N/A',
+                'emergency_contact_number': r.get('emergency_contact_number') or 'N/A',
+                'emergency_contact_email': r.get('emergency_contact_email') or 'N/A',
+                'role': role
+            })
+
         cursor.close()
         conn.close()
-        
-        print(f"âœ… /api/all-patients: Returning {len(all_patients)} patients")
+
+        print(f"âœ… /api/all-patients (unified): Returning {len(all_patients)} patients")
         return jsonify(all_patients)
-        
+
     except Exception as e:
-        print(f"âŒ Error in /api/all-patients: {str(e)}")
+        print(f"âŒ Error in /api/all-patients (unified): {str(e)}")
         import traceback
         print(f"Full traceback: {traceback.format_exc()}")
         try:
@@ -12342,9 +12122,8 @@ def generate_medical_letter_pdf():
         from docxtpl import DocxTemplate
         import tempfile
         import uuid
-        import subprocess
-        import platform
         import time
+        import traceback
         
         start_time = time.time()
         
@@ -12391,25 +12170,55 @@ def generate_medical_letter_pdf():
         # Save the DOCX first
         doc.save(docx_path)
         
-        # Convert to PDF using optimized docx2pdf
+        # Convert to PDF using docx2pdf (requires MS Word on Windows)
         conversion_method = "docx2pdf"
         print("ðŸ“„ Converting DOCX to PDF...")
-        
-        import pythoncom
-        from docx2pdf import convert
-        
-        # Initialize COM for this thread
-        pythoncom.CoInitialize()
+
         try:
-            # Use keep_active=False for faster conversion
-            convert(docx_path, pdf_path, keep_active=False)
-        finally:
-            # Always uninitialize COM
-            pythoncom.CoUninitialize()
-        
-        # Clean up temporary DOCX
+            import pythoncom
+            from docx2pdf import convert
+        except Exception as e:
+            if os.path.exists(docx_path):
+                try:
+                    os.remove(docx_path)
+                except Exception:
+                    pass
+            raise ImportError(str(e))
+
+        try:
+            pythoncom.CoInitialize()
+            try:
+                convert(docx_path, pdf_path, keep_active=False)
+            finally:
+                pythoncom.CoUninitialize()
+        except Exception as e:
+            print(f"âŒ PDF conversion failed: {str(e)}")
+            traceback.print_exc()
+            if os.path.exists(docx_path):
+                try:
+                    os.remove(docx_path)
+                except Exception:
+                    pass
+            return jsonify({
+                'error': (
+                    'Failed to convert DOCX to PDF. This usually requires Microsoft Word installed on the server, '
+                    'and Windows COM automation must be available. Try generating the DOCX instead, or install/configure MS Word.'
+                )
+            }), 500
+
+        if not os.path.exists(pdf_path):
+            if os.path.exists(docx_path):
+                try:
+                    os.remove(docx_path)
+                except Exception:
+                    pass
+            return jsonify({'error': 'PDF conversion did not produce an output file.'}), 500
+
         if os.path.exists(docx_path):
-            os.remove(docx_path)
+            try:
+                os.remove(docx_path)
+            except Exception:
+                pass
         
         # Save print history to database
         try:
@@ -12450,9 +12259,10 @@ def generate_medical_letter_pdf():
         
     except ImportError as e:
         print(f"âŒ Missing dependency: {str(e)}")
-        return jsonify({'error': 'Missing required library. Please install docxtpl and docx2pdf'}), 500
+        return jsonify({'error': f'Missing required dependency for PDF generation: {str(e)}'}), 500
     except Exception as e:
         print(f"âŒ Error generating PDF: {str(e)}")
+        traceback.print_exc()
         return jsonify({'error': f'Failed to generate PDF: {str(e)}'}), 500
 
 # ===== APPOINTMENTS API ENDPOINTS =====
@@ -15831,7 +15641,7 @@ def get_all_patients():
             except:
                 pass
 
-@app.route('/api/all-patients', methods=['GET'])
+@app.route('/api/all-patients-legacy', methods=['GET'])
 def get_all_patients_combined():
     """Get ALL patients from all sources: students, visitors, teaching staff, non-teaching staff, president, deans"""
     if 'user_id' not in session:
