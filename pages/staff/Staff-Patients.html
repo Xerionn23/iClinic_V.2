@@ -438,6 +438,11 @@
     <script>
         function patientsDirectory() {
             return {
+                init() {
+                    this.$nextTick(() => {
+                        this.refreshIcons();
+                    });
+                },
                 userDropdown: false,
                 showSettingsModal: false,
                 showLogoutConfirm: false,
@@ -491,12 +496,38 @@
                     role: null,
                     patient_id: null
                 },
+
+                refreshIcons() {
+                    if (typeof feather === 'undefined') return;
+                    try {
+                        feather.replace();
+                    } catch (error) {
+                        console.warn('Feather icons initialization warning:', error);
+                    }
+                },
+
+                openAddRecordModal() {
+                    this.resetNewRecordForm();
+                    this.showAddRecordModal = true;
+                    this.$nextTick(() => {
+                        const container = this.$refs?.addRecordModalContainer;
+                        if (container && typeof container.scrollTo === 'function') {
+                            container.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+                        } else if (container) {
+                            container.scrollTop = 0;
+                        }
+
+                        this.refreshIcons();
+                    });
+                },
                 newVisitor: {
                     first_name: '',
                     middle_name: '',
                     last_name: '',
+                    suffix: '',
+                    gender: '',
                     age: '',
-                    contact_number: ''
+                    email: ''
                 },
                 editingRecord: null,
                 newRecord: {
@@ -1026,13 +1057,7 @@
                     
                     // Re-initialize Feather icons after patient selection
                     this.$nextTick(() => {
-                        if (typeof feather !== 'undefined') {
-                            try {
-                                feather.replace();
-                            } catch (error) {
-                                console.warn('Feather icons initialization warning:', error);
-                            }
-                        }
+                        this.refreshIcons();
                     });
                 },
 
@@ -1079,25 +1104,37 @@
                                 this.selectedPatient.medical_records = records.map(record => ({
                                     id: record.id,
                                     date: this.formatDate(record.visit_date),
-                                    time: this.formatTime(record.created_at),
+                                    time: record.created_at
+                                        ? this.formatTime(record.created_at)
+                                        : this.formatTimeOnly(record.visit_time),
                                     visit_date: record.visit_date,
                                     visit_time: record.visit_time,
-                                    // Map symptoms/chief_complaint properly
-                                    symptoms: record.symptoms || record.chief_complaint || 'No complaint recorded',
-                                    chief_complaint: record.chief_complaint || record.symptoms || 'No complaint recorded',
-                                    dental_procedure: record.dental_procedure || '',
-                                    treatment: record.treatment || 'No treatment specified',
+                                    chief_complaint: record.chief_complaint || '',
+                                    symptoms: record.symptoms || '',
+                                    treatment: record.treatment || '',
                                     prescribed_medicine: record.prescribed_medicine || '',
-                                    // Map vital signs properly
-                                    blood_pressure: record.blood_pressure || '',
+                                    medical_history: record.medical_history || '',
+                                    food_allergies: record.food_allergies || '',
+                                    medicine_allergies: record.medicine_allergies || '',
+                                    fever_duration: record.fever_duration || '',
+                                    current_medication: record.current_medication || '',
+                                    medication_schedule: record.medication_schedule || '',
+                                    blood_pressure: record.blood_pressure || ((record.blood_pressure_systolic && record.blood_pressure_diastolic) ? `${record.blood_pressure_systolic}/${record.blood_pressure_diastolic}` : ''),
                                     blood_pressure_systolic: record.blood_pressure_systolic || '',
                                     blood_pressure_diastolic: record.blood_pressure_diastolic || '',
+                                    pulse_rate: record.pulse_rate || '',
                                     temperature: record.temperature || '',
-                                    heart_rate: record.heart_rate || record.pulse_rate || '',
-                                    pulse_rate: record.pulse_rate || record.heart_rate || '',
+                                    respiratory_rate: record.respiratory_rate || '',
+                                    heart_rate: record.heart_rate || '',
                                     weight: record.weight || '',
+                                    height: record.height || '',
+                                    bmi: record.bmi || '',
+                                    dental_procedure: record.dental_procedure || '',
+                                    procedure_notes: record.procedure_notes || '',
+                                    follow_up_date: record.follow_up_date || '',
+                                    special_instructions: record.special_instructions || '',
                                     notes: record.notes || '',
-                                    doctor_name: record.doctor_name || 'Unknown Doctor',
+                                    doctor_name: record.doctor_name || '',
                                     // Clinic stay fields
                                     will_stay_in_clinic: record.will_stay_in_clinic || false,
                                     stay_reason: record.stay_reason || '',
@@ -1120,6 +1157,10 @@
                                 
                                 // Medical records loaded successfully
                             }
+
+                            this.$nextTick(() => {
+                                this.refreshIcons();
+                            });
                         } else {
                             // If no records found, set empty array
                             if (this.selectedPatient) {
@@ -1207,6 +1248,31 @@
                     });
                 },
 
+                formatTimeOnly(timeString) {
+                    if (!timeString) return 'N/A';
+
+                    try {
+                        const str = String(timeString);
+                        const parts = str.split(':');
+                        const hours = parseInt(parts[0], 10);
+                        const minutes = parseInt(parts[1] || '0', 10);
+
+                        if (Number.isNaN(hours) || Number.isNaN(minutes)) {
+                            return str;
+                        }
+
+                        const date = new Date();
+                        date.setHours(hours, minutes, 0, 0);
+                        return date.toLocaleTimeString('en-US', {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                            hour12: true
+                        });
+                    } catch (e) {
+                        return String(timeString);
+                    }
+                },
+
                 // Reset form to initial state
                 resetNewRecordForm() {
                     console.log('🔄 Resetting medical record form...');
@@ -1232,10 +1298,6 @@
                         treatment: '',
                         prescribed_medicine: '',
                         prescribed_medicines: [],
-                        dental_procedure: '',
-                        procedure_notes: '',
-                        follow_up_date: '',
-                        special_instructions: '',
                         notes: '',
                         illness_classification_suggested: '',
                         illness_classification_suggested_reason: '',
@@ -1250,8 +1312,6 @@
                         if (this.$refs.complaintDropdown) this.$refs.complaintDropdown.value = '';
                         if (this.$refs.symptomsDropdown) this.$refs.symptomsDropdown.value = '';
                         if (this.$refs.treatmentDropdown) this.$refs.treatmentDropdown.value = '';
-                        if (this.$refs.dentalProcedureDropdown) this.$refs.dentalProcedureDropdown.value = '';
-                        if (this.$refs.instructionsDropdown) this.$refs.instructionsDropdown.value = '';
                         console.log('✅ Dropdowns reset complete');
                     });
                     
@@ -1340,8 +1400,11 @@
                         this.newRecord.illness_classification_final !== this.newRecord.illness_classification_suggested &&
                         !(this.newRecord.illness_classification_override_reason || '').trim()
                     ) {
-                        this.showError('Please provide an override reason when final classification differs from the suggested classification.');
-                        return;
+                        // Only require override reason when escalating to MAJOR
+                        if ((this.newRecord.illness_classification_final || '').toLowerCase() === 'major') {
+                            this.showError('Please provide an override reason when final classification differs from the suggested classification.');
+                            return;
+                        }
                     }
                     
                     // ✅ VALIDATE MEDICINE AVAILABILITY BEFORE SAVING
@@ -1353,7 +1416,7 @@
                         
                         for (const prescribed of this.newRecord.prescribed_medicines) {
                             // Find the medicine in available medicines (use == for type coercion)
-                            const medicine = this.availableMedicines.find(m => m.id == prescribed.medicine_id);
+                            const medicine = this.availableMedicines.find(med => med.id == prescribed.medicine_id);
                             
                             console.log(`🔎 Looking for medicine_id: ${prescribed.medicine_id} (${typeof prescribed.medicine_id})`);
                             console.log(`✅ Found:`, medicine);
@@ -1496,19 +1559,6 @@
                             requestBody.prescribed_medicines = this.newRecord.prescribed_medicines;
                         }
                         
-                        // Procedures - only if filled
-                        if (this.newRecord.dental_procedure && this.newRecord.dental_procedure.trim()) {
-                            requestBody.dental_procedure = this.newRecord.dental_procedure;
-                        }
-                        if (this.newRecord.procedure_notes && this.newRecord.procedure_notes.trim()) {
-                            requestBody.procedure_notes = this.newRecord.procedure_notes;
-                        }
-                        if (this.newRecord.follow_up_date && this.newRecord.follow_up_date.trim()) {
-                            requestBody.follow_up_date = this.newRecord.follow_up_date;
-                        }
-                        if (this.newRecord.special_instructions && this.newRecord.special_instructions.trim()) {
-                            requestBody.special_instructions = this.newRecord.special_instructions;
-                        }
                         if (this.newRecord.notes && this.newRecord.notes.trim()) {
                             requestBody.notes = this.newRecord.notes;
                         }
@@ -1960,16 +2010,18 @@
                                 visit_date: fullRecord.visit_date,
                                 visit_time: fullRecord.visit_time,
                                 chief_complaint: fullRecord.chief_complaint || '',
-                                symptoms: fullRecord.symptoms || fullRecord.chief_complaint || 'Not specified',
-                                treatment: fullRecord.treatment || 'Not specified',
-                                prescribed_medicine: fullRecord.prescribed_medicine || 'No medicine prescribed',
+                                symptoms: fullRecord.symptoms || '',
+                                treatment: fullRecord.treatment || '',
+                                prescribed_medicine: fullRecord.prescribed_medicine || '',
                                 // Medical History fields
                                 medical_history: fullRecord.medical_history || '',
+                                food_allergies: fullRecord.food_allergies || '',
+                                medicine_allergies: fullRecord.medicine_allergies || '',
                                 fever_duration: fullRecord.fever_duration || '',
                                 current_medication: fullRecord.current_medication || '',
                                 medication_schedule: fullRecord.medication_schedule || '',
                                 // Vital Signs
-                                blood_pressure: fullRecord.blood_pressure || '',
+                                blood_pressure: fullRecord.blood_pressure || ((fullRecord.blood_pressure_systolic && fullRecord.blood_pressure_diastolic) ? `${fullRecord.blood_pressure_systolic}/${fullRecord.blood_pressure_diastolic}` : ''),
                                 blood_pressure_systolic: fullRecord.blood_pressure_systolic || '',
                                 blood_pressure_diastolic: fullRecord.blood_pressure_diastolic || '',
                                 pulse_rate: fullRecord.pulse_rate || '',
@@ -2198,8 +2250,8 @@
 
                 async addVisitor() {
                     // Validate required fields
-                    if (!this.newVisitor.first_name || !this.newVisitor.last_name || !this.newVisitor.age || !this.newVisitor.contact_number) {
-                        this.showError('Please fill in all required fields (First Name, Last Name, Age, Contact Number)');
+                    if (!this.newVisitor.first_name || !this.newVisitor.last_name || !this.newVisitor.gender || !this.newVisitor.age || !this.newVisitor.email) {
+                        this.showError('Please fill in all required fields (First Name, Last Name, Gender, Age, Gmail)');
                         return;
                     }
 
@@ -2257,8 +2309,10 @@
                                 first_name: visitorData.first_name,
                                 middle_name: visitorData.middle_name || '',
                                 last_name: visitorData.last_name,
+                                suffix: visitorData.suffix || '',
+                                gender: visitorData.gender,
                                 age: parseInt(visitorData.age),
-                                contact_number: visitorData.contact_number
+                                email: visitorData.email
                             })
                         });
 
@@ -2270,8 +2324,10 @@
                                 first_name: '',
                                 middle_name: '',
                                 last_name: '',
+                                suffix: '',
+                                gender: '',
                                 age: '',
-                                contact_number: ''
+                                email: ''
                             };
                             this.pendingVisitorData = null;
                             this.duplicatePatients = [];
@@ -2906,8 +2962,9 @@
                     const [hours, minutes] = time24.split(':');
                     const hour = parseInt(hours);
                     const ampm = hour >= 12 ? 'PM' : 'AM';
-                    const hour12 = hour % 12 || 12;
-                    return `${hour12}:${minutes} ${ampm}`;
+                    const hour12 = hour % 12 || 12; // Convert to 12-hour format
+                    const displayMinutes = minutes.toString().padStart(2, '0');
+                    return `${hour12}:${displayMinutes} ${ampm}`;
                 },
 
                 // Archive Management Functions
@@ -3198,7 +3255,7 @@
                     <button @click="showPrintHistoryModal = true; loadPrintHistory()" class="p-1.5 sm:p-2 rounded-lg bg-green-500 hover:bg-green-600 text-white transition-colors touch-target">
                         <i data-feather="printer" class="w-4 h-4 sm:w-5 sm:h-5"></i>
                     </button>
-                    <button @click="showAddVisitorModal = true" class="p-1.5 sm:p-2 rounded-lg bg-blue-500 hover:bg-blue-600 text-white transition-colors touch-target">
+                    <button @click="openAddRecordModal()" class="p-1.5 sm:p-2 rounded-lg bg-blue-500 hover:bg-blue-600 text-white transition-colors touch-target">
                         <i data-feather="user-plus" class="w-4 h-4 sm:w-5 sm:h-5"></i>
                     </button>
                 </div>
@@ -3225,7 +3282,7 @@
                                 </div>
                                 <div>
                                     <div class="flex items-center gap-2 mb-1">
-                                        <h1 class="text-lg sm:text-xl md:text-2xl lg:text-3xl font-bold text-white">
+                                        <h1 class="text-lg sm:text-xl md:text-2xl font-bold text-white">
                                             Patient Management
                                         </h1>
                         
@@ -3245,28 +3302,26 @@
                                 
                                 <!-- Action Buttons -->
                                 <div class="flex items-center gap-1 sm:gap-2">
-                                    <button @click="showAddVisitorModal = true" 
-                                            class="group bg-yellow-400 hover:bg-yellow-500 text-blue-900 px-2 sm:px-3 md:px-4 py-1.5 sm:py-2 rounded-lg font-medium transition-all duration-200 flex items-center gap-1 sm:gap-2 shadow-lg hover:shadow-xl hover:scale-105 touch-target">
+                                    <button @click="openAddRecordModal()" class="group bg-yellow-400 hover:bg-yellow-500 text-blue-900 px-2 sm:px-3 md:px-4 py-1.5 sm:py-2 md:py-2.5 rounded-lg font-medium transition-all transform hover:scale-105 flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm md:text-base touch-target">
                                         <div class="w-5 h-5 sm:w-6 sm:h-6 bg-blue-900/20 rounded flex items-center justify-center group-hover:rotate-12 transition-transform">
-                                            <i data-feather="user-plus" class="w-3 h-3"></i>
+                                            <i data-feather="plus-circle" class="w-3.5 h-3.5 sm:w-4 sm:h-4"></i>
                                         </div>
-                                        <span class="hidden sm:inline text-xs sm:text-sm">Add Visitors</span>
+                                        <span class="hidden sm:inline">Add New Record</span>
+                                        <span class="sm:hidden">Add</span>
                                     </button>
                                     
-                                    <button @click="showPrintHistoryModal = true; loadPrintHistory()" 
-                                            class="group bg-green-500 hover:bg-green-600 text-white px-2 sm:px-3 md:px-4 py-1.5 sm:py-2 rounded-lg font-medium transition-all duration-200 flex items-center gap-1 sm:gap-2 shadow-lg hover:shadow-xl hover:scale-105 touch-target">
+                                    <button @click="showPrintHistoryModal = true; loadPrintHistory()" class="group bg-green-500 hover:bg-green-600 text-white px-2 sm:px-3 md:px-4 py-1.5 sm:py-2 md:py-2.5 rounded-lg font-medium transition-all transform hover:scale-105 flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm md:text-base touch-target">
                                         <div class="w-5 h-5 sm:w-6 sm:h-6 bg-white/20 rounded flex items-center justify-center group-hover:rotate-12 transition-transform">
-                                            <i data-feather="printer" class="w-3 h-3"></i>
+                                            <i data-feather="printer" class="w-3.5 h-3.5 sm:w-4 sm:h-4"></i>
                                         </div>
-                                        <span class="hidden sm:inline text-xs sm:text-sm">Print History</span>
+                                        <span class="hidden sm:inline">Print History</span>
                                     </button>
                                     
-                                    <button @click="showArchiveModal = true; loadArchivedPatients()" 
-                                            class="group bg-gradient-to-r from-gray-500 to-gray-600 hover:from-gray-600 hover:to-gray-700 text-white px-2 sm:px-3 md:px-4 py-1.5 sm:py-2 rounded-lg font-medium transition-all duration-200 flex items-center gap-1 sm:gap-2 shadow-lg hover:shadow-xl hover:scale-105 touch-target">
+                                    <button @click="showArchiveModal = true; loadArchivedPatients()" class="group bg-gradient-to-r from-gray-500 to-gray-600 hover:from-gray-600 hover:to-gray-700 text-white px-2 sm:px-3 md:px-4 py-1.5 sm:py-2 md:py-2.5 rounded-lg font-medium transition-all transform hover:scale-105 flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm md:text-base touch-target">
                                         <div class="w-5 h-5 sm:w-6 sm:h-6 bg-white/20 rounded flex items-center justify-center group-hover:rotate-12 transition-transform">
-                                            <i data-feather="archive" class="w-3 h-3"></i>
+                                            <i data-feather="archive" class="w-3.5 h-3.5 sm:w-4 sm:h-4"></i>
                                         </div>
-                                        <span class="hidden sm:inline text-xs sm:text-sm">Archive</span>
+                                        <span class="hidden sm:inline">Archive</span>
                                     </button>
                                     
                                 </div>
@@ -3371,7 +3426,7 @@
                                             <!-- Patient Info -->
                                             <div class="flex-1 min-w-0">
                                                 <h3 class="font-semibold text-gray-900 text-sm sm:text-sm group-hover:text-blue-600 transition-colors truncate" x-text="patient.name"></h3>
-                                                <p class="text-xs text-gray-500 mt-0.5 truncate" x-text="patient.identifier"></p>
+                                                <p class="text-xs text-gray-500 mt-0.5 sm:mt-1 truncate" x-text="patient.identifier"></p>
                                                 <div class="flex items-center gap-1 sm:gap-2 mt-1.5 sm:mt-2 flex-wrap">
                                                     <span class="inline-flex items-center px-2 sm:px-2.5 py-0.5 sm:py-1 text-xs font-medium rounded-full"
                                                           :class="{
@@ -3440,15 +3495,15 @@
                             <div x-show="selectedPatient" class="relative overflow-hidden gradient-bg-sidebar rounded-lg sm:rounded-xl mx-2 sm:mx-0">
                                 <!-- Background Pattern -->
                                 <div class="absolute inset-0">
-                                    <div class="absolute -top-24 -right-24 w-64 h-64 bg-white opacity-5 rounded-full"></div>
-                                    <div class="absolute -bottom-12 -left-12 w-48 h-48 bg-white opacity-5 rounded-full"></div>
+                                    <div class="absolute -top-24 -right-24 w-64 h-64 bg-white/5 rounded-full -translate-y-32 translate-x-32"></div>
+                                    <div class="absolute -bottom-12 -left-12 w-48 h-48 bg-white/5 rounded-full translate-y-24 -translate-x-24"></div>
                                 </div>
                                 
                                 <!-- Content -->
                                 <div class="relative p-3 sm:p-4 md:p-6">
                                     <div class="flex items-center justify-between mb-2 sm:mb-3">
                                         <div class="flex items-center gap-2 sm:gap-3 md:gap-4 flex-1 min-w-0">
-                                            <div class="w-10 h-10 sm:w-12 sm:h-12 md:w-14 md:h-14 lg:w-16 lg:h-16 bg-white shadow-xl rounded-xl sm:rounded-2xl flex items-center justify-center flex-shrink-0">
+                                            <div class="w-10 h-10 sm:w-12 sm:h-12 md:w-14 md:h-14 lg:w-16 lg:h-16 bg-white shadow-xl rounded-xl sm:rounded-2xl flex items-center justify-center shadow-lg mb-1 sm:mb-2">
                                                 <span class="text-sm sm:text-base md:text-lg lg:text-xl font-bold text-blue-600" x-text="selectedPatient ? selectedPatient.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0,2) : ''"></span>
                                             </div>
                                             <div class="min-w-0 flex-1">
@@ -3463,8 +3518,10 @@
                                     
                                     <!-- Quick Actions -->
                                     <div class="flex flex-wrap gap-1.5 sm:gap-2 md:gap-3">
-                                        <button @click="resetNewRecordForm(); showAddRecordModal = true" class="bg-white shadow-lg hover:shadow-xl text-blue-600 px-2.5 sm:px-3 md:px-4 py-1.5 sm:py-2 md:py-2.5 rounded-lg sm:rounded-xl font-medium transition-all transform hover:scale-105 flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm md:text-base touch-target">
-                                            <i data-feather="plus-circle" class="w-3.5 h-3.5 sm:w-4 sm:h-4"></i>
+                                        <button @click="openAddRecordModal()" class="bg-white shadow-lg hover:shadow-xl text-blue-600 px-2.5 sm:px-3 md:px-4 py-1.5 sm:py-2 md:py-2.5 rounded-lg sm:rounded-xl font-medium transition-all transform hover:scale-105 flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm md:text-base touch-target">
+                                            <div class="w-5 h-5 sm:w-6 sm:h-6 bg-blue-900/20 rounded flex items-center justify-center shadow-lg flex-shrink-0">
+                                                <i data-feather="plus-circle" class="w-3.5 h-3.5 sm:w-4 sm:h-4"></i>
+                                            </div>
                                             <span class="hidden sm:inline">Add New Record</span>
                                             <span class="sm:hidden">Add</span>
                                         </button>
@@ -3517,8 +3574,8 @@
                                             <div class="w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 bg-gradient-to-br from-purple-400 to-purple-600 rounded-lg sm:rounded-xl flex items-center justify-center shadow-lg mb-1 sm:mb-2">
                                                 <i data-feather="phone" class="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 text-white"></i>
                                             </div>
-                                            <p class="text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wider mb-0.5 sm:mb-1">Contact</p>
-                                            <p class="text-[11px] sm:text-xs md:text-sm font-bold text-gray-900 truncate w-full px-1" x-text="selectedPatient ? selectedPatient.contact || 'N/A' : 'N/A'"></p>
+                                            <p class="text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wider mb-0.5 sm:mb-1" x-text="selectedPatient && selectedPatient.role === 'Visitor' ? 'Gmail' : 'Contact'"></p>
+                                            <p class="text-[11px] sm:text-xs md:text-sm font-bold text-gray-900 truncate w-full px-1" x-text="selectedPatient ? ((selectedPatient.role === 'Visitor' ? selectedPatient.email : selectedPatient.contact) || 'N/A') : 'N/A'"></p>
                                         </div>
                                     </div>
                                     
@@ -3761,7 +3818,7 @@
                                             </div>
                                             <h3 class="text-lg sm:text-xl font-bold text-gray-900 mb-2">No Medical Records Yet</h3>
                                             <p class="text-gray-500 text-sm mb-4 sm:mb-6 leading-relaxed">Start building this patient's medical history by adding their first consultation record.</p>
-                                            <button @click="resetNewRecordForm(); showAddRecordModal = true" 
+                                            <button @click="openAddRecordModal()" 
                                                     class="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl font-medium transition-all transform hover:scale-105 shadow-lg hover:shadow-xl touch-target">
                                                 <span class="flex items-center gap-2">
                                                     <i data-feather="plus" class="w-4 h-4 sm:w-5 sm:h-5"></i>
@@ -3788,7 +3845,7 @@
                      x-transition:leave-start="opacity-100"
                      x-transition:leave-end="opacity-0">
                     <div class="fixed inset-0 bg-gray-900 bg-opacity-50 backdrop-blur-sm" @click="showAddVisitorModal = false"></div>
-                    <div class="relative bg-white rounded-2xl shadow-2xl max-w-md w-full p-4 sm:p-6 md:p-8 z-10 max-h-[90vh] overflow-y-auto" 
+                    <div class="relative bg-white rounded-2xl shadow-2xl max-w-2xl w-full p-4 sm:p-6 md:p-8 z-10 max-h-[90vh] overflow-y-auto" 
                          @click.stop
                          x-transition:enter="transition ease-out duration-300"
                          x-transition:enter-start="opacity-0 transform scale-95"
@@ -3808,7 +3865,7 @@
                         <form @submit.prevent="addVisitor()">
                             <div class="space-y-4 sm:space-y-5">
                                 <!-- Name Fields -->
-                                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+                                <div class="grid grid-cols-1 sm:grid-cols-4 gap-3 sm:gap-4">
                                     <div>
                                         <label class="block text-sm font-semibold text-gray-700 mb-2">First Name *</label>
                                         <input type="text" required 
@@ -3820,7 +3877,7 @@
                                         <label class="block text-sm font-semibold text-gray-700 mb-2">Middle Name</label>
                                         <input type="text" 
                                                x-model="newVisitor.middle_name"
-                                               class="w-full px-3 sm:px-4 py-2.5 sm:py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent focus:bg-white transition-all text-base"
+                                               class="w-full px-3 sm:px-4 py-2.5 sm:py--3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent focus:bg-white transition-all text-base"
                                                placeholder="Middle name">
                                     </div>
                                     <div>
@@ -3829,6 +3886,13 @@
                                                x-model="newVisitor.last_name"
                                                class="w-full px-3 sm:px-4 py-2.5 sm:py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent focus:bg-white transition-all text-base"
                                                placeholder="Last name">
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-semibold text-gray-700 mb-2">Suffix</label>
+                                        <input type="text"
+                                               x-model="newVisitor.suffix"
+                                               class="w-full px-3 sm:px-4 py-2.5 sm:py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent focus:bg-white transition-all text-base"
+                                               placeholder="Jr / Sr / III">
                                     </div>
                                 </div>
                                 
@@ -3840,11 +3904,21 @@
                                            placeholder="Age">
                                 </div>
                                 <div>
-                                    <label class="block text-sm font-semibold text-gray-700 mb-2">Contact Number *</label>
-                                    <input type="tel" required 
-                                           x-model="newVisitor.contact_number"
+                                    <label class="block text-sm font-semibold text-gray-700 mb-2">Gender *</label>
+                                    <select required
+                                            x-model="newVisitor.gender"
+                                            class="w-full px-3 sm:px-4 py-2.5 sm:py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent focus:bg-white transition-all text-base">
+                                        <option value="" disabled>Select gender</option>
+                                        <option value="Male">Male</option>
+                                        <option value="Female">Female</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-semibold text-gray-700 mb-2">Gmail *</label>
+                                    <input type="email" required 
+                                           x-model="newVisitor.email"
                                            class="w-full px-3 sm:px-4 py-2.5 sm:py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent focus:bg-white transition-all text-base"
-                                           placeholder="09XX XXX XXXX">
+                                           placeholder="example@gmail.com">
                                 </div>
                             </div>
                             <div class="flex flex-col sm:flex-row gap-3 mt-6 sm:mt-8">
@@ -3943,8 +4017,8 @@
                                                 Age: <span x-text="pendingVisitorData?.age"></span>
                                             </span>
                                             <span class="flex items-center gap-1">
-                                                <i data-feather="phone" class="w-3 h-3"></i>
-                                                <span x-text="pendingVisitorData?.contact_number"></span>
+                                                <i data-feather="mail" class="w-3 h-3"></i>
+                                                <span x-text="pendingVisitorData?.email"></span>
                                             </span>
                                         </div>
                                     </div>
@@ -4022,7 +4096,7 @@
                 <!-- Add Medical Record Modal -->
                 <div x-show="showAddRecordModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4" style="display: none;" x-transition>
                     <div class="fixed inset-0 bg-gray-900 bg-opacity-50 backdrop-blur-sm" @click="showAddRecordModal = false" x-transition:enter="ease-out duration-300" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"></div>
-                    <div class="relative bg-white rounded-2xl shadow-2xl max-w-[64vw] w-full max-h-[95vh] overflow-y-auto z-10" @click.stop x-transition:enter="ease-out duration-300" x-transition:enter-start="opacity-0 scale-95" x-transition:enter-end="opacity-100 scale-100">
+                    <div x-ref="addRecordModalContainer" class="relative bg-white rounded-2xl shadow-2xl max-w-[64vw] w-full max-h-[95vh] overflow-y-auto z-10" @click.stop x-transition:enter="ease-out duration-300" x-transition:enter-start="opacity-0 scale-95" x-transition:enter-end="opacity-100 scale-100">
                         <!-- Modal Header -->
                         <div class="sticky top-0 bg-gradient-to-r from-blue-500 to-blue-600 text-white px-4 sm:px-6 md:px-8 py-4 sm:py-6 rounded-t-2xl">
                             <div class="flex items-center justify-between">
@@ -4056,7 +4130,7 @@
                                                 </div>
                                                 <div class="min-w-0">
                                                     <p class="font-medium text-gray-900 text-base truncate" x-text="selectedPatient ? selectedPatient.name : ''"></p>
-                                                    <p class="text-sm text-gray-600 truncate" x-text="selectedPatient ? selectedPatient.student_number + ' • ' + selectedPatient.course : ''"></p>
+                                                    <p class="text-sm text-gray-600 truncate" x-text="selectedPatient ? getPatientSubtitle() : ''"></p>
                                                 </div>
                                             </div>
                                         </div>
@@ -4369,69 +4443,6 @@
                                             <div class="space-y-2" x-show="newRecord.prescribed_medicines.length === 0">
                                                 <label class="block text-xs font-medium text-gray-600">Manual entry</label>
                                                 <input type="text" disabled value="Manual medicine entry is disabled. Please add medicines from inventory." class="w-full px-3 sm:px-4 py-2.5 sm:py-3 bg-gray-100 border border-gray-300 rounded-xl text-gray-600 text-base">
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <!-- Procedures Section -->
-                                    <div class="bg-yellow-50 p-4 sm:p-6 rounded-xl border border-yellow-200">
-                                        <h4 class="text-base sm:text-lg font-semibold text-yellow-900 mb-3 sm:mb-4">Procedures & Special Instructions</h4>
-                                        <div class="space-y-3 sm:space-y-4">
-                                            <div class="space-y-3">
-                                                <label class="block text-sm font-semibold text-gray-700">Dental/Medical Procedure</label>
-                                                
-                                                <!-- Quick Select Dropdown -->
-                                                <div class="space-y-2">
-                                                    <label class="block text-xs font-medium text-gray-600">Quick Select (Optional)</label>
-                                                    <select x-ref="dentalProcedureDropdown" @change="if($event.target.value !== 'Other (specify)') { newRecord.dental_procedure = $event.target.value; } else { newRecord.dental_procedure = ''; }" 
-                                                            class="w-full px-3 sm:px-4 py-2.5 sm:py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 transition-colors text-base">
-                                                        <option value="">-- Select common procedure --</option>
-                                                        <template x-for="procedure in commonProcedures" :key="procedure">
-                                                            <option :value="procedure" x-text="procedure"></option>
-                                                        </template>
-                                                    </select>
-                                                </div>
-                                                
-                                                <!-- Manual Input -->
-                                                <div class="space-y-2">
-                                                    <label class="block text-xs font-medium text-gray-600">Or type manually:</label>
-                                                    <input type="text" x-model="newRecord.dental_procedure" placeholder="Bunot ng ngipin, injection, etc."
-                                                           class="w-full px-3 sm:px-4 py-2.5 sm:py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 transition-colors text-base">
-                                                </div>
-                                            </div>
-                                            <div class="space-y-2">
-                                                <label class="block text-sm font-semibold text-gray-700">Procedure Notes</label>
-                                                <textarea x-model="newRecord.procedure_notes" rows="2" placeholder="Details about the procedure performed..."
-                                                          class="w-full px-3 sm:px-4 py-2.5 sm:py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 transition-colors resize-none text-base"></textarea>
-                                            </div>
-                                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                                                <div class="space-y-2">
-                                                    <label class="block text-sm font-semibold text-gray-700">Follow-up Date</label>
-                                                    <input type="date" x-model="newRecord.follow_up_date"
-                                                           class="w-full px-3 sm:px-4 py-2.5 sm:py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 transition-colors text-base">
-                                                </div>
-                                                <div class="space-y-3">
-                                                    <label class="block text-sm font-semibold text-gray-700">Special Instructions</label>
-                                                    
-                                                    <!-- Quick Select Dropdown -->
-                                                    <div class="space-y-2">
-                                                        <label class="block text-xs font-medium text-gray-600">Quick Select (Optional)</label>
-                                                        <select x-ref="instructionsDropdown" @change="if($event.target.value !== 'Other (specify)') { newRecord.special_instructions = $event.target.value; } else { newRecord.special_instructions = ''; }" 
-                                                                class="w-full px-3 sm:px-4 py-2.5 sm:py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 transition-colors text-base">
-                                                            <option value="">-- Select common instructions --</option>
-                                                            <template x-for="instruction in commonInstructions" :key="instruction">
-                                                                <option :value="instruction" x-text="instruction"></option>
-                                                            </template>
-                                                        </select>
-                                                    </div>
-                                                    
-                                                    <!-- Manual Input -->
-                                                    <div class="space-y-2">
-                                                        <label class="block text-xs font-medium text-gray-600">Or type manually:</label>
-                                                        <textarea x-model="newRecord.special_instructions" rows="2" placeholder="Special care instructions..."
-                                                                  class="w-full px-3 sm:px-4 py-2.5 sm:py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 transition-colors resize-none text-base"></textarea>
-                                                    </div>
-                                                </div>
                                             </div>
                                         </div>
                                     </div>
@@ -5054,7 +5065,7 @@
                         </div>
                     </div>
 
-                    <div x-show="viewingRecord && (viewingRecord.endorsement_required || viewingRecord.endorsement_status)" class="bg-white border border-gray-200 rounded-lg sm:rounded-xl p-3 sm:p-4">
+                    <div x-show="viewingRecord && viewingRecord.endorsement_required" class="bg-white border border-gray-200 rounded-lg sm:rounded-xl p-3 sm:p-4">
                         <div class="text-xs font-semibold text-gray-700">Endorsement Status</div>
                         <div class="mt-2 flex flex-wrap gap-2">
                             <div x-show="(viewingRecord.endorsement_status || '').toLowerCase() === 'pending'" class="inline-flex items-center gap-1 bg-amber-50 border border-amber-200 px-3 py-1.5 rounded-full">
@@ -5073,7 +5084,7 @@
                 <!-- Medical Information Grid -->
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
                     <!-- Reason for Visit - Only show if filled -->
-                    <div x-show="viewingRecord && viewingRecord.symptoms && viewingRecord.symptoms.trim() !== ''" class="bg-white border border-gray-200 rounded-lg sm:rounded-xl p-3 sm:p-4">
+                    <div x-show="viewingRecord && viewingRecord.chief_complaint && viewingRecord.chief_complaint.trim() !== ''" class="bg-white border border-gray-200 rounded-lg sm:rounded-xl p-3 sm:p-4">
                         <div class="flex items-center gap-2 sm:gap-3 mb-2 sm:mb-3">
                             <div class="w-7 h-7 sm:w-8 sm:h-8 bg-red-100 rounded-lg flex items-center justify-center">
                                 <svg class="w-3.5 h-3.5 sm:w-4 sm:h-4 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -5083,22 +5094,22 @@
                             <h4 class="text-sm sm:text-base font-semibold text-gray-800">Reason for Visit</h4>
                         </div>
                         <div class="bg-gray-50 rounded-lg p-2.5 sm:p-3">
-                            <p class="text-xs sm:text-sm text-gray-800" x-text="viewingRecord.symptoms"></p>
+                            <p class="text-xs sm:text-sm text-gray-800" x-text="viewingRecord.chief_complaint"></p>
                         </div>
                     </div>
 
-                    <!-- Chief Complaint - Only show if filled -->
-                    <div x-show="viewingRecord && viewingRecord.chief_complaint && viewingRecord.chief_complaint.trim() !== ''" class="bg-white border border-gray-200 rounded-lg sm:rounded-xl p-3 sm:p-4">
+                    <!-- Symptoms - Only show if filled -->
+                    <div x-show="viewingRecord && viewingRecord.symptoms && viewingRecord.symptoms.trim() !== ''" class="bg-white border border-gray-200 rounded-lg sm:rounded-xl p-3 sm:p-4">
                         <div class="flex items-center gap-2 sm:gap-3 mb-2 sm:mb-3">
                             <div class="w-7 h-7 sm:w-8 sm:h-8 bg-blue-100 rounded-lg flex items-center justify-center">
                                 <svg class="w-3.5 h-3.5 sm:w-4 sm:h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
                                 </svg>
                             </div>
-                            <h4 class="text-sm sm:text-base font-semibold text-gray-800">Chief Complaint</h4>
+                            <h4 class="text-sm sm:text-base font-semibold text-gray-800">Symptoms</h4>
                         </div>
                         <div class="bg-gray-50 rounded-lg p-2.5 sm:p-3">
-                            <p class="text-xs sm:text-sm text-gray-800" x-text="viewingRecord.chief_complaint"></p>
+                            <p class="text-xs sm:text-sm text-gray-800" x-text="viewingRecord.symptoms"></p>
                         </div>
                     </div>
 
@@ -5246,6 +5257,91 @@
                         </div>
                         <div class="bg-gray-50 rounded-lg p-3">
                             <p class="text-gray-800" x-text="viewingRecord.medication_schedule"></p>
+                        </div>
+                    </div>
+
+                    <div x-show="viewingRecord && viewingRecord.food_allergies && viewingRecord.food_allergies.trim() !== ''" class="bg-white border border-gray-200 rounded-xl p-4">
+                        <div class="flex items-center gap-3 mb-3">
+                            <div class="w-8 h-8 bg-amber-100 rounded-lg flex items-center justify-center">
+                                <svg class="w-4 h-4 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                </svg>
+                            </div>
+                            <h4 class="font-semibold text-gray-800">Food Allergies</h4>
+                        </div>
+                        <div class="bg-gray-50 rounded-lg p-3">
+                            <p class="text-gray-800" x-text="viewingRecord.food_allergies"></p>
+                        </div>
+                    </div>
+
+                    <div x-show="viewingRecord && viewingRecord.medicine_allergies && viewingRecord.medicine_allergies.trim() !== ''" class="bg-white border border-gray-200 rounded-xl p-4">
+                        <div class="flex items-center gap-3 mb-3">
+                            <div class="w-8 h-8 bg-rose-100 rounded-lg flex items-center justify-center">
+                                <svg class="w-4 h-4 text-rose-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                </svg>
+                            </div>
+                            <h4 class="font-semibold text-gray-800">Medicine Allergies</h4>
+                        </div>
+                        <div class="bg-gray-50 rounded-lg p-3">
+                            <p class="text-gray-800" x-text="viewingRecord.medicine_allergies"></p>
+                        </div>
+                    </div>
+
+                    <div x-show="viewingRecord && viewingRecord.dental_procedure && viewingRecord.dental_procedure.trim() !== ''" class="bg-white border border-gray-200 rounded-xl p-4">
+                        <div class="flex items-center gap-3 mb-3">
+                            <div class="w-8 h-8 bg-indigo-100 rounded-lg flex items-center justify-center">
+                                <svg class="w-4 h-4 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                                </svg>
+                            </div>
+                            <h4 class="font-semibold text-gray-800">Dental Procedure</h4>
+                        </div>
+                        <div class="bg-gray-50 rounded-lg p-3">
+                            <p class="text-gray-800" x-text="viewingRecord.dental_procedure"></p>
+                        </div>
+                    </div>
+
+                    <div x-show="viewingRecord && viewingRecord.procedure_notes && viewingRecord.procedure_notes.trim() !== ''" class="bg-white border border-gray-200 rounded-xl p-4 md:col-span-2">
+                        <div class="flex items-center gap-3 mb-3">
+                            <div class="w-8 h-8 bg-slate-100 rounded-lg flex items-center justify-center">
+                                <svg class="w-4 h-4 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                                </svg>
+                            </div>
+                            <h4 class="font-semibold text-gray-800">Procedure Notes</h4>
+                        </div>
+                        <div class="bg-gray-50 rounded-lg p-3">
+                            <p class="text-gray-800" x-text="viewingRecord.procedure_notes"></p>
+                        </div>
+                    </div>
+
+                    <div x-show="viewingRecord && viewingRecord.follow_up_date && String(viewingRecord.follow_up_date).trim() !== ''" class="bg-white border border-gray-200 rounded-xl p-4">
+                        <div class="flex items-center gap-3 mb-3">
+                            <div class="w-8 h-8 bg-emerald-100 rounded-lg flex items-center justify-center">
+                                <svg class="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                                </svg>
+                            </div>
+                            <h4 class="font-semibold text-gray-800">Follow-up Date</h4>
+                        </div>
+                        <div class="bg-gray-50 rounded-lg p-3">
+                            <p class="text-gray-800" x-text="viewingRecord.follow_up_date"></p>
+                        </div>
+                    </div>
+
+                    <div x-show="viewingRecord && viewingRecord.special_instructions && viewingRecord.special_instructions.trim() !== ''" class="bg-white border border-gray-200 rounded-xl p-4 md:col-span-2">
+                        <div class="flex items-center gap-3 mb-3">
+                            <div class="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
+                                <svg class="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                </svg>
+                            </div>
+                            <h4 class="font-semibold text-gray-800">Special Instructions</h4>
+                        </div>
+                        <div class="bg-gray-50 rounded-lg p-3">
+                            <p class="text-gray-800" x-text="viewingRecord.special_instructions"></p>
                         </div>
                     </div>
                 </div>
