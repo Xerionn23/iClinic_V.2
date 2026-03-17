@@ -45,6 +45,25 @@
     <style>
         body {
             font-family: 'Inter', sans-serif;
+            background-color: #1e40af;
+        }
+
+        body::-webkit-scrollbar {
+            width: 10px;
+        }
+
+        body::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        body::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.35);
+            border-radius: 999px;
+            border: 2px solid rgba(30, 64, 175, 0.35);
+        }
+
+        body::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.55);
         }
         
         /* Glassmorphism effect */
@@ -72,10 +91,10 @@
         .building-overlay {
             background-image: url('{{ url_for("static", filename="img/New Building.png") }}');
             background-size: cover;
-            background-position: center;
+            background-position: center 30%;
             background-repeat: no-repeat;
             opacity: 0.15;
-            position: absolute;
+            position: fixed;
             top: 0;
             left: 0;
             right: 0;
@@ -288,13 +307,13 @@
         }
     </style>
 </head>
-<body class="min-h-screen blue-background flex items-center justify-center relative overflow-x-hidden overflow-y-auto p-2 sm:p-4">
+<body class="min-h-[100dvh] blue-background flex items-start md:items-center justify-center relative overflow-x-hidden overflow-y-auto p-2 sm:p-4">
     
     <!-- Building Background Overlay -->
     <div class="building-overlay"></div>
     
     <!-- Background Decorations -->
-    <div class="absolute inset-0 overflow-hidden z-10">
+    <div class="fixed inset-0 overflow-hidden z-10">
         
         <!-- Healthcare Pattern SVGs -->
         <svg class="absolute top-10 left-10 w-24 h-24 text-white opacity-5" viewBox="0 0 24 24" fill="none" stroke="currentColor">

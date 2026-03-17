@@ -5198,7 +5198,7 @@ def deans_president_dashboard():
         flash('Access denied. This page is for Deans and President only.', 'error')
         return redirect(url_for('login_page'))
     
-    return redirect(url_for('student_dashboard'))
+    return redirect(url_for('deans_president_reports'))
 
 @app.route('/deans-president/consultation-chat')
 def deans_president_consultation_chat():
@@ -5211,7 +5211,7 @@ def deans_president_consultation_chat():
         flash('Access denied. This page is for Deans and President only.', 'error')
         return redirect(url_for('login_page'))
     
-    return redirect(url_for('student_dashboard'))
+    return redirect(url_for('staff_consultations'))
 
 @app.route('/api/deans-president/dashboard-stats')
 def api_deans_president_dashboard_stats():
@@ -5863,7 +5863,7 @@ def deans_president_reports():
     # ONLY allow deans and president
     if session.get('role') not in ['deans', 'president']:
         flash('Access denied. This page is only for Deans and President.', 'error')
-        return redirect(url_for('student_dashboard'))
+        return redirect(url_for('login_page'))
     
     user_info = {
         'username': session.get('username'),
