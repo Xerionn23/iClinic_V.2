@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="320" viewBox="0 0 960 320" role="img" aria-label="iClinic logo">
+  <rect width="960" height="320" fill="#ffffff"/>
+  <g transform="translate(72,64)">
+    <circle cx="96" cy="96" r="96" fill="#0F172A"/>
+    <g transform="translate(96,96)">
+      <path d="M-46 -6c0-34 26-58 58-58 18 0 32 6 42 16" fill="none" stroke="#22C55E" stroke-width="16" stroke-linecap="round"/>
+      <path d="M-46 6c0 34 26 58 58 58 18 0 32-6 42-16" fill="none" stroke="#38BDF8" stroke-width="16" stroke-linecap="round"/>
+      <rect x="-8" y="-48" width="16" height="96" rx="8" fill="#ffffff"/>
+      <circle cx="0" cy="-60" r="8" fill="#38BDF8"/>
+    </g>
+  </g>
+  <g transform="translate(304,120)">
+    <text x="0" y="74" font-family="Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif" font-size="86" font-weight="800" fill="#0F172A" letter-spacing="-1">iClinic</text>
+    <text x="2" y="116" font-family="Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif" font-size="22" font-weight="600" fill="#64748B">Health Information System</text>
+  </g>
+</svg>

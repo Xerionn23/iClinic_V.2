@@ -1325,6 +1325,7 @@ def init_db():
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS users (
             id INT AUTO_INCREMENT PRIMARY KEY,
+            user_id VARCHAR(50) UNIQUE,
             username VARCHAR(50) UNIQUE NOT NULL,
             email VARCHAR(100) UNIQUE NOT NULL,
             password_hash VARCHAR(255) NOT NULL,
@@ -1335,6 +1336,12 @@ def init_db():
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     ''')
+
+    try:
+        cursor.execute("ALTER TABLE users ADD COLUMN user_id VARCHAR(50) UNIQUE")
+        conn.commit()
+    except Exception:
+        pass
     
     # Email verification table
     cursor.execute('''
@@ -3383,134 +3390,146 @@ def login():
     print("âœ… Database connected successfully")  # Debug log
     
     cursor = conn.cursor()
-    user = None
-    
-    # ðŸ†• PRIORITY: Try to find user directly by user_id column first (fastest and most direct)
-    print(f"ðŸ” Step 1: Checking user_id column in users table...")
-    cursor.execute('SELECT id, username, password_hash, role, first_name, last_name, position, email FROM users WHERE user_id = %s', (user_id,))
-    user = cursor.fetchone()
-    if user:
-        print(f"âœ… Found user by user_id: {user[1]}, role: {user[3]}, email: {user[7]}")
-    
-    # Try to find user by student_number (for students without user_id populated)
-    if not user:
-        print(f"ðŸ” Step 2: Checking if User ID is a student number...")
-        cursor.execute('SELECT student_number, std_Firstname, std_Surname, std_EmailAdd FROM students WHERE student_number = %s AND is_active = TRUE', (user_id,))
-        student = cursor.fetchone()
+    try:
+        user = None
         
-        if student:
-            print(f"âœ… Found student: {student[1]} {student[2]} (Student Number: {student[0]})")
-            # Student found, now check if they have a user account
-            cursor.execute('SELECT id, username, password_hash, role, first_name, last_name, position, email FROM users WHERE email = %s', (student[3],))
+        # ðŸ†• PRIORITY: Try to find user directly by user_id column first (fastest and most direct)
+        print(f"ðŸ” Step 1: Checking user_id column in users table...")
+        try:
+            cursor.execute('SELECT id, username, password_hash, role, first_name, last_name, position, email FROM users WHERE user_id = %s', (user_id,))
             user = cursor.fetchone()
-            if user:
-                print(f"âœ… Student has user account with role: {user[3]}, email: {user[7]}")
-    
-    # If not found as student, try to find by nurse_id (for nurses)
-    if not user:
-        print(f"ðŸ” Step 3: Checking if User ID is a nurse ID...")
-        cursor.execute('SELECT nurse_id, first_name, last_name, email FROM nurses WHERE nurse_id = %s AND status = "Active"', (user_id,))
-        nurse = cursor.fetchone()
-        if nurse:
-            print(f"âœ… Found nurse: {nurse[1]} {nurse[2]} (Nurse ID: {nurse[0]})")
-            # Nurse found, now check if they have a user account
-            cursor.execute('SELECT id, username, password_hash, role, first_name, last_name, position, email FROM users WHERE email = %s', (nurse[3],))
-            user = cursor.fetchone()
-            if user:
-                print(f"âœ… Nurse has user account with role: {user[3]}, email: {user[7]}")
-    
-    # If not found as nurse, try to find by admin_id (for admins)
-    if not user:
-        print(f"ðŸ” Step 4: Checking if User ID is an admin ID...")
-        cursor.execute('SELECT admin_id, first_name, last_name, email FROM admins WHERE admin_id = %s AND status = "Active"', (user_id,))
-        admin = cursor.fetchone()
-        if admin:
-            print(f"âœ… Found admin: {admin[1]} {admin[2]} (Admin ID: {admin[0]})")
-            # Admin found, now check if they have a user account
-            cursor.execute('SELECT id, username, password_hash, role, first_name, last_name, position, email FROM users WHERE email = %s', (admin[3],))
-            user = cursor.fetchone()
-            if user:
-                print(f"âœ… Admin has user account with role: {user[3]}, email: {user[7]}")
-    
-    # If not found as student/nurse/admin, try to find by username or email in users table (for other staff)
-    if not user:
-        print(f"ðŸ” Step 5: Checking if User ID is a staff username/email...")
-        cursor.execute('SELECT id, username, password_hash, role, first_name, last_name, position, email FROM users WHERE username = %s OR email = %s', (user_id, user_id))
-        user = cursor.fetchone()
+        except Exception:
+            user = None
         if user:
-            print(f"âœ… Found staff/admin user: {user[1]}, role: {user[3]}, email: {user[7]}")
-    
-    print(f"User found: {user is not None}")  # Debug log
-    if user:
-        print(f"User data: {user[1]}, role: {user[3]}")  # Debug log
-        print(f"Password check: {check_password_hash(user[2], password)}")  # Debug log
-    
-    if user and check_password_hash(user[2], password):
-        session['user_id'] = user[0]
-        session['username'] = user[1]
-        session['role'] = user[3]
-        session['first_name'] = user[4]
-        session['last_name'] = user[5]
-        session['position'] = user[6]
-        session['email'] = user[7]  # âœ… ADD EMAIL TO SESSION!
+            print(f"âœ… Found user by user_id: {user[1]}, role: {user[3]}, email: {user[7]}")
         
-        print(f"âœ… Session created - Email: {user[7]}")  # Debug log
+        # Try to find user by student_number (for students without user_id populated)
+        if not user:
+            print(f"ðŸ” Step 2: Checking if User ID is a student number...")
+            cursor.execute('SELECT student_number, std_Firstname, std_Surname, std_EmailAdd FROM students WHERE student_number = %s AND is_active = TRUE', (user_id,))
+            student = cursor.fetchone()
+            
+            if student:
+                print(f"âœ… Found student: {student[1]} {student[2]} (Student Number: {student[0]})")
+                # Student found, now check if they have a user account
+                cursor.execute('SELECT id, username, password_hash, role, first_name, last_name, position, email FROM users WHERE email = %s', (student[3],))
+                user = cursor.fetchone()
+                if user:
+                    print(f"âœ… Student has user account with role: {user[3]}, email: {user[7]}")
         
-        # Fetch President ID or Dean ID if applicable (before closing connection)
-        if user[3] == 'president':
-            cursor.execute('SELECT president_id, first_name, last_name FROM president WHERE email = %s LIMIT 1', (user[1],))
-            president_data = cursor.fetchone()
-            if president_data:
-                session['identifier_id'] = president_data[0]  # Store president_id (e.g., PRES-001)
-                session['first_name'] = president_data[1]  # Override with actual first name from president table
-                session['last_name'] = president_data[2]  # Override with actual last name from president table
-                print(f"âœ… President ID stored: {president_data[0]}, Name: {president_data[1]} {president_data[2]}")
-        elif user[3] == 'deans':
-            cursor.execute('SELECT dean_id, first_name, last_name FROM deans WHERE email = %s LIMIT 1', (user[1],))
-            dean_data = cursor.fetchone()
-            if dean_data:
-                session['identifier_id'] = dean_data[0]  # Store dean_id (e.g., DEAN-001)
-                session['first_name'] = dean_data[1]  # Override with actual first name from deans table
-                session['last_name'] = dean_data[2]  # Override with actual last name from deans table
-                print(f"âœ… Dean ID stored: {dean_data[0]}, Name: {dean_data[1]} {dean_data[2]}")
+        # If not found as student, try to find by nurse_id (for nurses)
+        if not user:
+            print(f"ðŸ” Step 3: Checking if User ID is a nurse ID...")
+            cursor.execute('SELECT nurse_id, first_name, last_name, email FROM nurses WHERE nurse_id = %s AND status = "Active"', (user_id,))
+            nurse = cursor.fetchone()
+            if nurse:
+                print(f"âœ… Found nurse: {nurse[1]} {nurse[2]} (Nurse ID: {nurse[0]})")
+                # Nurse found, now check if they have a user account
+                cursor.execute('SELECT id, username, password_hash, role, first_name, last_name, position, email FROM users WHERE email = %s', (nurse[3],))
+                user = cursor.fetchone()
+                if user:
+                    print(f"âœ… Nurse has user account with role: {user[3]}, email: {user[7]}")
         
-        flash(f'Welcome back, {user[4]} {user[5]}!', 'success')
-    
-    cursor.close()
-    conn.close()
-    
-    if user and check_password_hash(user[2], password):
+        # If not found as nurse, try to find by admin_id (for admins)
+        if not user:
+            print(f"ðŸ” Step 4: Checking if User ID is an admin ID...")
+            cursor.execute('SELECT admin_id, first_name, last_name, email FROM admins WHERE admin_id = %s AND status = "Active"', (user_id,))
+            admin = cursor.fetchone()
+            if admin:
+                print(f"âœ… Found admin: {admin[1]} {admin[2]} (Admin ID: {admin[0]})")
+                # Admin found, now check if they have a user account
+                cursor.execute('SELECT id, username, password_hash, role, first_name, last_name, position, email FROM users WHERE email = %s', (admin[3],))
+                user = cursor.fetchone()
+                if user:
+                    print(f"âœ… Admin has user account with role: {user[3]}, email: {user[7]}")
         
-        # Determine redirect URL based on user role
-        print(f"ðŸ” User role from database: '{user[3]}'")  # Debug: Check exact role value
+        # If not found as student/nurse/admin, try to find by username or email in users table (for other staff)
+        if not user:
+            print(f"ðŸ” Step 5: Checking if User ID is a staff username/email...")
+            cursor.execute('SELECT id, username, password_hash, role, first_name, last_name, position, email FROM users WHERE username = %s OR email = %s', (user_id, user_id))
+            user = cursor.fetchone()
+            if user:
+                print(f"âœ… Found staff/admin user: {user[1]}, role: {user[3]}, email: {user[7]}")
         
-        if user[3] in ['student', 'teaching_staff', 'non_teaching_staff', 'deans', 'president']:
-            redirect_url = url_for('student_dashboard')
-            print(f"âœ… Redirecting to student dashboard")
-        elif user[3] in ['admin', 'it_staff']:
-            redirect_url = url_for('it_dashboard')
-            print(f"âœ… Redirecting to IT dashboard")
-        elif user[3] in ['staff', 'Nurse']:
-            redirect_url = url_for('staff_dashboard')
-            print(f"âœ… Redirecting to staff dashboard")
+        print(f"User found: {user is not None}")  # Debug log
+        if user:
+            print(f"User data: {user[1]}, role: {user[3]}")  # Debug log
+            print(f"Password check: {check_password_hash(user[2], password)}")  # Debug log
+        
+        if user and check_password_hash(user[2], password):
+            session['user_id'] = user[0]
+            session['username'] = user[1]
+            session['role'] = user[3]
+            session['first_name'] = user[4]
+            session['last_name'] = user[5]
+            session['position'] = user[6]
+            session['email'] = user[7]  # âœ… ADD EMAIL TO SESSION!
+            
+            print(f"âœ… Session created - Email: {user[7]}")  # Debug log
+            
+            # Fetch President ID or Dean ID if applicable (before closing connection)
+            if user[3] == 'president':
+                cursor.execute('SELECT president_id, first_name, last_name FROM president WHERE email = %s LIMIT 1', (user[1],))
+                president_data = cursor.fetchone()
+                if president_data:
+                    session['identifier_id'] = president_data[0]  # Store president_id (e.g., PRES-001)
+                    session['first_name'] = president_data[1]  # Override with actual first name from president table
+                    session['last_name'] = president_data[2]  # Override with actual last name from president table
+                    print(f"âœ… President ID stored: {president_data[0]}, Name: {president_data[1]} {president_data[2]}")
+            elif user[3] == 'deans':
+                cursor.execute('SELECT dean_id, first_name, last_name FROM deans WHERE email = %s LIMIT 1', (user[1],))
+                dean_data = cursor.fetchone()
+                if dean_data:
+                    session['identifier_id'] = dean_data[0]  # Store dean_id (e.g., DEAN-001)
+                    session['first_name'] = dean_data[1]  # Override with actual first name from deans table
+                    session['last_name'] = dean_data[2]  # Override with actual last name from deans table
+                    print(f"âœ… Dean ID stored: {dean_data[0]}, Name: {dean_data[1]} {dean_data[2]}")
+            
+            flash(f'Welcome back, {user[4]} {user[5]}!', 'success')
+
+            # Determine redirect URL based on user role
+            print(f"ðŸ” User role from database: '{user[3]}'")  # Debug: Check exact role value
+            
+            if user[3] in ['student', 'teaching_staff', 'non_teaching_staff', 'deans', 'president']:
+                redirect_url = url_for('student_dashboard')
+                print(f"âœ… Redirecting to student dashboard")
+            elif user[3] in ['admin', 'it_staff']:
+                redirect_url = url_for('it_dashboard')
+                print(f"âœ… Redirecting to IT dashboard")
+            elif user[3] in ['staff', 'Nurse']:
+                redirect_url = url_for('staff_dashboard')
+                print(f"âœ… Redirecting to staff dashboard")
+            else:
+                redirect_url = url_for('student_dashboard')
+                print(f"âš ï¸ Unknown role, defaulting to student dashboard")
+            
+            # Return JSON for AJAX requests, redirect for normal form submissions
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.accept_mimetypes.accept_json:
+                return jsonify({'success': True, 'redirect': redirect_url}), 200
+            
+            return redirect(redirect_url)
         else:
-            redirect_url = url_for('student_dashboard')
-            print(f"âš ï¸ Unknown role, defaulting to student dashboard")
-        
-        # Return JSON for AJAX requests, redirect for normal form submissions
+            print("âŒ Login failed: Invalid credentials")  # Debug log
+            flash('Invalid User ID or password', 'error')
+            
+            # Return JSON error for AJAX requests
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.accept_mimetypes.accept_json:
+                return jsonify({'success': False, 'message': 'Invalid User ID or password. Please check your credentials and try again.'}), 401
+            
+            return redirect(url_for('login_page'))
+    except Exception:
         if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.accept_mimetypes.accept_json:
-            return jsonify({'success': True, 'redirect': redirect_url}), 200
-        
-        return redirect(redirect_url)
-    else:
-        print("âŒ Login failed: Invalid credentials")  # Debug log
-        flash('Invalid User ID or password', 'error')
-        
-        # Return JSON error for AJAX requests
-        if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.accept_mimetypes.accept_json:
-            return jsonify({'success': False, 'message': 'Invalid User ID or password. Please check your credentials and try again.'}), 401
-        
-        return redirect(url_for('login_page'))
+            return jsonify({'success': False, 'message': 'Server error. Please try again.'}), 500
+        raise
+    finally:
+        try:
+            cursor.close()
+        except Exception:
+            pass
+        try:
+            conn.close()
+        except Exception:
+            pass
 
 @app.route('/logout')
 def logout():
@@ -7165,6 +7184,194 @@ def api_get_visitors():
         conn.close()
         return jsonify({'error': f'Database error: {str(e)}'}), 500
 
+@app.route('/api/check-duplicate-patient', methods=['POST'])
+def api_check_duplicate_patient():
+    """API endpoint to check for duplicate patients across all patient types"""
+    if 'user_id' not in session:
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    data = request.get_json() or {}
+    first_name = (data.get('first_name') or '').strip()
+    middle_name = (data.get('middle_name') or '').strip()
+    last_name = (data.get('last_name') or '').strip()
+
+    if not first_name or not last_name:
+        return jsonify({'has_duplicates': False, 'duplicates': []}), 200
+
+    conn = DatabaseConfig.get_connection()
+    if not conn:
+        return jsonify({'error': 'Database connection failed'}), 500
+
+    cursor = conn.cursor()
+    try:
+        duplicates = []
+
+        def _norm(s: str) -> str:
+            return (s or '').strip().lower()
+
+        fn = _norm(first_name)
+        mn = _norm(middle_name)
+        ln = _norm(last_name)
+
+        # Students
+        try:
+            cursor.execute('''
+                SELECT student_number, std_Firstname, std_Middlename, std_Surname, course
+                FROM students
+                WHERE LOWER(TRIM(std_Firstname)) = %s
+                  AND LOWER(TRIM(COALESCE(std_Middlename, ''))) = %s
+                  AND LOWER(TRIM(std_Surname)) = %s
+                  AND (is_active = TRUE OR is_active IS NULL)
+            ''', (fn, mn, ln))
+            for r in cursor.fetchall():
+                full_name = f"{r[1]} {((r[2] or '').strip() + ' ') if (r[2] or '').strip() else ''}{r[3]}".strip()
+                duplicates.append({
+                    'type': 'Student',
+                    'id': r[0],
+                    'name': full_name,
+                    'additional_info': (r[4] or '').strip() or 'Student'
+                })
+        except Exception:
+            pass
+
+        # Visitors
+        try:
+            cursor.execute('''
+                SELECT id, first_name, middle_name, last_name, email
+                FROM visitors
+                WHERE LOWER(TRIM(first_name)) = %s
+                  AND LOWER(TRIM(COALESCE(middle_name, ''))) = %s
+                  AND LOWER(TRIM(last_name)) = %s
+                  AND (is_active = TRUE OR is_active IS NULL)
+            ''', (fn, mn, ln))
+            for r in cursor.fetchall():
+                full_name = f"{r[1]} {((r[2] or '').strip() + ' ') if (r[2] or '').strip() else ''}{r[3]}".strip()
+                duplicates.append({
+                    'type': 'Visitor',
+                    'id': f"V{r[0]}",
+                    'name': full_name,
+                    'additional_info': (r[4] or '').strip() or 'Visitor'
+                })
+        except Exception:
+            pass
+
+        # Nurses
+        try:
+            cursor.execute('''
+                SELECT nurse_id, first_name, middle_name, last_name, email
+                FROM nurses
+                WHERE LOWER(TRIM(first_name)) = %s
+                  AND LOWER(TRIM(COALESCE(middle_name, ''))) = %s
+                  AND LOWER(TRIM(last_name)) = %s
+                  AND (status = 'Active' OR status IS NULL)
+            ''', (fn, mn, ln))
+            for r in cursor.fetchall():
+                full_name = f"{r[1]} {((r[2] or '').strip() + ' ') if (r[2] or '').strip() else ''}{r[3]}".strip()
+                duplicates.append({
+                    'type': 'Nurse',
+                    'id': r[0],
+                    'name': full_name,
+                    'additional_info': (r[4] or '').strip() or 'Nurse'
+                })
+        except Exception:
+            pass
+
+        # Admins
+        try:
+            cursor.execute('''
+                SELECT admin_id, first_name, middle_name, last_name, email
+                FROM admins
+                WHERE LOWER(TRIM(first_name)) = %s
+                  AND LOWER(TRIM(COALESCE(middle_name, ''))) = %s
+                  AND LOWER(TRIM(last_name)) = %s
+                  AND (status = 'Active' OR status IS NULL)
+            ''', (fn, mn, ln))
+            for r in cursor.fetchall():
+                full_name = f"{r[1]} {((r[2] or '').strip() + ' ') if (r[2] or '').strip() else ''}{r[3]}".strip()
+                duplicates.append({
+                    'type': 'Admin',
+                    'id': r[0],
+                    'name': full_name,
+                    'additional_info': (r[4] or '').strip() or 'Admin'
+                })
+        except Exception:
+            pass
+
+        # Teaching
+        try:
+            cursor.execute('''
+                SELECT faculty_id, first_name, middle_name, last_name, email
+                FROM teaching
+                WHERE LOWER(TRIM(first_name)) = %s
+                  AND LOWER(TRIM(COALESCE(middle_name, ''))) = %s
+                  AND LOWER(TRIM(last_name)) = %s
+                  AND (status = 'Active' OR status IS NULL)
+            ''', (fn, mn, ln))
+            for r in cursor.fetchall():
+                full_name = f"{r[1]} {((r[2] or '').strip() + ' ') if (r[2] or '').strip() else ''}{r[3]}".strip()
+                duplicates.append({
+                    'type': 'Teaching Staff',
+                    'id': r[0],
+                    'name': full_name,
+                    'additional_info': (r[4] or '').strip() or 'Teaching'
+                })
+        except Exception:
+            pass
+
+        # Non-teaching
+        try:
+            cursor.execute('''
+                SELECT staff_id, first_name, middle_name, last_name, email
+                FROM non_teaching_staff
+                WHERE LOWER(TRIM(first_name)) = %s
+                  AND LOWER(TRIM(COALESCE(middle_name, ''))) = %s
+                  AND LOWER(TRIM(last_name)) = %s
+                  AND (status = 'Active' OR status IS NULL)
+            ''', (fn, mn, ln))
+            for r in cursor.fetchall():
+                full_name = f"{r[1]} {((r[2] or '').strip() + ' ') if (r[2] or '').strip() else ''}{r[3]}".strip()
+                duplicates.append({
+                    'type': 'Non-Teaching Staff',
+                    'id': r[0],
+                    'name': full_name,
+                    'additional_info': (r[4] or '').strip() or 'Non-Teaching'
+                })
+        except Exception:
+            pass
+
+        # Deans
+        try:
+            cursor.execute('''
+                SELECT dean_id, first_name, middle_name, last_name, email
+                FROM deans
+                WHERE LOWER(TRIM(first_name)) = %s
+                  AND LOWER(TRIM(COALESCE(middle_name, ''))) = %s
+                  AND LOWER(TRIM(last_name)) = %s
+            ''', (fn, mn, ln))
+            for r in cursor.fetchall():
+                full_name = f"{r[1]} {((r[2] or '').strip() + ' ') if (r[2] or '').strip() else ''}{r[3]}".strip()
+                duplicates.append({
+                    'type': 'Dean',
+                    'id': r[0],
+                    'name': full_name,
+                    'additional_info': (r[4] or '').strip() or 'Dean'
+                })
+        except Exception:
+            pass
+
+        return jsonify({
+            'has_duplicates': len(duplicates) > 0,
+            'duplicates': duplicates
+        }), 200
+    finally:
+        try:
+            cursor.close()
+        except Exception:
+            pass
+        try:
+            conn.close()
+        except Exception:
+            pass
 @app.route('/api/recent-visits')
 def api_recent_visits():
     """API endpoint to get recent clinic visits"""

@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="320" viewBox="0 0 960 320" role="img" aria-label="iClinic logo">
+  <rect width="960" height="320" fill="#ffffff"/>
+  <g transform="translate(72,64)">
+    <rect x="0" y="0" width="192" height="192" rx="48" fill="#ffffff" stroke="#0F172A" stroke-opacity="0.14"/>
+    <g transform="translate(96,96)">
+      <path d="M0-70c36 0 66 30 66 66S36 62 0 62-66 32-66-4s30-66 66-66z" fill="#0F172A" opacity="0.05"/>
+      <path d="M44-40c-18-14-38-16-56-6-26 14-34 52-16 78 18 26 56 30 82 8" fill="none" stroke="#0F172A" stroke-width="16" stroke-linecap="round"/>
+      <path d="M10-20h18c16 0 28 12 28 28S44 36 28 36H10" fill="none" stroke="#2563EB" stroke-width="16" stroke-linecap="round" stroke-linejoin="round"/>
+    </g>
+  </g>
+  <g transform="translate(304,120)">
+    <text x="0" y="74" font-family="Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif" font-size="86" font-weight="800" fill="#0F172A" letter-spacing="-1">iClinic</text>
+    <text x="2" y="116" font-family="Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif" font-size="22" font-weight="600" fill="#64748B">Professional Care Platform</text>
+  </g>
+</svg>

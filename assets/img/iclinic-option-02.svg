@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="420" viewBox="0 0 1400 420" role="img" aria-label="iClinic System logo option 2">
+  <defs>
+    <linearGradient id="brand" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0" stop-color="#2563EB"/>
+      <stop offset="1" stop-color="#22C55E"/>
+    </linearGradient>
+    <linearGradient id="brand2" x1="1" x2="0" y1="0" y2="1">
+      <stop offset="0" stop-color="#38BDF8"/>
+      <stop offset="1" stop-color="#16A34A"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Transparent background to work on light/dark -->
+
+  <!-- MARK: shield (trust) + cap (academic) + cross (health) + circuits (tech) -->
+  <g transform="translate(96,70)">
+    <!-- shield outline -->
+    <path d="M150 0c54 34 104 34 150 52v108c0 92-64 148-150 190C64 308 0 252 0 160V52C46 34 96 34 150 0z" fill="#0B1220" opacity="0.06"/>
+    <path d="M150 0c54 34 104 34 150 52v108c0 92-64 148-150 190C64 308 0 252 0 160V52C46 34 96 34 150 0z" fill="none" stroke="url(#brand)" stroke-width="10" stroke-linejoin="round"/>
+
+    <!-- circuit lines -->
+    <g fill="none" stroke-linecap="round" stroke-width="8" opacity="0.95">
+      <path d="M58 130h46" stroke="#38BDF8"/>
+      <circle cx="112" cy="130" r="5" fill="#38BDF8" stroke="none"/>
+      <path d="M242 152h44" stroke="#22C55E"/>
+      <circle cx="234" cy="152" r="5" fill="#22C55E" stroke="none"/>
+      <path d="M150 248v38" stroke="#22C55E"/>
+      <circle cx="150" cy="296" r="5" fill="#22C55E" stroke="none"/>
+    </g>
+
+    <!-- graduation cap (minimal) -->
+    <g transform="translate(150,92)">
+      <path d="M0-34l78 30-78 30-78-30 78-30z" fill="url(#brand2)"/>
+      <path d="M48 8v28" stroke="#2563EB" stroke-width="8" stroke-linecap="round"/>
+      <circle cx="48" cy="40" r="6" fill="#2563EB"/>
+    </g>
+
+    <!-- cross -->
+    <g transform="translate(150,190)">
+      <rect x="-14" y="-58" width="28" height="116" rx="14" fill="#0B1220"/>
+      <rect x="-58" y="-14" width="116" height="28" rx="14" fill="#0B1220"/>
+      <rect x="-10" y="-54" width="20" height="108" rx="10" fill="#ffffff"/>
+      <rect x="-54" y="-10" width="108" height="20" rx="10" fill="#ffffff"/>
+    </g>
+
+    <!-- heartbeat line -->
+    <path d="M56 210h56l16-32 22 78 22-48h76" fill="none" stroke="url(#brand)" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+
+  <!-- WORDMARK -->
+  <g transform="translate(430,148)">
+    <text x="0" y="92" font-family="Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif" font-size="104" font-weight="800" fill="#0B1220" letter-spacing="-1.6">iClinic</text>
+    <text x="392" y="92" font-family="Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif" font-size="104" font-weight="800" fill="url(#brand)" letter-spacing="-1.6">System</text>
+    <text x="4" y="144" font-family="Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif" font-size="30" font-weight="600" fill="#64748B">Smart Healthcare for Students</text>
+  </g>
+</svg>

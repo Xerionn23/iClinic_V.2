@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="320" viewBox="0 0 900 320" role="img" aria-label="iClinic System logo inspired option 2">
+  <defs>
+    <style>
+      .t1{font-family:Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;}
+    </style>
+  </defs>
+
+  <rect width="900" height="320" fill="#ffffff"/>
+
+  <!-- ICON (more geometric) -->
+  <g transform="translate(78,50)">
+    <!-- cap -->
+    <path d="M100 10 190 40 100 70 10 40Z" fill="#0B4B7A"/>
+    <path d="M170 48v42" stroke="#0B4B7A" stroke-width="10" stroke-linecap="round"/>
+    <circle cx="170" cy="96" r="8" fill="#0B4B7A"/>
+
+    <!-- ring base -->
+    <circle cx="110" cy="150" r="86" fill="none" stroke="#18A34A" stroke-width="18" stroke-linecap="round"/>
+    <!-- blue swoosh -->
+    <path d="M70 106c36-24 84-20 116 8" fill="none" stroke="#0B4B7A" stroke-width="18" stroke-linecap="round"/>
+
+    <!-- person -->
+    <circle cx="60" cy="146" r="11" fill="#18A34A"/>
+    <path d="M44 214c16-44 50-66 98-70" fill="none" stroke="#18A34A" stroke-width="20" stroke-linecap="round"/>
+
+    <!-- cross in circle -->
+    <g transform="translate(156,186)">
+      <circle cx="0" cy="0" r="40" fill="#0B4B7A"/>
+      <path d="M0-20v40" stroke="#ffffff" stroke-width="14" stroke-linecap="round"/>
+      <path d="M-20 0h40" stroke="#ffffff" stroke-width="14" stroke-linecap="round"/>
+    </g>
+
+    <!-- star -->
+    <path d="M22 176l4 8 9 2-6 6 2 9-9-4-9 4 2-9-6-6 9-2z" fill="#0B4B7A"/>
+  </g>
+
+  <g transform="translate(320,118)">
+    <text class="t1" x="0" y="70" font-size="72" font-weight="800" fill="#111827" letter-spacing="-1">iClinic System</text>
+    <text class="t1" x="2" y="108" font-size="22" font-weight="600" fill="#6B7280">Smart Healthcare for Students</text>
+  </g>
+</svg>

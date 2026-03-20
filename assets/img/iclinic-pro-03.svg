@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="320" viewBox="0 0 960 320" role="img" aria-label="iClinic logo">
+  <rect width="960" height="320" fill="#ffffff"/>
+  <g transform="translate(72,64)">
+    <rect x="0" y="0" width="192" height="192" rx="48" fill="#F8FAFC" stroke="#0F172A" stroke-opacity="0.12"/>
+    <g transform="translate(96,96)">
+      <path d="M54 -22a70 70 0 1 0 0 44" fill="none" stroke="#0F172A" stroke-width="16" stroke-linecap="round"/>
+      <path d="M-22 -2h18l10-22 18 52 14-30h30" fill="none" stroke="#2563EB" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+      <circle cx="56" cy="0" r="6" fill="#2563EB"/>
+    </g>
+  </g>
+  <g transform="translate(304,120)">
+    <text x="0" y="74" font-family="Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif" font-size="86" font-weight="800" fill="#0F172A" letter-spacing="-1">iClinic</text>
+    <text x="2" y="116" font-family="Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif" font-size="22" font-weight="600" fill="#64748B">Smart Clinic Workflow</text>
+  </g>
+</svg>

@@ -3255,7 +3255,7 @@
                     <button @click="showPrintHistoryModal = true; loadPrintHistory()" class="p-1.5 sm:p-2 rounded-lg bg-green-500 hover:bg-green-600 text-white transition-colors touch-target">
                         <i data-feather="printer" class="w-4 h-4 sm:w-5 sm:h-5"></i>
                     </button>
-                    <button @click="openAddRecordModal()" class="p-1.5 sm:p-2 rounded-lg bg-blue-500 hover:bg-blue-600 text-white transition-colors touch-target">
+                    <button @click="showAddVisitorModal = true" class="p-1.5 sm:p-2 rounded-lg bg-blue-500 hover:bg-blue-600 text-white transition-colors touch-target">
                         <i data-feather="user-plus" class="w-4 h-4 sm:w-5 sm:h-5"></i>
                     </button>
                 </div>
@@ -3302,11 +3302,11 @@
                                 
                                 <!-- Action Buttons -->
                                 <div class="flex items-center gap-1 sm:gap-2">
-                                    <button @click="openAddRecordModal()" class="group bg-yellow-400 hover:bg-yellow-500 text-blue-900 px-2 sm:px-3 md:px-4 py-1.5 sm:py-2 md:py-2.5 rounded-lg font-medium transition-all transform hover:scale-105 flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm md:text-base touch-target">
+                                    <button @click="showAddVisitorModal = true" class="group bg-yellow-400 hover:bg-yellow-500 text-blue-900 px-2 sm:px-3 md:px-4 py-1.5 sm:py-2 md:py-2.5 rounded-lg font-medium transition-all transform hover:scale-105 flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm md:text-base touch-target">
                                         <div class="w-5 h-5 sm:w-6 sm:h-6 bg-blue-900/20 rounded flex items-center justify-center group-hover:rotate-12 transition-transform">
                                             <i data-feather="plus-circle" class="w-3.5 h-3.5 sm:w-4 sm:h-4"></i>
                                         </div>
-                                        <span class="hidden sm:inline">Add New Record</span>
+                                        <span class="hidden sm:inline">Add New Visitors</span>
                                         <span class="sm:hidden">Add</span>
                                     </button>
                                     
