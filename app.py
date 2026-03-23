@@ -1417,27 +1417,6 @@ def init_db():
             cursor.execute("ALTER TABLE students ADD COLUMN emergency_contact_email VARCHAR(100) AFTER emergency_contact_number")
     except Exception:
         pass
-    
-    # Clinic stays table for monitoring patients staying in clinic
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS clinic_stays (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            medical_record_id INT,
-            student_id INT,
-            patient_name VARCHAR(255),
-            stay_reason VARCHAR(500),
-            check_in_time DATETIME DEFAULT CURRENT_TIMESTAMP,
-            expected_checkout_time DATETIME,
-            actual_checkout_time DATETIME NULL,
-            status ENUM('staying', 'checked_out') DEFAULT 'staying',
-            notes TEXT,
-            staff_id INT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-            FOREIGN KEY (medical_record_id) REFERENCES medical_records(id) ON DELETE CASCADE,
-            FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE
-        )
-    ''')
 
     # Medical records table (updated with all required fields)
     cursor.execute('''
@@ -1488,6 +1467,27 @@ def init_db():
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             FOREIGN KEY (student_id) REFERENCES students (id),
             FOREIGN KEY (staff_id) REFERENCES users (id)
+        )
+    ''')
+
+    # Clinic stays table for monitoring patients staying in clinic
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS clinic_stays (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            medical_record_id INT,
+            student_id INT,
+            patient_name VARCHAR(255),
+            stay_reason VARCHAR(500),
+            check_in_time DATETIME DEFAULT CURRENT_TIMESTAMP,
+            expected_checkout_time DATETIME,
+            actual_checkout_time DATETIME NULL,
+            status ENUM('staying', 'checked_out') DEFAULT 'staying',
+            notes TEXT,
+            staff_id INT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            FOREIGN KEY (medical_record_id) REFERENCES medical_records(id) ON DELETE CASCADE,
+            FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE
         )
     ''')
     
@@ -2229,6 +2229,27 @@ def init_db():
             print("âœ… Added contact_number column to teaching table")
     except Exception as e:
         print(f"Note: {e}")
+
+    try:
+        cursor.execute("SHOW COLUMNS FROM teaching LIKE 'emergency_contact_name'")
+        if not cursor.fetchone():
+            cursor.execute('ALTER TABLE teaching ADD COLUMN emergency_contact_name VARCHAR(100)')
+    except Exception as e:
+        print(f"Note: {e}")
+
+    try:
+        cursor.execute("SHOW COLUMNS FROM teaching LIKE 'emergency_contact_relationship'")
+        if not cursor.fetchone():
+            cursor.execute('ALTER TABLE teaching ADD COLUMN emergency_contact_relationship VARCHAR(50)')
+    except Exception as e:
+        print(f"Note: {e}")
+
+    try:
+        cursor.execute("SHOW COLUMNS FROM teaching LIKE 'emergency_contact_number'")
+        if not cursor.fetchone():
+            cursor.execute('ALTER TABLE teaching ADD COLUMN emergency_contact_number VARCHAR(20)')
+    except Exception as e:
+        print(f"Note: {e}")
     
     # Add sample teaching staff data if table is empty
     try:
@@ -2299,6 +2320,58 @@ def init_db():
             
             conn.commit()
             print("Updated existing teaching staff records with age, gender, and contact info")
+
+        try:
+            emergency_contacts = [
+                ('Maria Santos', 'Mother', '09171234567'),
+                ('Juan Dela Cruz', 'Father', '09181234568'),
+                ('Ana Rodriguez', 'Mother', '09191234569'),
+                ('Carlos Mendoza', 'Father', '09201234570'),
+                ('Rosa Garcia', 'Mother', '09211234571'),
+                ('Pedro Martinez', 'Father', '09221234572'),
+                ('Carmen Lopez', 'Mother', '09231234573'),
+                ('Miguel Torres', 'Father', '09241234574'),
+                ('Elena Reyes', 'Mother', '09251234575'),
+                ('Roberto Silva', 'Father', '09261234576'),
+                ('Luz Fernandez', 'Mother', '09271234577'),
+                ('Antonio Cruz', 'Father', '09281234578'),
+                ('Gloria Ramos', 'Mother', '09291234579'),
+                ('Francisco Morales', 'Father', '09301234580'),
+                ('Esperanza Gutierrez', 'Mother', '09311234581'),
+            ]
+
+            cursor.execute('SELECT id FROM teaching ORDER BY id')
+            teaching_rows = cursor.fetchall()
+            for i, row in enumerate(teaching_rows):
+                teaching_id = row[0]
+                contact_index = i % len(emergency_contacts)
+                ec_name, ec_rel, ec_num = emergency_contacts[contact_index]
+                cursor.execute('''
+                    UPDATE teaching
+                    SET emergency_contact_name = COALESCE(emergency_contact_name, %s),
+                        emergency_contact_relationship = COALESCE(emergency_contact_relationship, %s),
+                        emergency_contact_number = COALESCE(emergency_contact_number, %s)
+                    WHERE id = %s
+                ''', (ec_name, ec_rel, ec_num, teaching_id))
+            conn.commit()
+        except Exception as e:
+            print(f"Error populating emergency contact data for teaching staff: {e}")
+
+        try:
+            cursor.execute("SHOW TABLES LIKE 'patients_unified'")
+            if cursor.fetchone():
+                cursor.execute("SHOW COLUMNS FROM patients_unified LIKE 'emergency_contact_number'")
+                if cursor.fetchone():
+                    cursor.execute('''
+                        UPDATE patients_unified pu
+                        INNER JOIN teaching t ON pu.role = 'Teaching Staff' AND pu.source_id = t.id
+                        SET pu.emergency_contact_name = t.emergency_contact_name,
+                            pu.emergency_contact_relationship = t.emergency_contact_relationship,
+                            pu.emergency_contact_number = t.emergency_contact_number
+                    ''')
+                    conn.commit()
+        except Exception as e:
+            print(f"Note: Could not sync teaching emergency contacts to patients_unified: {e}")
             
     except Exception as e:
         print(f"Error adding sample teaching staff: {e}")
@@ -3210,9 +3283,9 @@ def init_db():
             ADD COLUMN IF NOT EXISTS allergies TEXT,
             ADD COLUMN IF NOT EXISTS medical_conditions TEXT
         ''')
-        print("âœ… Emergency contact columns added to students table")
+        print("Emergency contact columns added to students table")
     except Exception as e:
-        print(f"âš ï¸ Emergency contact columns may already exist: {e}")
+        print(f"Emergency contact columns may already exist: {e}")
     
     # Populate emergency contact data for all students
     try:
@@ -3241,7 +3314,7 @@ def init_db():
         ]
         
         # Get all students and update their emergency contact info
-        cursor.execute('SELECT student_number, std_Firstname, std_Surname FROM students ORDER BY student_number')
+        cursor.execute('SELECT student_number, first_name, last_name FROM students ORDER BY student_number')
         students = cursor.fetchall()
         
         for i, student in enumerate(students):
@@ -3263,9 +3336,9 @@ def init_db():
             ''', (contact_name, relationship, contact_number, blood_type, allergies, medical_conditions, student_number))
         
         conn.commit()
-        print(f"âœ… Emergency contact data populated for {len(students)} students")
+        print(f"Emergency contact data populated for {len(students)} students")
     except Exception as e:
-        print(f"âš ï¸ Error populating emergency contact data: {e}")
+        print(f"Error populating emergency contact data: {e}")
     
     # Create medicine_batches table for batch/lot tracking
     try:
@@ -3290,9 +3363,9 @@ def init_db():
             )
         ''')
         conn.commit()
-        print("âœ… Medicine batches table created successfully!")
+        print("Medicine batches table created successfully!")
     except Exception as e:
-        print(f"âš ï¸ Error creating medicine_batches table: {e}")
+        print(f"Error creating medicine_batches table: {e}")
     
     cursor.close()
     conn.close()
@@ -3406,7 +3479,7 @@ def login():
         # Try to find user by student_number (for students without user_id populated)
         if not user:
             print(f"ðŸ” Step 2: Checking if User ID is a student number...")
-            cursor.execute('SELECT student_number, std_Firstname, std_Surname, std_EmailAdd FROM students WHERE student_number = %s AND is_active = TRUE', (user_id,))
+            cursor.execute('SELECT student_number, first_name, last_name, email FROM students WHERE student_number = %s AND is_active = TRUE', (user_id,))
             student = cursor.fetchone()
             
             if student:

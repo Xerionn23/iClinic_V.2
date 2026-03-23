@@ -175,6 +175,12 @@
     searchQuery: '',
     selectedCategory: 'All Categories',
     selectedPriority: 'All Priority',
+    newExpirationHour: '',
+    newExpirationMinute: '',
+    newExpirationPeriod: 'PM',
+    editExpirationHour: '',
+    editExpirationMinute: '',
+    editExpirationPeriod: 'PM',
     newAnnouncement: {
         title: '',
         content: '',
@@ -245,10 +251,133 @@
         }
     },
     
+    normalizeTimeValue(timeValue) {
+        const time = (timeValue || '').trim();
+        if (!time) return '23:59:59';
+
+        // 12-hour strings like: 11:59 PM, 11:59PM, 11:59:30 AM
+        const ampm = time.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?\s*(AM|PM)$/i);
+        if (ampm) {
+            let hour = Number(ampm[1]);
+            const minute = Number(ampm[2]);
+            const second = Number(ampm[3] || '0');
+            const period = String(ampm[4] || '').toUpperCase();
+
+            if (!Number.isFinite(hour) || !Number.isFinite(minute) || !Number.isFinite(second)) return '23:59:59';
+            if (hour < 1 || hour > 12) return '23:59:59';
+            if (minute < 0 || minute > 59) return '23:59:59';
+            if (second < 0 || second > 59) return '23:59:59';
+
+            if (period === 'AM') {
+                if (hour === 12) hour = 0;
+            } else {
+                if (hour !== 12) hour += 12;
+            }
+
+            const hh = String(hour).padStart(2, '0');
+            const mm = String(minute).padStart(2, '0');
+            const ss = String(second).padStart(2, '0');
+            return `${hh}:${mm}:${ss}`;
+        }
+
+        if (/^\d{2}:\d{2}:\d{2}$/.test(time)) return time;
+        if (/^\d{2}:\d{2}$/.test(time)) return `${time}:00`;
+        return '23:59:59';
+    },
+
+    getTodayLocalDateString() {
+        const now = new Date();
+        const year = now.getFullYear();
+        const month = String(now.getMonth() + 1).padStart(2, '0');
+        const day = String(now.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    },
+
+    buildLocalDateTime(dateStr, timeStr) {
+        if (!dateStr) return null;
+        const dateParts = String(dateStr).split('-');
+        if (dateParts.length !== 3) return null;
+        const year = Number(dateParts[0]);
+        const month = Number(dateParts[1]);
+        const day = Number(dateParts[2]);
+        if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) return null;
+
+        const normalized = this.normalizeTimeValue(timeStr);
+        const timeParts = normalized.split(':');
+        const hours = Number(timeParts[0]);
+        const minutes = Number(timeParts[1]);
+        const seconds = Number(timeParts[2]);
+        if (![hours, minutes, seconds].every(Number.isFinite)) return null;
+
+        return new Date(year, month - 1, day, hours, minutes, seconds);
+    },
+
+    syncNewExpirationTimeFrom12Hr() {
+        if (!this.newExpirationHour || this.newExpirationMinute === '') {
+            this.newAnnouncement.expiration_time = '';
+            return;
+        }
+        let hour = Number(this.newExpirationHour);
+        const minute = Number(this.newExpirationMinute);
+        if (!Number.isFinite(hour) || !Number.isFinite(minute)) {
+            this.newAnnouncement.expiration_time = '';
+            return;
+        }
+        if (this.newExpirationPeriod === 'AM') {
+            if (hour === 12) hour = 0;
+        } else {
+            if (hour !== 12) hour += 12;
+        }
+        const hh = String(hour).padStart(2, '0');
+        const mm = String(minute).padStart(2, '0');
+        this.newAnnouncement.expiration_time = `${hh}:${mm}:00`;
+    },
+
+    syncEditExpirationTimeFrom12Hr() {
+        if (!this.editingAnnouncement) return;
+        if (!this.editExpirationHour || this.editExpirationMinute === '') {
+            this.editingAnnouncement.expiration_time = '';
+            return;
+        }
+        let hour = Number(this.editExpirationHour);
+        const minute = Number(this.editExpirationMinute);
+        if (!Number.isFinite(hour) || !Number.isFinite(minute)) {
+            this.editingAnnouncement.expiration_time = '';
+            return;
+        }
+        if (this.editExpirationPeriod === 'AM') {
+            if (hour === 12) hour = 0;
+        } else {
+            if (hour !== 12) hour += 12;
+        }
+        const hh = String(hour).padStart(2, '0');
+        const mm = String(minute).padStart(2, '0');
+        this.editingAnnouncement.expiration_time = `${hh}:${mm}:00`;
+    },
+
+    set12HrTimeFromStored(timeValue, isEdit) {
+        const normalized = this.normalizeTimeValue(timeValue);
+        const parts = normalized.split(':');
+        let hour24 = Number(parts[0]);
+        const minute = Number(parts[1]);
+        if (!Number.isFinite(hour24) || !Number.isFinite(minute)) return;
+        const period = hour24 >= 12 ? 'PM' : 'AM';
+        let hour12 = hour24 % 12;
+        if (hour12 === 0) hour12 = 12;
+        if (isEdit) {
+            this.editExpirationHour = String(hour12);
+            this.editExpirationMinute = String(minute).padStart(2, '0');
+            this.editExpirationPeriod = period;
+        } else {
+            this.newExpirationHour = String(hour12);
+            this.newExpirationMinute = String(minute).padStart(2, '0');
+            this.newExpirationPeriod = period;
+        }
+    },
+
     parseExpirationDateTime(announcement) {
         if (!announcement || !announcement.expiration_date) return null;
-        const time = announcement.expiration_time || '23:59:59';
-        return new Date(`${announcement.expiration_date}T${time}`);
+        return this.buildLocalDateTime(announcement.expiration_date, announcement.expiration_time);
     },
 
     isExpired(announcement) {
@@ -339,12 +468,60 @@
         const date = this.parseExpirationDateTime(announcement);
         if (!date || Number.isNaN(date.getTime())) return 'No expiration';
         return date.toLocaleString('en-US', {
+            weekday: 'short',
             year: 'numeric',
             month: 'short',
             day: 'numeric',
             hour: '2-digit',
-            minute: '2-digit'
+            minute: '2-digit',
+            hour12: true,
+            timeZone: 'Asia/Manila'
         });
+    },
+
+    formatRelativeTimeFromNow(date) {
+        if (!date || Number.isNaN(date.getTime())) return '';
+        const diffMs = Date.now() - date.getTime();
+        const diffSec = Math.floor(Math.abs(diffMs) / 1000);
+        const isPast = diffMs >= 0;
+
+        const units = [
+            { label: 'y', seconds: 60 * 60 * 24 * 365 },
+            { label: 'mo', seconds: 60 * 60 * 24 * 30 },
+            { label: 'd', seconds: 60 * 60 * 24 },
+            { label: 'h', seconds: 60 * 60 },
+            { label: 'm', seconds: 60 },
+            { label: 's', seconds: 1 }
+        ];
+
+        const unit = units.find(u => diffSec >= u.seconds) || units[units.length - 1];
+        const value = Math.floor(diffSec / unit.seconds);
+        const compact = `${value}${unit.label}`;
+        return isPast ? `${compact} ago` : `in ${compact}`;
+    },
+
+    getCreatedMetaText(announcement) {
+        const created = this.parseBackendDateTime(announcement?.created_at || announcement?.date);
+        if (!created) return '';
+        return `Created ${this.formatRelativeTimeFromNow(created)}`;
+    },
+
+    getExpiresMetaText(announcement) {
+        const expires = this.parseExpirationDateTime(announcement);
+        if (!expires || Number.isNaN(expires.getTime())) return '';
+        const diffMs = expires.getTime() - Date.now();
+        if (diffMs <= 0) return 'Expired';
+        return `Expires ${this.formatRelativeTimeFromNow(expires)}`;
+    },
+
+    getInitials(name) {
+        const str = String(name || '').trim();
+        if (!str) return '?';
+        const parts = str.split(/\s+/).filter(Boolean);
+        const first = parts[0]?.[0] || '';
+        const last = parts.length > 1 ? parts[parts.length - 1][0] : '';
+        const initials = `${first}${last}`.toUpperCase();
+        return initials || '?';
     },
     
     async createAnnouncement() {
@@ -359,12 +536,16 @@
         }
         
         try {
+            const payload = {
+                ...this.newAnnouncement,
+                expiration_time: this.normalizeTimeValue(this.newAnnouncement.expiration_time)
+            };
             const response = await fetch('/api/announcements/create', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify(this.newAnnouncement)
+                body: JSON.stringify(payload)
             });
             
             const result = await response.json();
@@ -393,6 +574,7 @@
             expiration_date: announcement.expiration_date || '',
             expiration_time: announcement.expiration_time || ''
         };
+        this.set12HrTimeFromStored(this.editingAnnouncement.expiration_time, true);
         this.showEditModal = true;
     },
     
@@ -408,19 +590,20 @@
         }
         
         try {
+            const payload = {
+                title: this.editingAnnouncement.title,
+                content: this.editingAnnouncement.content,
+                category: this.editingAnnouncement.category,
+                priority: this.editingAnnouncement.priority,
+                expiration_date: this.editingAnnouncement.expiration_date,
+                expiration_time: this.normalizeTimeValue(this.editingAnnouncement.expiration_time)
+            };
             const response = await fetch(`/api/announcements/${this.editingAnnouncement.id}/update`, {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({
-                    title: this.editingAnnouncement.title,
-                    content: this.editingAnnouncement.content,
-                    category: this.editingAnnouncement.category,
-                    priority: this.editingAnnouncement.priority,
-                    expiration_date: this.editingAnnouncement.expiration_date,
-                    expiration_time: this.editingAnnouncement.expiration_time || '23:59:59'
-                })
+                body: JSON.stringify(payload)
             });
             
             const result = await response.json();
@@ -472,6 +655,9 @@
             expiration_date: '',
             expiration_time: ''
         };
+        this.newExpirationHour = '';
+        this.newExpirationMinute = '';
+        this.newExpirationPeriod = 'PM';
     },
     
     viewAnnouncement(announcement) {
@@ -563,15 +749,57 @@
         if (content.length <= maxLength) return content;
         return content.substring(0, maxLength) + '...';
     },
-    
+
+    parseBackendDateTime(dateString) {
+        const raw = String(dateString || '').trim();
+        if (!raw) return null;
+
+        // Date-only: YYYY-MM-DD (treat as local midnight to avoid timezone shifts)
+        const dateOnly = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+        if (dateOnly) {
+            const year = Number(dateOnly[1]);
+            const month = Number(dateOnly[2]);
+            const day = Number(dateOnly[3]);
+            if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) return null;
+            return new Date(year, month - 1, day, 0, 0, 0);
+        }
+
+        // ISO-like string
+        if (/^\d{4}-\d{2}-\d{2}T/.test(raw)) {
+            const date = new Date(raw);
+            if (Number.isNaN(date.getTime())) return null;
+            return date;
+        }
+
+        // MySQL DATETIME: YYYY-MM-DD HH:MM:SS
+        const m = raw.match(/^(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2})(?::(\d{2}))?$/);
+        if (m) {
+            const year = Number(m[1]);
+            const month = Number(m[2]);
+            const day = Number(m[3]);
+            const hour = Number(m[4]);
+            const minute = Number(m[5]);
+            const second = Number(m[6] || '0');
+            return new Date(year, month - 1, day, hour, minute, second);
+        }
+
+        // Fallback
+        const fallback = new Date(raw);
+        if (Number.isNaN(fallback.getTime())) return null;
+        return fallback;
+    },
+
     formatDate(dateString) {
-        const date = new Date(dateString);
-        return date.toLocaleDateString('en-US', {
+        const date = this.parseBackendDateTime(dateString);
+        if (!date) return '';
+        return date.toLocaleString('en-US', {
+            weekday: 'short',
             year: 'numeric',
             month: 'short',
             day: 'numeric',
             hour: '2-digit',
             minute: '2-digit',
+            hour12: true,
             timeZone: 'Asia/Manila'
         });
     },
@@ -619,16 +847,19 @@
     handleResize() {
         this.isMobile = window.innerWidth < 768;
         if (this.isMobile) {
-            this.sidebarCollapsed = true;
+            this.sidebarCollapsed = false;
             this.mobileMenuOpen = false;
+            document.body.classList.remove('mobile-menu-open');
         } else {
             this.sidebarCollapsed = false;
             this.mobileMenuOpen = false;
+            document.body.classList.remove('mobile-menu-open');
         }
     },
     toggleMobileMenu() {
         if (this.isMobile) {
             this.mobileMenuOpen = !this.mobileMenuOpen;
+            document.body.classList.toggle('mobile-menu-open', this.mobileMenuOpen);
         }
     }
 }">
@@ -637,21 +868,25 @@
         <!-- Mobile Overlay -->
         <div class="mobile-overlay md:hidden" 
              :class="{ 'active': mobileMenuOpen }"
-             @click="mobileMenuOpen = false"></div>
+             @click="mobileMenuOpen = false; document.body.classList.remove('mobile-menu-open');"></div>
 
         <!-- Sidebar -->
-        <aside :class="sidebarCollapsed ? 'w-20' : 'w-64'" 
-               class="fixed left-0 top-0 h-screen gradient-bg-sidebar text-white transition-all duration-300 shadow-2xl z-40"
+        <aside :class="[
+                   !isMobile ? (sidebarCollapsed ? 'w-20' : 'w-64') : '',
+                   isMobile && mobileMenuOpen ? 'translate-x-0' : '',
+                   isMobile && !mobileMenuOpen ? '-translate-x-full' : ''
+               ]" 
+               class="fixed left-0 top-0 h-screen w-[18rem] max-w-[85vw] gradient-bg-sidebar text-white transition-all duration-300 shadow-2xl z-50"
                @mouseenter="sidebarHovered = true"
                @mouseleave="sidebarHovered = false">
         
             <!-- Logo -->
             <div class="relative p-6">
-                <div class="flex items-center gap-3" :class="sidebarCollapsed && !sidebarHovered ? 'justify-center' : ''">
+                <div class="flex items-center gap-3" :class="(sidebarCollapsed && !sidebarHovered && !isMobile) ? 'justify-center' : ''">
                     <div class="flex items-center justify-center">
                         <img src="../assets/img/iclinic-logo.png" alt="Norzagaray College" class="w-14 h-14 object-contain">
                     </div>
-                    <div x-show="!sidebarCollapsed || sidebarHovered" x-transition>
+                    <div x-show="isMobile || !sidebarCollapsed || sidebarHovered" x-transition>
                         <h1 class="text-xl font-bold text-white">iClinic</h1>
                         <p class="text-xs text-yellow-300">Norzagaray College</p>
                     </div>
@@ -662,65 +897,72 @@
             <nav class="relative mt-8 px-4 space-y-2">
                 <!-- Dashboard -->
                 <a href="{{ url_for('staff_dashboard') }}"
+                   @click="if (isMobile) { mobileMenuOpen = false; document.body.classList.remove('mobile-menu-open'); }"
                    class="flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all group hover:bg-white/10">
-                    <div class="flex items-center justify-center" :class="sidebarCollapsed && !sidebarHovered ? 'w-full' : ''">
+                    <div class="flex items-center justify-center" :class="(sidebarCollapsed && !sidebarHovered && !isMobile) ? 'w-full' : ''">
                         <i data-feather="home" class="w-5 h-5 group-hover:scale-110 transition-transform"></i>
                     </div>
-                    <span x-show="!sidebarCollapsed || sidebarHovered" x-transition class="font-medium">Dashboard</span>
+                    <span x-show="isMobile || !sidebarCollapsed || sidebarHovered" x-transition class="font-medium">Dashboard</span>
                 </a>
                 
                 <!-- Patients -->
                 <a href="{{ url_for('staff_patients') }}"
+                   @click="if (isMobile) { mobileMenuOpen = false; document.body.classList.remove('mobile-menu-open'); }"
                    class="flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all group hover:bg-white/10">
-                    <div class="flex items-center justify-center" :class="sidebarCollapsed && !sidebarHovered ? 'w-full' : ''">
+                    <div class="flex items-center justify-center" :class="(sidebarCollapsed && !sidebarHovered && !isMobile) ? 'w-full' : ''">
                         <i data-feather="users" class="w-5 h-5 group-hover:scale-110 transition-transform"></i>
                     </div>
-                    <span x-show="!sidebarCollapsed || sidebarHovered" x-transition class="font-medium">Patients</span>
+                    <span x-show="isMobile || !sidebarCollapsed || sidebarHovered" x-transition class="font-medium">Patients</span>
                 </a>
                 
                 <!-- Appointments -->
                 <a href="{{ url_for('staff_appointments') }}"
+                   @click="if (isMobile) { mobileMenuOpen = false; document.body.classList.remove('mobile-menu-open'); }"
                    class="flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all group hover:bg-white/10">
-                    <div class="flex items-center justify-center" :class="sidebarCollapsed && !sidebarHovered ? 'w-full' : ''">
+                    <div class="flex items-center justify-center" :class="(sidebarCollapsed && !sidebarHovered && !isMobile) ? 'w-full' : ''">
                         <i data-feather="calendar" class="w-5 h-5 group-hover:scale-110 transition-transform"></i>
                     </div>
-                    <span x-show="!sidebarCollapsed || sidebarHovered" x-transition class="font-medium">Appointments</span>
+                    <span x-show="isMobile || !sidebarCollapsed || sidebarHovered" x-transition class="font-medium">Appointments</span>
                 </a>
                 
                 <!-- Announcements -->
                 <a href="{{ url_for('staff_announcements') }}"
+                   @click="if (isMobile) { mobileMenuOpen = false; document.body.classList.remove('mobile-menu-open'); }"
                    class="sidebar-item-active flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all group">
-                    <div class="flex items-center justify-center" :class="sidebarCollapsed && !sidebarHovered ? 'w-full' : ''">
+                    <div class="flex items-center justify-center" :class="(sidebarCollapsed && !sidebarHovered && !isMobile) ? 'w-full' : ''">
                         <i data-feather="volume-2" class="w-5 h-5 group-hover:scale-110 transition-transform"></i>
                     </div>
-                    <span x-show="!sidebarCollapsed || sidebarHovered" x-transition class="font-medium">Announcements</span>
+                    <span x-show="isMobile || !sidebarCollapsed || sidebarHovered" x-transition class="font-medium">Announcements</span>
                 </a>
                 
                 <!-- Consultations -->
                 <a href="{{ url_for('staff_consultations') }}"
+                   @click="if (isMobile) { mobileMenuOpen = false; document.body.classList.remove('mobile-menu-open'); }"
                    class="flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all group hover:bg-white/10">
-                    <div class="flex items-center justify-center" :class="sidebarCollapsed && !sidebarHovered ? 'w-full' : ''">
+                    <div class="flex items-center justify-center" :class="(sidebarCollapsed && !sidebarHovered && !isMobile) ? 'w-full' : ''">
                         <i data-feather="message-circle" class="w-5 h-5 group-hover:scale-110 transition-transform"></i>
                     </div>
-                    <span x-show="!sidebarCollapsed || sidebarHovered" x-transition class="font-medium">Consultations</span>
+                    <span x-show="isMobile || !sidebarCollapsed || sidebarHovered" x-transition class="font-medium">Consultations</span>
                 </a>
                 
                 <!-- Inventory -->
                 <a href="{{ url_for('staff_inventory') }}"
+                   @click="if (isMobile) { mobileMenuOpen = false; document.body.classList.remove('mobile-menu-open'); }"
                    class="flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all group hover:bg-white/10">
-                    <div class="flex items-center justify-center" :class="sidebarCollapsed && !sidebarHovered ? 'w-full' : ''">
+                    <div class="flex items-center justify-center" :class="(sidebarCollapsed && !sidebarHovered && !isMobile) ? 'w-full' : ''">
                         <i data-feather="package" class="w-5 h-5 group-hover:scale-110 transition-transform"></i>
                     </div>
-                    <span x-show="!sidebarCollapsed || sidebarHovered" x-transition class="font-medium">Inventory</span>
+                    <span x-show="isMobile || !sidebarCollapsed || sidebarHovered" x-transition class="font-medium">Inventory</span>
                 </a>
                 
                 <!-- Reports -->
                 <a href="{{ url_for('staff_reports') }}"
+                   @click="if (isMobile) { mobileMenuOpen = false; document.body.classList.remove('mobile-menu-open'); }"
                    class="flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all group hover:bg-white/10">
-                    <div class="flex items-center justify-center" :class="sidebarCollapsed && !sidebarHovered ? 'w-full' : ''">
+                    <div class="flex items-center justify-center" :class="(sidebarCollapsed && !sidebarHovered && !isMobile) ? 'w-full' : ''">
                         <i data-feather="bar-chart-2" class="w-5 h-5 group-hover:scale-110 transition-transform"></i>
                     </div>
-                    <span x-show="!sidebarCollapsed || sidebarHovered" x-transition class="font-medium">Reports</span>
+                    <span x-show="isMobile || !sidebarCollapsed || sidebarHovered" x-transition class="font-medium">Reports</span>
                 </a>
             </nav>
         
@@ -729,15 +971,15 @@
             <div class="relative" @click.outside="userDropdown = false">
                 <button @click="userDropdown = !userDropdown" 
                         class="w-full flex items-center gap-3 p-2 rounded-lg hover:bg-white/10 transition-colors" 
-                        :class="sidebarCollapsed && !sidebarHovered ? 'justify-center' : ''">
+                        :class="(sidebarCollapsed && !sidebarHovered && !isMobile) ? 'justify-center' : ''">
                     <div class="w-10 h-10 bg-gradient-to-br from-yellow-400 to-yellow-500 rounded-full flex items-center justify-center shadow-lg">
                         <span class="text-blue-900 font-bold">{{ user.first_name[0] }}{{ user.last_name[0] }}</span>
                     </div>
-                    <div x-show="!sidebarCollapsed || sidebarHovered" x-transition class="flex-1 text-left">
+                    <div x-show="isMobile || !sidebarCollapsed || sidebarHovered" x-transition class="flex-1 text-left">
                         <p class="text-sm font-medium text-white">{{ user.first_name }} {{ user.last_name }}</p>
                         <p class="text-xs text-yellow-300">{{ user.position }}</p>
                     </div>
-                    <i x-show="!sidebarCollapsed || sidebarHovered" data-feather="chevron-up" class="w-4 h-4 text-white/70"></i>
+                    <i x-show="isMobile || !sidebarCollapsed || sidebarHovered" data-feather="chevron-up" class="w-4 h-4 text-white/70"></i>
                 </button>
                 
                 <!-- User Dropdown -->
@@ -755,7 +997,7 @@
         </aside>
         
         <!-- Main Content Area -->
-        <div :class="sidebarCollapsed ? 'md:ml-20' : 'md:ml-64'" class="flex-1 flex flex-col transition-all duration-300">
+        <div :class="sidebarCollapsed ? 'md:ml-20' : 'md:ml-64'" class="flex-1 flex flex-col transition-all duration-300 md:pl-4">
             
             <!-- Mobile Header -->
             <header class="md:hidden bg-white shadow-sm border-b border-gray-200 px-4 py-3 flex items-center justify-between">
@@ -999,7 +1241,7 @@
                          @scroll="handleScroll($event)">
                         
                         <template x-for="announcement in filteredAnnouncements" :key="announcement.id">
-                        <div class="bg-white rounded-2xl shadow-lg border-2 hover:shadow-2xl hover:scale-[1.02] transition-all duration-300 group overflow-hidden"
+                        <div class="bg-white rounded-2xl shadow-lg border-2 hover:shadow-2xl transition-all duration-300 group overflow-hidden"
                              :class="{
                                  'border-l-8 border-l-red-500 bg-gradient-to-r from-red-50/50 to-white': announcement.priority === 'urgent',
                                  'border-l-8 border-l-orange-400 bg-gradient-to-r from-orange-50/50 to-white': announcement.priority === 'important',
@@ -1019,23 +1261,53 @@
                                     
                                     <div class="flex-1 cursor-pointer" @click="viewAnnouncement(announcement)">
                                         <!-- Title and Category Badge -->
-                                        <div class="flex items-center gap-3 mb-3 flex-wrap">
-                                            <h3 class="text-xl font-bold text-gray-900 group-hover:text-blue-600 transition-colors" x-text="announcement.title"></h3>
-                                            <span class="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-bold shadow-sm"
-                                                  :class="{
-                                                      'bg-gradient-to-r from-red-500 to-red-600 text-white': announcement.priority === 'urgent',
-                                                      'bg-gradient-to-r from-orange-400 to-orange-500 text-white': announcement.priority === 'important',
-                                                      'bg-gradient-to-r from-green-400 to-green-500 text-white': announcement.priority === 'standard',
-                                                      'bg-gradient-to-r from-blue-400 to-blue-500 text-white': announcement.category === 'Events',
-                                                      'bg-gradient-to-r from-purple-400 to-purple-500 text-white': announcement.category === 'Health'
-                                                  }"
-                                                  x-text="announcement.category">
-                                            </span>
-                                            <span x-show="announcement.priority === 'urgent'" 
-                                                  class="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-bold bg-red-600 text-white animate-pulse shadow-lg">
-                                                <i data-feather="alert-circle" class="w-3 h-3 mr-1"></i>
-                                                URGENT
-                                            </span>
+                                        <div class="flex items-start justify-between gap-4 mb-3">
+                                            <div class="flex items-start gap-3 min-w-0">
+                                                <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center shadow-sm flex-shrink-0">
+                                                    <span class="text-white font-bold text-sm" x-text="getInitials(announcement.author)"></span>
+                                                </div>
+                                                <div class="min-w-0">
+                                                    <div class="flex items-center gap-2 flex-wrap">
+                                                        <span class="inline-flex items-center px-2 py-1 rounded-full text-[10px] font-bold tracking-wide uppercase bg-yellow-100 text-yellow-800 border border-yellow-200">
+                                                            Announcement
+                                                        </span>
+                                                        <span class="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-bold shadow-sm"
+                                                              :class="{
+                                                                  'bg-gradient-to-r from-red-500 to-red-600 text-white': announcement.priority === 'urgent',
+                                                                  'bg-gradient-to-r from-orange-400 to-orange-500 text-white': announcement.priority === 'important',
+                                                                  'bg-gradient-to-r from-green-400 to-green-500 text-white': announcement.priority === 'standard',
+                                                                  'bg-gradient-to-r from-blue-400 to-blue-500 text-white': announcement.category === 'Events',
+                                                                  'bg-gradient-to-r from-purple-400 to-purple-500 text-white': announcement.category === 'Health'
+                                                              }"
+                                                              x-text="announcement.category">
+                                                        </span>
+                                                        <span x-show="announcement.priority === 'urgent'" 
+                                                              class="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-bold bg-red-600 text-white animate-pulse shadow-lg">
+                                                            <i data-feather="alert-circle" class="w-3 h-3 mr-1"></i>
+                                                            URGENT
+                                                        </span>
+                                                    </div>
+                                                    <h3 class="text-xl font-bold text-gray-900 group-hover:text-blue-600 transition-colors mt-1 truncate" x-text="announcement.title"></h3>
+                                                    <div class="text-sm text-gray-600 mt-1">
+                                                        <span class="font-medium" x-text="announcement.author"></span>
+                                                        <span class="text-gray-400">•</span>
+                                                        <span :title="formatDate(announcement.created_at || announcement.date)" x-text="getCreatedMetaText(announcement)"></span>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <!-- Action Buttons -->
+                                            <div class="flex items-center gap-2 flex-shrink-0 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-all duration-200">
+                                                <button @click.stop="viewAnnouncement(announcement)" class="p-2.5 text-gray-400 hover:text-white hover:bg-gradient-to-r hover:from-green-500 hover:to-green-600 rounded-xl transition-all duration-200 shadow-sm hover:shadow-lg hover:scale-110" title="View announcement">
+                                                    <i data-feather="eye" class="w-5 h-5"></i>
+                                                </button>
+                                                <button @click.stop="editAnnouncement(announcement)" class="p-2.5 text-gray-400 hover:text-white hover:bg-gradient-to-r hover:from-blue-500 hover:to-blue-600 rounded-xl transition-all duration-200 shadow-sm hover:shadow-lg hover:scale-110" title="Edit announcement">
+                                                    <i data-feather="edit-2" class="w-5 h-5"></i>
+                                                </button>
+                                                <button @click.stop="deleteAnnouncement(announcement.id)" class="p-2.5 text-gray-400 hover:text-white hover:bg-gradient-to-r hover:from-red-500 hover:to-red-600 rounded-xl transition-all duration-200 shadow-sm hover:shadow-lg hover:scale-110" title="Delete announcement">
+                                                    <i data-feather="trash-2" class="w-5 h-5"></i>
+                                                </button>
+                                            </div>
                                         </div>
                                         
                                         <!-- Content Preview -->
@@ -1051,28 +1323,28 @@
                                         </div>
                                         
                                         <!-- Meta Information -->
-                                        <div class="flex items-center gap-4 text-sm text-gray-600 bg-gray-50 rounded-lg p-3 border border-gray-100 flex-wrap">
-                                            <div class="flex items-center gap-2">
-                                                <i data-feather="calendar" class="w-4 h-4 text-blue-500"></i>
-                                                <span class="font-medium">Created: <span x-text="formatDate(announcement.date || announcement.created_at)"></span></span>
+                                        <div class="bg-gray-50 rounded-lg p-3 border border-gray-100">
+                                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                                <div x-show="announcement.expiration_date" class="inline-flex items-center gap-2 px-3 py-2 bg-white/70 rounded-lg border border-gray-200" :title="formatExpirationDate(announcement)">
+                                                    <i data-feather="clock" class="w-4 h-4" :class="{
+                                                        'text-red-500': getExpirationStatus(announcement) === 'expiring-soon',
+                                                        'text-orange-500': getExpirationStatus(announcement) === 'active'
+                                                    }"></i>
+                                                    <span class="font-medium" :class="{
+                                                        'text-red-600': getExpirationStatus(announcement) === 'expiring-soon',
+                                                        'text-orange-600': getExpirationStatus(announcement) === 'active'
+                                                    }" x-text="getExpiresMetaText(announcement)"></span>
+                                                </div>
                                             </div>
-                                            <div class="flex items-center gap-2">
-                                                <i data-feather="user" class="w-4 h-4 text-green-500"></i>
-                                                <span class="font-medium" x-text="announcement.author"></span>
-                                            </div>
-                                            <div class="flex items-center gap-2">
-                                                <i data-feather="tag" class="w-4 h-4 text-purple-500"></i>
-                                                <span class="font-medium" x-text="(announcement.priority === 'urgent' ? 'Urgent' : announcement.priority === 'important' ? 'Important' : 'Standard') + ' Priority'"></span>
-                                            </div>
-                                            <div class="flex items-center gap-2" x-show="announcement.expiration_date">
-                                                <i data-feather="clock" class="w-4 h-4" :class="{
-                                                    'text-red-500': getExpirationStatus(announcement) === 'expiring-soon',
-                                                    'text-orange-500': getExpirationStatus(announcement) === 'active'
-                                                }"></i>
-                                                <span class="font-medium" :class="{
-                                                    'text-red-600': getExpirationStatus(announcement) === 'expiring-soon',
-                                                    'text-orange-600': getExpirationStatus(announcement) === 'active'
-                                                }" x-text="'Expires: ' + formatExpirationDate(announcement)"></span>
+                                            <div class="mt-2 flex flex-wrap gap-2">
+                                                <span class="inline-flex items-center gap-2 px-3 py-1.5 bg-white/70 rounded-lg border border-gray-200 text-sm text-gray-700">
+                                                    <i data-feather="tag" class="w-4 h-4 text-purple-500"></i>
+                                                    <span class="font-medium" x-text="(announcement.priority === 'urgent' ? 'Urgent' : announcement.priority === 'important' ? 'Important' : 'Standard') + ' Priority'"></span>
+                                                </span>
+                                                <span x-show="announcement.expiration_date" class="inline-flex items-center gap-2 px-3 py-1.5 bg-white/70 rounded-lg border border-gray-200 text-sm text-gray-700" :title="formatExpirationDate(announcement)">
+                                                    <i data-feather="calendar" class="w-4 h-4 text-orange-500"></i>
+                                                    <span class="font-medium" x-text="formatExpirationDate(announcement)"></span>
+                                                </span>
                                             </div>
                                         </div>
                                         
@@ -1081,19 +1353,6 @@
                                             <i data-feather="alert-circle" class="w-4 h-4 text-red-600"></i>
                                             <span class="text-xs font-semibold text-red-700">Expiring within 24 hours!</span>
                                         </div>
-                                    </div>
-                                    
-                                    <!-- Action Buttons -->
-                                    <div class="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-all duration-300">
-                                        <button @click.stop="viewAnnouncement(announcement)" class="p-2.5 text-gray-400 hover:text-white hover:bg-gradient-to-r hover:from-green-500 hover:to-green-600 rounded-xl transition-all duration-200 shadow-sm hover:shadow-lg hover:scale-110" title="View announcement">
-                                            <i data-feather="eye" class="w-5 h-5"></i>
-                                        </button>
-                                        <button @click.stop="editAnnouncement(announcement)" class="p-2.5 text-gray-400 hover:text-white hover:bg-gradient-to-r hover:from-blue-500 hover:to-blue-600 rounded-xl transition-all duration-200 shadow-sm hover:shadow-lg hover:scale-110" title="Edit announcement">
-                                            <i data-feather="edit-2" class="w-5 h-5"></i>
-                                        </button>
-                                        <button @click.stop="deleteAnnouncement(announcement.id)" class="p-2.5 text-gray-400 hover:text-white hover:bg-gradient-to-r hover:from-red-500 hover:to-red-600 rounded-xl transition-all duration-200 shadow-sm hover:shadow-lg hover:scale-110" title="Delete announcement">
-                                            <i data-feather="trash-2" class="w-5 h-5"></i>
-                                        </button>
                                     </div>
                                 </div>
                             </div>
@@ -1186,15 +1445,39 @@
                                     <label class="block text-xs text-gray-600 mb-2">Date *</label>
                                     <input type="date" 
                                            x-model="newAnnouncement.expiration_date"
-                                           :min="new Date().toISOString().split('T')[0]"
+                                           :min="getTodayLocalDateString()"
                                            class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors" 
                                            required>
                                 </div>
                                 <div>
                                     <label class="block text-xs text-gray-600 mb-2">Time (Optional)</label>
-                                    <input type="time" 
-                                           x-model="newAnnouncement.expiration_time"
-                                           class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors">
+                                    <div class="grid grid-cols-3 gap-2">
+                                        <select x-model="newExpirationHour" @change="syncNewExpirationTimeFrom12Hr()" class="w-full px-3 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors bg-white">
+                                            <option value="">HH</option>
+                                            <option value="1">01</option>
+                                            <option value="2">02</option>
+                                            <option value="3">03</option>
+                                            <option value="4">04</option>
+                                            <option value="5">05</option>
+                                            <option value="6">06</option>
+                                            <option value="7">07</option>
+                                            <option value="8">08</option>
+                                            <option value="9">09</option>
+                                            <option value="10">10</option>
+                                            <option value="11">11</option>
+                                            <option value="12">12</option>
+                                        </select>
+                                        <select x-model="newExpirationMinute" @change="syncNewExpirationTimeFrom12Hr()" class="w-full px-3 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors bg-white">
+                                            <option value="">MM</option>
+                                            <template x-for="m in Array.from({ length: 60 }, (_, i) => String(i).padStart(2, '0'))" :key="m">
+                                                <option :value="m" x-text="m"></option>
+                                            </template>
+                                        </select>
+                                        <select x-model="newExpirationPeriod" @change="syncNewExpirationTimeFrom12Hr()" class="w-full px-3 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors bg-white">
+                                            <option value="AM">AM</option>
+                                            <option value="PM">PM</option>
+                                        </select>
+                                    </div>
                                     <p class="text-xs text-gray-500 mt-1">Default: 11:59 PM if not set</p>
                                 </div>
                             </div>
@@ -1307,15 +1590,39 @@
                                     <label class="block text-xs text-gray-600 mb-2">Date *</label>
                                     <input type="date" 
                                            x-model="editingAnnouncement.expiration_date"
-                                           :min="new Date().toISOString().split('T')[0]"
+                                           :min="getTodayLocalDateString()"
                                            class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors" 
                                            required>
                                 </div>
                                 <div>
                                     <label class="block text-xs text-gray-600 mb-2">Time (Optional)</label>
-                                    <input type="time" 
-                                           x-model="editingAnnouncement.expiration_time"
-                                           class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors">
+                                    <div class="grid grid-cols-3 gap-2">
+                                        <select x-model="editExpirationHour" @change="syncEditExpirationTimeFrom12Hr()" class="w-full px-3 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors bg-white">
+                                            <option value="">HH</option>
+                                            <option value="1">01</option>
+                                            <option value="2">02</option>
+                                            <option value="3">03</option>
+                                            <option value="4">04</option>
+                                            <option value="5">05</option>
+                                            <option value="6">06</option>
+                                            <option value="7">07</option>
+                                            <option value="8">08</option>
+                                            <option value="9">09</option>
+                                            <option value="10">10</option>
+                                            <option value="11">11</option>
+                                            <option value="12">12</option>
+                                        </select>
+                                        <select x-model="editExpirationMinute" @change="syncEditExpirationTimeFrom12Hr()" class="w-full px-3 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors bg-white">
+                                            <option value="">MM</option>
+                                            <template x-for="m in Array.from({ length: 60 }, (_, i) => String(i).padStart(2, '0'))" :key="m">
+                                                <option :value="m" x-text="m"></option>
+                                            </template>
+                                        </select>
+                                        <select x-model="editExpirationPeriod" @change="syncEditExpirationTimeFrom12Hr()" class="w-full px-3 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors bg-white">
+                                            <option value="AM">AM</option>
+                                            <option value="PM">PM</option>
+                                        </select>
+                                    </div>
                                     <p class="text-xs text-gray-500 mt-1">Default: 11:59 PM if not set</p>
                                 </div>
                             </div>
@@ -1356,43 +1663,64 @@
                 <div class="px-8 py-6 border-b border-gray-100 bg-gradient-to-r from-blue-50 to-purple-50">
                     <div class="flex justify-between items-start">
                         <div class="flex-1" x-show="viewingAnnouncement">
-                            <div class="flex items-center gap-3 mb-2">
-                                <h3 class="text-2xl font-bold text-gray-900" x-text="viewingAnnouncement?.title"></h3>
-                                <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium"
-                                      :class="{
-                                          'bg-red-100 text-red-700 border border-red-200': viewingAnnouncement?.priority === 'urgent',
-                                          'bg-orange-100 text-orange-700 border border-orange-200': viewingAnnouncement?.priority === 'important',
-                                          'bg-green-100 text-green-700 border border-green-200': viewingAnnouncement?.priority === 'standard'
-                                      }"
-                                      x-text="viewingAnnouncement?.category">
-                                </span>
-                                <span x-show="viewingAnnouncement?.priority === 'urgent'" 
-                                      class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-500 text-white animate-pulse">
-                                    URGENT PRIORITY
-                                </span>
-                            </div>
-                            <div class="flex items-center gap-6 text-sm text-gray-600">
-                                <div class="flex items-center gap-2">
-                                    <i data-feather="calendar" class="w-4 h-4"></i>
-                                    <span>Created: <span x-text="formatDate(viewingAnnouncement?.date || viewingAnnouncement?.created_at)"></span></span>
+                            <div class="flex items-start gap-4">
+                                <div class="w-12 h-12 rounded-2xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center shadow-sm flex-shrink-0">
+                                    <span class="text-white font-bold" x-text="getInitials(viewingAnnouncement?.author)"></span>
                                 </div>
-                                <div class="flex items-center gap-2">
-                                    <i data-feather="user" class="w-4 h-4"></i>
-                                    <span x-text="viewingAnnouncement?.author"></span>
-                                </div>
-                                <div class="flex items-center gap-2">
-                                    <i data-feather="tag" class="w-4 h-4"></i>
-                                    <span x-text="(viewingAnnouncement?.priority === 'urgent' ? 'Urgent' : viewingAnnouncement?.priority === 'important' ? 'Important' : 'Standard') + ' Priority'"></span>
-                                </div>
-                                <div class="flex items-center gap-2" x-show="viewingAnnouncement?.expiration_date">
-                                    <i data-feather="clock" class="w-4 h-4" :class="{
-                                        'text-red-500': getExpirationStatus(viewingAnnouncement) === 'expiring-soon',
-                                        'text-orange-500': getExpirationStatus(viewingAnnouncement) === 'active'
-                                    }"></i>
-                                    <span :class="{
-                                        'text-red-600 font-semibold': getExpirationStatus(viewingAnnouncement) === 'expiring-soon',
-                                        'text-orange-600': getExpirationStatus(viewingAnnouncement) === 'active'
-                                    }" x-text="'Expires: ' + formatExpirationDate(viewingAnnouncement)"></span>
+                                <div class="min-w-0 flex-1">
+                                    <div class="flex items-center justify-between gap-4">
+                                        <div class="min-w-0">
+                                            <div class="flex items-center gap-2 flex-wrap mb-2">
+                                                <span class="inline-flex items-center px-2 py-1 rounded-full text-[10px] font-bold tracking-wide uppercase bg-yellow-100 text-yellow-800 border border-yellow-200">
+                                                    Official Announcement
+                                                </span>
+                                                <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold"
+                                                      :class="{
+                                                          'bg-red-100 text-red-700 border border-red-200': viewingAnnouncement?.priority === 'urgent',
+                                                          'bg-orange-100 text-orange-700 border border-orange-200': viewingAnnouncement?.priority === 'important',
+                                                          'bg-green-100 text-green-700 border border-green-200': viewingAnnouncement?.priority === 'standard'
+                                                      }"
+                                                      x-text="(viewingAnnouncement?.priority === 'urgent' ? 'Urgent' : viewingAnnouncement?.priority === 'important' ? 'Important' : 'Standard') + ' Priority'">
+                                                </span>
+                                                <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-white/70 text-gray-800 border border-gray-200" x-text="viewingAnnouncement?.category"></span>
+                                            </div>
+                                            <h3 class="text-2xl font-bold text-gray-900 leading-snug truncate" x-text="viewingAnnouncement?.title"></h3>
+                                            <div class="mt-2 text-sm text-gray-600">
+                                                <span class="font-medium">Posted by</span>
+                                                <span class="font-semibold" x-text="viewingAnnouncement?.author"></span>
+                                                <span class="text-gray-400">•</span>
+                                                <span :title="formatDate(viewingAnnouncement?.created_at || viewingAnnouncement?.date)" x-text="getCreatedMetaText(viewingAnnouncement)"></span>
+                                            </div>
+                                        </div>
+
+                                        <div class="hidden sm:flex flex-col items-end gap-2 flex-shrink-0" x-show="viewingAnnouncement?.expiration_date">
+                                            <div class="inline-flex items-center gap-2 px-3 py-2 bg-white/70 rounded-xl border border-gray-200" :title="formatExpirationDate(viewingAnnouncement)">
+                                                <i data-feather="clock" class="w-4 h-4" :class="{
+                                                    'text-red-500': getExpirationStatus(viewingAnnouncement) === 'expiring-soon',
+                                                    'text-orange-500': getExpirationStatus(viewingAnnouncement) === 'active'
+                                                }"></i>
+                                                <span class="text-sm font-semibold" :class="{
+                                                    'text-red-600': getExpirationStatus(viewingAnnouncement) === 'expiring-soon',
+                                                    'text-orange-600': getExpirationStatus(viewingAnnouncement) === 'active'
+                                                }" x-text="getExpiresMetaText(viewingAnnouncement)"></span>
+                                            </div>
+                                            <div class="text-xs text-gray-500" x-text="formatExpirationDate(viewingAnnouncement)"></div>
+                                        </div>
+                                    </div>
+
+                                    <div class="mt-4 sm:hidden" x-show="viewingAnnouncement?.expiration_date">
+                                        <div class="inline-flex items-center gap-2 px-3 py-2 bg-white/70 rounded-xl border border-gray-200 w-full" :title="formatExpirationDate(viewingAnnouncement)">
+                                            <i data-feather="clock" class="w-4 h-4" :class="{
+                                                'text-red-500': getExpirationStatus(viewingAnnouncement) === 'expiring-soon',
+                                                'text-orange-500': getExpirationStatus(viewingAnnouncement) === 'active'
+                                            }"></i>
+                                            <span class="text-sm font-semibold" :class="{
+                                                'text-red-600': getExpirationStatus(viewingAnnouncement) === 'expiring-soon',
+                                                'text-orange-600': getExpirationStatus(viewingAnnouncement) === 'active'
+                                            }" x-text="getExpiresMetaText(viewingAnnouncement)"></span>
+                                        </div>
+                                        <div class="text-xs text-gray-500 mt-1" x-text="formatExpirationDate(viewingAnnouncement)"></div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -1406,12 +1734,16 @@
                 <!-- Modal Body -->
                 <div class="px-8 py-8" x-show="viewingAnnouncement">
                     <div class="prose max-w-none">
-                        <div class="bg-gray-50 rounded-xl p-6 border border-gray-200">
-                            <h4 class="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                                <i data-feather="file-text" class="w-5 h-5"></i>
-                                Announcement Content
-                            </h4>
-                            <div class="text-gray-700 leading-relaxed whitespace-pre-wrap" x-text="viewingAnnouncement?.content"></div>
+                        <div class="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm">
+                            <div class="flex items-center justify-between gap-4 mb-4">
+                                <h4 class="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                                    <i data-feather="file-text" class="w-5 h-5"></i>
+                                    Bulletin
+                                </h4>
+                                <span class="text-xs text-gray-500" :title="formatDate(viewingAnnouncement?.created_at || viewingAnnouncement?.date)" x-text="formatDate(viewingAnnouncement?.created_at || viewingAnnouncement?.date)"></span>
+                            </div>
+                            <div class="h-px bg-gradient-to-r from-transparent via-gray-200 to-transparent mb-4"></div>
+                            <div class="text-gray-800 leading-relaxed whitespace-pre-wrap text-base" x-text="viewingAnnouncement?.content"></div>
                         </div>
                     </div>
                 </div>

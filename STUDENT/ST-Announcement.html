@@ -419,6 +419,106 @@
         }
     },
     
+    parseBackendDateTime(dateString) {
+        const raw = String(dateString || '').trim();
+        if (!raw) return null;
+        
+        // Date-only: YYYY-MM-DD (treat as local midnight to avoid timezone shifts)
+        const dateOnly = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+        if (dateOnly) {
+            const year = Number(dateOnly[1]);
+            const month = Number(dateOnly[2]);
+            const day = Number(dateOnly[3]);
+            if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) return null;
+            return new Date(year, month - 1, day, 0, 0, 0);
+        }
+        
+        // ISO-like string
+        if (/^\d{4}-\d{2}-\d{2}T/.test(raw)) {
+            const date = new Date(raw);
+            if (Number.isNaN(date.getTime())) return null;
+            return date;
+        }
+        
+        // MySQL DATETIME: YYYY-MM-DD HH:MM:SS
+        const m = raw.match(/^(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2})(?::(\d{2}))?$/);
+        if (m) {
+            const year = Number(m[1]);
+            const month = Number(m[2]);
+            const day = Number(m[3]);
+            const hour = Number(m[4]);
+            const minute = Number(m[5]);
+            const second = Number(m[6] || '0');
+            return new Date(year, month - 1, day, hour, minute, second);
+        }
+        
+        // Fallback
+        const fallback = new Date(raw);
+        if (Number.isNaN(fallback.getTime())) return null;
+        return fallback;
+    },
+    
+    formatDate(dateString) {
+        const date = this.parseBackendDateTime(dateString);
+        if (!date) return '';
+        return date.toLocaleString('en-US', {
+            weekday: 'short',
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: true,
+            timeZone: 'Asia/Manila'
+        });
+    },
+    
+    formatRelativeTimeFromNow(date) {
+        if (!date || Number.isNaN(date.getTime())) return '';
+        const diffMs = Date.now() - date.getTime();
+        const diffSec = Math.floor(Math.abs(diffMs) / 1000);
+        const isPast = diffMs >= 0;
+        
+        const units = [
+            { label: 'y', seconds: 60 * 60 * 24 * 365 },
+            { label: 'mo', seconds: 60 * 60 * 24 * 30 },
+            { label: 'd', seconds: 60 * 60 * 24 },
+            { label: 'h', seconds: 60 * 60 },
+            { label: 'm', seconds: 60 },
+            { label: 's', seconds: 1 }
+        ];
+        
+        const unit = units.find(u => diffSec >= u.seconds) || units[units.length - 1];
+        const value = Math.floor(diffSec / unit.seconds);
+        const compact = `${value}${unit.label}`;
+        return isPast ? `${compact} ago` : `in ${compact}`;
+    },
+    
+    getCreatedMetaText(announcement) {
+        const created = this.parseBackendDateTime(announcement?.created_at || announcement?.date);
+        if (!created) return '';
+        return `Posted ${this.formatRelativeTimeFromNow(created)}`;
+    },
+    
+    getInitials(name) {
+        const str = String(name || '').trim();
+        if (!str) return '?';
+        const parts = str.split(/\s+/).filter(Boolean);
+        const first = parts[0]?.[0] || '';
+        const last = parts.length > 1 ? parts[parts.length - 1][0] : '';
+        const initials = `${first}${last}`.toUpperCase();
+        return initials || '?';
+    },
+    
+    viewAnnouncement(announcement) {
+        this.viewingAnnouncement = announcement;
+        this.showViewModal = true;
+        this.markAsRead(announcement.id);
+    },
+    
+    showViewModal: false,
+    viewingAnnouncement: null,
+    
     markAsRead(announcementId) {
         const announcement = this.announcements.find(a => a.id === announcementId);
         if (announcement) {
@@ -734,7 +834,7 @@
                 </div>
                 
                 <!-- Announcements List -->
-                <div class="space-y-6">
+                <div class="space-y-4">
                     <!-- Loading State -->
                     <div x-show="loading" class="text-center py-12">
                         <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
@@ -753,63 +853,71 @@
                     
                     <!-- Announcements -->
                     <template x-for="announcement in filteredAnnouncements" :key="announcement.id">
-                        <div class="announcement-card bg-white rounded-xl shadow-md border border-gray-100 overflow-hidden"
-                             :class="!announcement.read ? 'border-l-4 border-l-blue-500' : ''"
-                             data-aos="fade-up">
+                        <div class="bg-white rounded-2xl shadow-lg border-2 hover:shadow-2xl transition-all duration-300 group overflow-hidden"
+                             :class="{
+                                 'border-l-8 border-l-red-500 bg-gradient-to-r from-red-50/50 to-white': announcement.priority === 'urgent' || announcement.priority === 'high',
+                                 'border-l-8 border-l-orange-400 bg-gradient-to-r from-orange-50/50 to-white': announcement.priority === 'important' || announcement.priority === 'medium',
+                                 'border-l-8 border-l-green-400 bg-gradient-to-r from-green-50/50 to-white': announcement.priority === 'standard' || announcement.priority === 'low',
+                                 'border-gray-200': !announcement.read,
+                                 'ring-2 ring-blue-300 border-blue-400': !announcement.read
+                             }">
                             <div class="p-6">
-                                <!-- Header -->
-                                <div class="flex items-start justify-between mb-4">
-                                    <div class="flex-1">
-                                        <div class="flex items-center gap-3 mb-2">
-                                            <h3 class="text-xl font-bold text-gray-900" x-text="announcement.title"></h3>
-                                            <span class="text-white text-xs px-2 py-1 rounded-full font-medium"
-                                                  :class="getPriorityColor(announcement.priority)"
-                                                  x-text="announcement.priority.toUpperCase()"></span>
-                                            <span x-show="!announcement.read" class="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full font-medium">
+                                <div class="flex items-start gap-4 cursor-pointer" @click="viewAnnouncement(announcement)">
+                                    <!-- Author Avatar -->
+                                    <div class="w-12 h-12 rounded-2xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center shadow-sm flex-shrink-0">
+                                        <span class="text-white font-bold" x-text="getInitials(announcement.author)"></span>
+                                    </div>
+                                    
+                                    <div class="flex-1 min-w-0">
+                                        <!-- Header with Badges -->
+                                        <div class="flex items-center gap-2 flex-wrap mb-2">
+                                            <span class="inline-flex items-center px-2 py-1 rounded-full text-[10px] font-bold tracking-wide uppercase bg-yellow-100 text-yellow-800 border border-yellow-200">
+                                                Official Announcement
+                                            </span>
+                                            <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold shadow-sm"
+                                                  :class="{
+                                                      'bg-gradient-to-r from-red-500 to-red-600 text-white': announcement.priority === 'urgent' || announcement.priority === 'high',
+                                                      'bg-gradient-to-r from-orange-400 to-orange-500 text-white': announcement.priority === 'important' || announcement.priority === 'medium',
+                                                      'bg-gradient-to-r from-green-400 to-green-500 text-white': announcement.priority === 'standard' || announcement.priority === 'low'
+                                                  }"
+                                                  x-text="(announcement.priority === 'urgent' || announcement.priority === 'high' ? 'Urgent' : announcement.priority === 'important' || announcement.priority === 'medium' ? 'Important' : 'Standard') + ' Priority'">
+                                            </span>
+                                            <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-white/70 text-gray-800 border border-gray-200" x-text="announcement.category"></span>
+                                            <span x-show="!announcement.read" class="inline-flex items-center px-2 py-1 rounded-full text-xs font-bold bg-blue-100 text-blue-800 border border-blue-200">
                                                 NEW
                                             </span>
                                         </div>
-                                        <div class="flex items-center gap-4 text-sm text-gray-600">
-                                            <div class="flex items-center gap-1">
-                                                <i data-feather="calendar" class="w-4 h-4"></i>
-                                                <span x-text="formatDate(announcement.date)"></span>
-                                            </div>
-                                            <div class="flex items-center gap-1">
-                                                <i data-feather="user" class="w-4 h-4"></i>
-                                                <span x-text="announcement.author"></span>
-                                            </div>
-                                            <div class="flex items-center gap-1">
-                                                <i data-feather="tag" class="w-4 h-4"></i>
-                                                <span x-text="announcement.category"></span>
+                                        
+                                        <!-- Title -->
+                                        <h3 class="text-xl font-bold text-gray-900 group-hover:text-blue-600 transition-colors truncate" x-text="announcement.title"></h3>
+                                        
+                                        <!-- Posted By Line -->
+                                        <div class="mt-1 text-sm text-gray-600">
+                                            <span class="font-medium">Posted by</span>
+                                            <span class="font-semibold" x-text="announcement.author"></span>
+                                            <span class="text-gray-400">•</span>
+                                            <span :title="formatDate(announcement.created_at || announcement.date)" x-text="getCreatedMetaText(announcement)"></span>
+                                        </div>
+                                        
+                                        <!-- Content Preview -->
+                                        <div class="mt-3">
+                                            <p class="text-gray-700 leading-relaxed line-clamp-3" x-text="announcement.content"></p>
+                                        </div>
+                                        
+                                        <!-- Actions -->
+                                        <div class="mt-4 flex items-center justify-between">
+                                            <button @click.stop="viewAnnouncement(announcement)" 
+                                                    class="text-blue-600 hover:text-blue-800 text-sm font-semibold flex items-center gap-2 transition-colors">
+                                                <span>Read More</span>
+                                                <i data-feather="arrow-right" class="w-4 h-4"></i>
+                                            </button>
+                                            <div class="flex items-center gap-2">
+                                                <span x-show="announcement.read" class="text-green-600 text-sm font-medium flex items-center gap-1">
+                                                    <i data-feather="check" class="w-4 h-4"></i>
+                                                    Read
+                                                </span>
                                             </div>
                                         </div>
-                                    </div>
-                                </div>
-                                
-                                <!-- Content -->
-                                <div class="mb-4">
-                                    <p class="text-gray-700 leading-relaxed" x-text="announcement.content"></p>
-                                </div>
-                                
-                                <!-- Actions -->
-                                <div class="flex items-center justify-between pt-4 border-t border-gray-100">
-                                    <div class="flex items-center gap-2">
-                                        <button @click="markAsRead(announcement.id)" 
-                                                x-show="!announcement.read"
-                                                class="text-blue-600 hover:text-blue-800 text-sm font-medium transition-colors">
-                                            Mark as Read
-                                        </button>
-                                        <span x-show="announcement.read" class="text-green-600 text-sm font-medium">
-                                            ✓ Read
-                                        </span>
-                                    </div>
-                                    <div class="flex items-center gap-2">
-                                        <button class="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
-                                            <i data-feather="bookmark" class="w-4 h-4"></i>
-                                        </button>
-                                        <button class="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
-                                            <i data-feather="share-2" class="w-4 h-4"></i>
-                                        </button>
                                     </div>
                                 </div>
                             </div>
@@ -826,6 +934,92 @@
                     </div>
                 </div>
             </main>
+        </div>
+    </div>
+
+    <!-- View Announcement Modal -->
+    <div x-show="showViewModal" 
+         x-transition:enter="transition ease-out duration-300"  
+         x-transition:enter-start="opacity-0 scale-95"
+         x-transition:enter-end="opacity-100 scale-100"
+         x-transition:leave="transition ease-in duration-200"
+         x-transition:leave-start="opacity-100 scale-100"
+         x-transition:leave-end="opacity-0 scale-95"
+         class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+         @click.self="showViewModal = false">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto">
+            <!-- Modal Header -->
+            <div class="px-8 py-6 border-b border-gray-100 bg-gradient-to-r from-blue-50 to-purple-50">
+                <div class="flex justify-between items-start">
+                    <div class="flex-1" x-show="viewingAnnouncement">
+                        <div class="flex items-start gap-4">
+                            <div class="w-12 h-12 rounded-2xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center shadow-sm flex-shrink-0">
+                                <span class="text-white font-bold" x-text="getInitials(viewingAnnouncement?.author)"></span>
+                            </div>
+                            <div class="min-w-0 flex-1">
+                                <div class="flex items-center gap-2 flex-wrap mb-2">
+                                    <span class="inline-flex items-center px-2 py-1 rounded-full text-[10px] font-bold tracking-wide uppercase bg-yellow-100 text-yellow-800 border border-yellow-200">
+                                        Official Announcement
+                                    </span>
+                                    <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold"
+                                          :class="{
+                                              'bg-red-100 text-red-700 border border-red-200': viewingAnnouncement?.priority === 'urgent' || viewingAnnouncement?.priority === 'high',
+                                              'bg-orange-100 text-orange-700 border border-orange-200': viewingAnnouncement?.priority === 'important' || viewingAnnouncement?.priority === 'medium',
+                                              'bg-green-100 text-green-700 border border-green-200': viewingAnnouncement?.priority === 'standard' || viewingAnnouncement?.priority === 'low'
+                                          }"
+                                          x-text="(viewingAnnouncement?.priority === 'urgent' || viewingAnnouncement?.priority === 'high' ? 'Urgent' : viewingAnnouncement?.priority === 'important' || viewingAnnouncement?.priority === 'medium' ? 'Important' : 'Standard') + ' Priority'">
+                                    </span>
+                                    <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-white/70 text-gray-800 border border-gray-200" x-text="viewingAnnouncement?.category"></span>
+                                </div>
+                                <h3 class="text-2xl font-bold text-gray-900 leading-snug" x-text="viewingAnnouncement?.title"></h3>
+                                <div class="mt-2 text-sm text-gray-600">
+                                    <span class="font-medium">Posted by</span>
+                                    <span class="font-semibold" x-text="viewingAnnouncement?.author"></span>
+                                    <span class="text-gray-400">•</span>
+                                    <span :title="formatDate(viewingAnnouncement?.created_at || viewingAnnouncement?.date)" x-text="getCreatedMetaText(viewingAnnouncement)"></span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <button @click="showViewModal = false" 
+                            class="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-xl transition-colors">
+                        <i data-feather="x" class="w-6 h-6"></i>
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Modal Body -->
+            <div class="px-8 py-8" x-show="viewingAnnouncement">
+                <div class="prose max-w-none">
+                    <div class="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm">
+                        <div class="flex items-center justify-between gap-4 mb-4">
+                            <h4 class="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                                <i data-feather="file-text" class="w-5 h-5"></i>
+                                Bulletin
+                            </h4>
+                            <span class="text-xs text-gray-500" :title="formatDate(viewingAnnouncement?.created_at || viewingAnnouncement?.date)" x-text="formatDate(viewingAnnouncement?.created_at || viewingAnnouncement?.date)"></span>
+                        </div>
+                        <div class="h-px bg-gradient-to-r from-transparent via-gray-200 to-transparent mb-4"></div>
+                        <div class="text-gray-800 leading-relaxed whitespace-pre-wrap text-base" x-text="viewingAnnouncement?.content"></div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Modal Footer -->
+            <div class="px-8 py-6 bg-gray-50 border-t border-gray-100 rounded-b-2xl">
+                <div class="flex justify-between items-center">
+                    <div class="flex items-center gap-4 text-sm text-gray-500">
+                        <div class="flex items-center gap-2">
+                            <i data-feather="clock" class="w-4 h-4"></i>
+                            <span>Posted: <span x-text="formatDate(viewingAnnouncement?.created_at || viewingAnnouncement?.date)"></span></span>
+                        </div>
+                    </div>
+                    <button @click="showViewModal = false" 
+                            class="px-6 py-3 text-gray-700 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors font-medium">
+                        Close
+                    </button>
+                </div>
+            </div>
         </div>
     </div>
 

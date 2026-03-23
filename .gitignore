@@ -67,6 +67,9 @@ bower_components/
 *.tmp
 iclinic_db_backup_*.sql
 
+# SQL scripts / dumps
+*.sql
+
 # Cache directories
 .cache/
 .parcel-cache/

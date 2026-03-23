@@ -456,7 +456,7 @@
                         <p class="text-xs text-blue-100">Appointments</p>
                     </div>
                 </div>
-                <button @click="mobileMenuOpen = !mobileMenuOpen" class="p-2 hover:bg-white/10 rounded-lg transition-colors">
+                <button @click="toggleMobileMenu()" class="p-2 hover:bg-white/10 rounded-lg transition-colors">
                     <i data-feather="menu" class="w-6 h-6"></i>
                 </button>
             </div>
@@ -470,29 +470,28 @@
              x-transition:leave="transition ease-in duration-200"
              x-transition:leave-start="opacity-100"
              x-transition:leave-end="opacity-0"
-             @click="mobileMenuOpen = false" style="display: none;" x-show="mobileMenuOpen"
+             @click="mobileMenuOpen = false; document.body.classList.remove('mobile-menu-open');" style="display: none;" x-show="mobileMenuOpen"
              class="fixed inset-0 bg-black bg-opacity-50 z-40 md:hidden">
         </div>
 
         
         <!-- Sidebar -->
-        <aside class="fixed left-0 top-0 h-screen gradient-bg-sidebar text-white transition-all duration-300 shadow-2xl z-50"
-               :class="{
-                   'w-20': sidebarCollapsed && !mobileMenuOpen,
-                   'w-64': !sidebarCollapsed || mobileMenuOpen,
-                   '-translate-x-full md:translate-x-0': !mobileMenuOpen,
-                   'translate-x-0': mobileMenuOpen
-               }"
+        <aside class="fixed left-0 top-0 h-screen w-[18rem] max-w-[85vw] gradient-bg-sidebar text-white transition-all duration-300 shadow-2xl z-50"
+               :class="[
+                   !isMobile ? (sidebarCollapsed ? 'w-20' : 'w-64') : '',
+                   isMobile && mobileMenuOpen ? 'translate-x-0' : '',
+                   isMobile && !mobileMenuOpen ? '-translate-x-full' : ''
+               ]"
                @mouseenter="sidebarHovered = true"
                @mouseleave="sidebarHovered = false">
         
             <!-- Logo -->
             <div class="relative p-4 sm:p-6">
-                <div class="flex items-center gap-3" :class="sidebarCollapsed && !sidebarHovered ? 'justify-center' : ''">
+                <div class="flex items-center gap-3" :class="(sidebarCollapsed && !sidebarHovered && !isMobile) ? 'justify-center' : ''">
                     <div class="flex items-center justify-center">
                         <img src="../assets/img/iclinic-logo.png" alt="Norzagaray College" class="w-14 h-14 object-contain">
                     </div>
-                    <div x-show="!sidebarCollapsed || sidebarHovered" x-transition>
+                    <div x-show="isMobile || !sidebarCollapsed || sidebarHovered" x-transition>
                         <h1 class="text-xl font-bold text-white">iClinic</h1>
                         <p class="text-xs text-yellow-300">Norzagaray College</p>
                     </div>
@@ -503,65 +502,72 @@
             <nav class="relative mt-4 sm:mt-8 px-3 sm:px-4 space-y-1 sm:space-y-2">
                 <!-- Dashboard -->
                 <a href="{{ url_for('staff_dashboard') }}"
+                   @click="if (isMobile) { mobileMenuOpen = false; document.body.classList.remove('mobile-menu-open'); }"
                    class="flex items-center gap-2 sm:gap-3 px-2 sm:px-3 py-2 sm:py-2.5 rounded-lg transition-all group hover:bg-white/10">
-                    <div class="flex items-center justify-center" :class="sidebarCollapsed && !sidebarHovered ? 'w-full' : ''">
+                    <div class="flex items-center justify-center" :class="(sidebarCollapsed && !sidebarHovered && !isMobile) ? 'w-full' : ''">
                         <i data-feather="home" class="w-5 h-5 sm:w-5 sm:h-5 group-hover:scale-110 transition-transform"></i>
                     </div>
-                    <span x-show="!sidebarCollapsed || sidebarHovered" x-transition class="font-medium">Dashboard</span>
+                    <span x-show="isMobile || !sidebarCollapsed || sidebarHovered" x-transition class="font-medium">Dashboard</span>
                 </a>
                 
                 <!-- Patients -->
                 <a href="{{ url_for('staff_patients') }}"
+                   @click="if (isMobile) { mobileMenuOpen = false; document.body.classList.remove('mobile-menu-open'); }"
                    class="flex items-center gap-2 sm:gap-3 px-2 sm:px-3 py-2 sm:py-2.5 rounded-lg transition-all group hover:bg-white/10">
-                    <div class="flex items-center justify-center" :class="sidebarCollapsed && !sidebarHovered ? 'w-full' : ''">
+                    <div class="flex items-center justify-center" :class="(sidebarCollapsed && !sidebarHovered && !isMobile) ? 'w-full' : ''">
                         <i data-feather="users" class="w-5 h-5 group-hover:scale-110 transition-transform"></i>
                     </div>
-                    <span x-show="!sidebarCollapsed || sidebarHovered" x-transition class="font-medium">Patients</span>
+                    <span x-show="isMobile || !sidebarCollapsed || sidebarHovered" x-transition class="font-medium">Patients</span>
                 </a>
                 
                 <!-- Appointments -->
                 <a href="{{ url_for('staff_appointments') }}"
+                   @click="if (isMobile) { mobileMenuOpen = false; document.body.classList.remove('mobile-menu-open'); }"
                    class="sidebar-item-active flex items-center gap-2 sm:gap-3 px-2 sm:px-3 py-2 sm:py-2.5 rounded-lg transition-all group">
-                    <div class="flex items-center justify-center" :class="sidebarCollapsed && !sidebarHovered ? 'w-full' : ''">
+                    <div class="flex items-center justify-center" :class="(sidebarCollapsed && !sidebarHovered && !isMobile) ? 'w-full' : ''">
                         <i data-feather="calendar" class="w-5 h-5 group-hover:scale-110 transition-transform"></i>
                     </div>
-                    <span x-show="!sidebarCollapsed || sidebarHovered" x-transition class="font-medium">Appointments</span>
+                    <span x-show="isMobile || !sidebarCollapsed || sidebarHovered" x-transition class="font-medium">Appointments</span>
                 </a>
                 
                 <!-- Announcements -->
                 <a href="{{ url_for('staff_announcements') }}"
+                   @click="if (isMobile) { mobileMenuOpen = false; document.body.classList.remove('mobile-menu-open'); }"
                    class="flex items-center gap-2 sm:gap-3 px-2 sm:px-3 py-2 sm:py-2.5 rounded-lg transition-all group hover:bg-white/10">
-                    <div class="flex items-center justify-center" :class="sidebarCollapsed && !sidebarHovered ? 'w-full' : ''">
+                    <div class="flex items-center justify-center" :class="(sidebarCollapsed && !sidebarHovered && !isMobile) ? 'w-full' : ''">
                         <i data-feather="volume-2" class="w-5 h-5 group-hover:scale-110 transition-transform"></i>
                     </div>
-                    <span x-show="!sidebarCollapsed || sidebarHovered" x-transition class="font-medium">Announcements</span>
+                    <span x-show="isMobile || !sidebarCollapsed || sidebarHovered" x-transition class="font-medium">Announcements</span>
                 </a>
                 
                 <!-- Consultations -->
                 <a href="{{ url_for('staff_consultations') }}"
+                   @click="if (isMobile) { mobileMenuOpen = false; document.body.classList.remove('mobile-menu-open'); }"
                    class="flex items-center gap-2 sm:gap-3 px-2 sm:px-3 py-2 sm:py-2.5 rounded-lg transition-all group hover:bg-white/10">
-                    <div class="flex items-center justify-center" :class="sidebarCollapsed && !sidebarHovered ? 'w-full' : ''">
+                    <div class="flex items-center justify-center" :class="(sidebarCollapsed && !sidebarHovered && !isMobile) ? 'w-full' : ''">
                         <i data-feather="message-circle" class="w-5 h-5 group-hover:scale-110 transition-transform"></i>
                     </div>
-                    <span x-show="!sidebarCollapsed || sidebarHovered" x-transition class="font-medium">Consultations</span>
+                    <span x-show="isMobile || !sidebarCollapsed || sidebarHovered" x-transition class="font-medium">Consultations</span>
                 </a>
                 
                 <!-- Inventory -->
                 <a href="{{ url_for('staff_inventory') }}"
+                   @click="if (isMobile) { mobileMenuOpen = false; document.body.classList.remove('mobile-menu-open'); }"
                    class="flex items-center gap-2 sm:gap-3 px-2 sm:px-3 py-2 sm:py-2.5 rounded-lg transition-all group hover:bg-white/10">
-                    <div class="flex items-center justify-center" :class="sidebarCollapsed && !sidebarHovered ? 'w-full' : ''">
+                    <div class="flex items-center justify-center" :class="(sidebarCollapsed && !sidebarHovered && !isMobile) ? 'w-full' : ''">
                         <i data-feather="package" class="w-5 h-5 group-hover:scale-110 transition-transform"></i>
                     </div>
-                    <span x-show="!sidebarCollapsed || sidebarHovered" x-transition class="font-medium">Inventory</span>
+                    <span x-show="isMobile || !sidebarCollapsed || sidebarHovered" x-transition class="font-medium">Inventory</span>
                 </a>
                 
                 <!-- Reports -->
                 <a href="{{ url_for('staff_reports') }}"
+                   @click="if (isMobile) { mobileMenuOpen = false; document.body.classList.remove('mobile-menu-open'); }"
                    class="flex items-center gap-2 sm:gap-3 px-2 sm:px-3 py-2 sm:py-2.5 rounded-lg transition-all group hover:bg-white/10">
-                    <div class="flex items-center justify-center" :class="sidebarCollapsed && !sidebarHovered ? 'w-full' : ''">
+                    <div class="flex items-center justify-center" :class="(sidebarCollapsed && !sidebarHovered && !isMobile) ? 'w-full' : ''">
                         <i data-feather="bar-chart-2" class="w-5 h-5 group-hover:scale-110 transition-transform"></i>
                     </div>
-                    <span x-show="!sidebarCollapsed || sidebarHovered" x-transition class="font-medium">Reports</span>
+                    <span x-show="isMobile || !sidebarCollapsed || sidebarHovered" x-transition class="font-medium">Reports</span>
                 </a>
             </nav>
         
@@ -570,15 +576,15 @@
             <div class="relative" @click.outside="userDropdown = false">
                 <button @click="userDropdown = !userDropdown" 
                         class="w-full flex items-center gap-3 p-2 rounded-lg hover:bg-white/10 transition-colors" 
-                        :class="sidebarCollapsed && !sidebarHovered ? 'justify-center' : ''">
+                        :class="(sidebarCollapsed && !sidebarHovered && !isMobile) ? 'justify-center' : ''">
                     <div class="w-10 h-10 bg-gradient-to-br from-yellow-400 to-yellow-500 rounded-full flex items-center justify-center shadow-lg">
                         <span class="text-blue-900 font-bold">{{ user.first_name[0] }}{{ user.last_name[0] }}</span>
                     </div>
-                    <div x-show="!sidebarCollapsed || sidebarHovered" x-transition class="flex-1 text-left">
+                    <div x-show="isMobile || !sidebarCollapsed || sidebarHovered" x-transition class="flex-1 text-left">
                         <p class="text-sm font-medium text-white">{{ user.first_name }} {{ user.last_name }}</p>
                         <p class="text-xs text-yellow-300">{{ user.position }}</p>
                     </div>
-                    <i x-show="!sidebarCollapsed || sidebarHovered" data-feather="chevron-up" class="w-4 h-4 text-white/70"></i>
+                    <i x-show="isMobile || !sidebarCollapsed || sidebarHovered" data-feather="chevron-up" class="w-4 h-4 text-white/70"></i>
                 </button>
                 
                 <!-- User Dropdown -->
@@ -595,7 +601,7 @@
         </aside>
         
         <!-- Main Content Area -->
-        <div :class="sidebarCollapsed ? 'md:ml-20' : 'md:ml-64'" class="flex-1 flex flex-col transition-all duration-300 pt-16 md:pt-0">
+        <div :class="sidebarCollapsed ? 'md:ml-20' : 'md:ml-64'" class="flex-1 flex flex-col transition-all duration-300 pt-16 md:pt-0 md:pl-4">
             
             <!-- Main Appointments Content -->
             <main class="flex-1 overflow-y-auto bg-gray-50 p-2 sm:p-4 md:p-6">
@@ -924,22 +930,17 @@
                                                          'bg-gradient-to-br from-blue-300 to-blue-400': event.event_type === 'maintenance',
                                                          'bg-gradient-to-br from-green-300 to-green-400': event.event_type === 'holiday'
                                                      }">
-                                                    <i :data-feather="event.event_type === 'no_appointments' ? 'x-circle' : 
-                                                                      event.event_type === 'limited_hours' ? 'clock' :
-                                                                      event.event_type === 'emergency_only' ? 'alert-triangle' :
-                                                                      event.event_type === 'maintenance' ? 'tool' :
-                                                                      'calendar'" 
-                                                       class="w-6 h-6 text-white"></i>
+                                                    <span class="text-white font-bold text-sm"
+                                                          x-text="event.event_type === 'no_appointments' ? 'NA' :
+                                                                  event.event_type === 'limited_hours' ? 'LH' :
+                                                                  event.event_type === 'emergency_only' ? 'EMR' :
+                                                                  event.event_type === 'maintenance' ? 'MAIN' :
+                                                                  'HOL'"></span>
                                                 </div>
                                                 <div>
                                                     <h4 class="font-medium text-gray-900" x-text="event.title"></h4>
-                                                    <p class="text-sm text-gray-500">
-                                                        <span x-show="event.allDay">All Day Event</span>
-                                                        <span x-show="!event.allDay && event.start && event.end">
-                                                            <span x-text="formatEventTime(event.start)"></span> - 
-                                                            <span x-text="formatEventTime(event.end)"></span>
-                                                        </span>
-                                                        <span> - </span>
+                                                    <p class="text-sm text-gray-500" x-text="event.description"></p>
+                                                    <p class="text-xs text-gray-400">
                                                         <span x-text="formatEventType(event.event_type)"></span>
                                                     </p>
                                                 </div>
@@ -1387,7 +1388,7 @@
                 // State
                 sidebarCollapsed: false,
                 mobileMenuOpen: false,
-                mobileMenuOpen: false,
+                isMobile: false,
                 userDropdown: false,
                 showSettingsModal: false,
                 showLogoutConfirm: false,
@@ -1429,6 +1430,26 @@
                 
                 // Appointment requests data from database
                 appointmentRequests: [],
+
+                handleResize() {
+                    this.isMobile = window.innerWidth < 768;
+                    if (this.isMobile) {
+                        this.sidebarCollapsed = false;
+                        this.mobileMenuOpen = false;
+                        document.body.classList.remove('mobile-menu-open');
+                    } else {
+                        this.sidebarCollapsed = false;
+                        this.mobileMenuOpen = false;
+                        document.body.classList.remove('mobile-menu-open');
+                    }
+                },
+
+                toggleMobileMenu() {
+                    if (this.isMobile) {
+                        this.mobileMenuOpen = !this.mobileMenuOpen;
+                        document.body.classList.toggle('mobile-menu-open', this.mobileMenuOpen);
+                    }
+                },
                 
                 
                 // Computed properties
@@ -1648,6 +1669,9 @@
                     this.showRequestModal = false;
                     this.showSettingsModal = false;
                     this.showLogoutConfirm = false;
+
+                    this.handleResize();
+                    window.addEventListener('resize', () => this.handleResize());
                     
                     // Load appointments, requests, and clinic events from database
                     await this.loadAppointments();
