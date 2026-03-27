@@ -82,6 +82,7 @@ out/
 # Configuration files with sensitive data
 config/database.php
 config/secrets.php
+config/sms_config.py
 
 # User uploads (if any)
 uploads/

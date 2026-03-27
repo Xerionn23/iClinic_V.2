@@ -1,7 +1,14 @@
 {
+  "scripts": {
+    "tw:build": "postcss assets/css/tailwind.input.css -o assets/css/tailwind.css",
+    "tw:watch": "postcss assets/css/tailwind.input.css -o assets/css/tailwind.css --watch"
+  },
   "dependencies": {
     "@tailwindcss/postcss": "^4.1.16",
     "postcss": "^8.5.6",
     "tailwindcss": "^4.1.16"
+  },
+  "devDependencies": {
+    "postcss-cli": "^11.0.1"
   }
 }

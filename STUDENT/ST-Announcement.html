@@ -10,22 +10,29 @@
 
     
     <!-- Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com"></script>    <!-- Suppress Tailwind CDN Warning -->
+    <!-- Suppress Tailwind CDN Warning -->
     <script>
         // Suppress Tailwind CDN production warning
-        const originalWarn = console.warn;
-        console.warn = function(...args) {
-            if (args[0] && typeof args[0] === 'string' && args[0].includes('cdn.tailwindcss.com')) {
-                return; // Suppress Tailwind CDN warning
-            }
-            originalWarn.apply(console, args);
-        };
+        (function() {
+            if (window.__tailwindWarnSuppressed) return;
+            window.__tailwindWarnSuppressed = true;
+
+            const originalWarn = console.warn;
+            console.warn = function(...args) {
+                if (args[0] && typeof args[0] === 'string' && args[0].includes('cdn.tailwindcss.com')) {
+                    return; // Suppress Tailwind CDN warning
+                }
+                originalWarn.apply(console, args);
+            };
+        })();
     </script>
+    <script src="https://cdn.tailwindcss.com"></script>
 <!-- Alpine.js -->
     <script defer src="/assets/js/libs/alpine.min.js"></script>
     
     <!-- Feather Icons -->
     <script src="/assets/js/libs/feather.min.js"></script>
+    <script defer src="/assets/js/icon-init.js"></script>
     
     <!-- AOS Animation -->
     <link href="/assets/css/libs/aos.css" rel="stylesheet">
@@ -139,9 +146,10 @@
         [x-cloak] { display: none !important; }
     </style>
 </head>
-<body class="bg-white transition-colors duration-200" x-data="{
+<body class="bg-white transition-colors duration-200 overflow-x-hidden" x-data="{
     sidebarCollapsed: false,
     mobileMenuOpen: false,
+    sidebarHovered: false,
     profileDropdown: false,
     showLogoutConfirm: false,
     announcements: [],
@@ -228,6 +236,12 @@
     handleResize() {
         if (window.innerWidth < 768) {
             this.sidebarCollapsed = true;
+            this.mobileMenuOpen = false;
+        } else if (window.innerWidth >= 1024) {
+            this.sidebarCollapsed = false;
+            this.mobileMenuOpen = false;
+        } else {
+            this.mobileMenuOpen = false;
         }
     },
     
@@ -529,16 +543,23 @@
     
     <div class="flex h-screen overflow-hidden">
         <!-- Sidebar -->
-        <aside :class="sidebarCollapsed ? 'w-20' : 'w-64'" 
-               class="fixed left-0 top-0 h-screen gradient-bg-sidebar text-white transition-all duration-300 shadow-2xl z-40">
+        <aside
+               :class="[
+                   sidebarCollapsed ? 'md:w-20' : 'md:w-64',
+                   mobileMenuOpen ? 'translate-x-0' : '-translate-x-full',
+                   'md:translate-x-0'
+               ]"
+               class="fixed left-0 top-0 h-screen w-64 gradient-bg-sidebar text-white transition-all duration-300 shadow-2xl z-40 flex flex-col overflow-y-auto"
+               @mouseenter="sidebarHovered = true"
+               @mouseleave="sidebarHovered = false">
         
             <!-- Logo -->
             <div class="relative p-6">
-                <div class="flex items-center gap-3" :class="sidebarCollapsed ? 'justify-center' : ''">
+                <div class="flex items-center gap-3" :class="(sidebarCollapsed && !sidebarHovered && !mobileMenuOpen) ? 'justify-center' : ''">
                     <div class="flex items-center justify-center">
                         <img src="../assets/img/iclinic-logo.png" alt="Norzagaray College" class="w-14 h-14 object-contain">
                     </div>
-                    <div x-show="!sidebarCollapsed" x-transition>
+                    <div x-show="!sidebarCollapsed || sidebarHovered || mobileMenuOpen" x-transition>
                         <h1 class="text-xl font-bold text-white">iClinic</h1>
                         <p class="text-xs text-yellow-300">Norzagaray College</p>
                     </div>
@@ -549,83 +570,90 @@
             <nav class="relative mt-8 px-4 space-y-3">
                 <!-- Dashboard -->
                 <a href="{{ url_for('student_dashboard') }}"
+                   @click="mobileMenuOpen = false"
                    class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all group hover:bg-white/10">
-                    <div class="flex items-center justify-center" :class="sidebarCollapsed ? 'w-full' : ''">
+                    <div class="flex items-center justify-center" :class="(sidebarCollapsed && !sidebarHovered && !mobileMenuOpen) ? 'w-full' : ''">
                         <i data-feather="home" class="w-5 h-5 group-hover:scale-110 transition-transform"></i>
                     </div>
-                    <span x-show="!sidebarCollapsed" class="font-medium">Dashboard</span>
+                    <span x-show="!sidebarCollapsed || sidebarHovered || mobileMenuOpen" class="font-medium">Dashboard</span>
                 </a>
                 
                 <!-- Health Records -->
                 <a href="{{ url_for('student_health_records') }}"
+                   @click="mobileMenuOpen = false"
                    class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all group hover:bg-white/10">
-                    <div class="flex items-center justify-center" :class="sidebarCollapsed ? 'w-full' : ''">
+                    <div class="flex items-center justify-center" :class="(sidebarCollapsed && !sidebarHovered && !mobileMenuOpen) ? 'w-full' : ''">
                         <i data-feather="file-text" class="w-5 h-5 group-hover:scale-110 transition-transform"></i>
                     </div>
-                    <span x-show="!sidebarCollapsed" class="font-medium">Health Records</span>
+                    <span x-show="!sidebarCollapsed || sidebarHovered || mobileMenuOpen" class="font-medium">Health Records</span>
                 </a>
                 
                 <!-- Appointments -->
                 <a href="{{ url_for('student_appointments') }}"
+                   @click="mobileMenuOpen = false"
                    class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all group hover:bg-white/10">
-                    <div class="flex items-center justify-center" :class="sidebarCollapsed ? 'w-full' : ''">
+                    <div class="flex items-center justify-center" :class="(sidebarCollapsed && !sidebarHovered && !mobileMenuOpen) ? 'w-full' : ''">
                         <i data-feather="calendar" class="w-5 h-5 group-hover:scale-110 transition-transform"></i>
                     </div>
-                    <span x-show="!sidebarCollapsed" class="font-medium">Appointments</span>
+                    <span x-show="!sidebarCollapsed || sidebarHovered || mobileMenuOpen" class="font-medium">Appointments</span>
                 </a>
                 
                 <!-- Consultation Chat -->
                 <a href="{{ url_for('student_consultation_chat') }}"
+                   @click="mobileMenuOpen = false"
                    class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all group hover:bg-white/10">
-                    <div class="flex items-center justify-center" :class="sidebarCollapsed ? 'w-full' : ''">
+                    <div class="flex items-center justify-center" :class="(sidebarCollapsed && !sidebarHovered && !mobileMenuOpen) ? 'w-full' : ''">
                         <i data-feather="message-circle" class="w-5 h-5 group-hover:scale-110 transition-transform"></i>
                     </div>
-                    <span x-show="!sidebarCollapsed" x-transition class="font-medium">Consultation Chat</span>
+                    <span x-show="!sidebarCollapsed || sidebarHovered || mobileMenuOpen" x-transition class="font-medium">Consultation Chat</span>
                 </a>
                 
                 <!-- Announcements (Active) -->
                 <a href="{{ url_for('student_announcements') }}"
+                   @click="mobileMenuOpen = false"
                    class="sidebar-item-active flex items-center gap-3 px-4 py-3 rounded-lg transition-all group">
-                    <div class="flex items-center justify-center" :class="sidebarCollapsed ? 'w-full' : ''">
+                    <div class="flex items-center justify-center" :class="(sidebarCollapsed && !sidebarHovered && !mobileMenuOpen) ? 'w-full' : ''">
                         <i data-feather="volume-2" class="w-5 h-5 group-hover:scale-110 transition-transform"></i>
                     </div>
-                    <span x-show="!sidebarCollapsed" class="font-medium">Announcements</span>
+                    <span x-show="!sidebarCollapsed || sidebarHovered || mobileMenuOpen" class="font-medium">Announcements</span>
                 </a>
 
                 <a href="{{ url_for('student_onsite_queue') }}"
+                   @click="mobileMenuOpen = false"
                    class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all group hover:bg-white/10">
-                    <div class="flex items-center justify-center" :class="sidebarCollapsed ? 'w-full' : ''">
+                    <div class="flex items-center justify-center" :class="(sidebarCollapsed && !sidebarHovered && !mobileMenuOpen) ? 'w-full' : ''">
                         <i data-feather="clipboard" class="w-5 h-5 group-hover:scale-110 transition-transform"></i>
                     </div>
-                    <span x-show="!sidebarCollapsed" class="font-medium">Onsite Queue</span>
+                    <span x-show="!sidebarCollapsed || sidebarHovered || mobileMenuOpen" class="font-medium">Onsite Queue</span>
                 </a>
 
                 <!-- Deans Reports (ONLY for Deans and President) -->
                 {% if user and user.role in ['deans', 'president'] %}
                 <a href="{{ url_for('deans_president_reports') }}"
+                   @click="mobileMenuOpen = false"
                    class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all group hover:bg-white/10">
-                    <div class="flex items-center justify-center" :class="sidebarCollapsed ? 'w-full' : ''">
+                    <div class="flex items-center justify-center" :class="(sidebarCollapsed && !sidebarHovered && !mobileMenuOpen) ? 'w-full' : ''">
                         <i data-feather="bar-chart-2" class="w-5 h-5 group-hover:scale-110 transition-transform"></i>
                     </div>
-                    <span x-show="!sidebarCollapsed" class="font-medium">Deans Reports</span>
+                    <span x-show="!sidebarCollapsed || sidebarHovered || mobileMenuOpen" class="font-medium">Deans Reports</span>
                 </a>
                 {% endif %}
             </nav>
         
             <!-- User Profile -->
-            <div class="absolute bottom-0 w-full p-4 bg-gradient-to-t from-black/20 to-transparent" @click.outside="profileDropdown = false">
+            <div class="mt-auto w-full p-4 bg-gradient-to-t from-black/20 to-transparent" @click.outside="profileDropdown = false">
                 <div class="relative">
                     <div class="flex items-center gap-2 mb-2">
-                        <button @click="profileDropdown = !profileDropdown" class="flex-1 flex items-center gap-3 hover:bg-white/10 rounded-lg p-2 transition-all group" :class="sidebarCollapsed ? 'justify-center' : ''">
+                        <button @click="profileDropdown = !profileDropdown" class="flex-1 flex items-center gap-3 hover:bg-white/10 rounded-lg p-2 transition-all group" :class="(sidebarCollapsed && !sidebarHovered && !mobileMenuOpen) ? 'justify-center' : ''">
                             <div class="w-10 h-10 bg-gradient-to-br from-green-400 to-blue-500 rounded-full flex items-center justify-center shadow-lg group-hover:scale-105 transition-transform">
                                 <span class="text-white font-bold">{{ user.first_name[0] if user and user.first_name else 'S' }}{{ user.last_name[0] if user and user.last_name else 'T' }}</span>
                             </div>
-                            <div x-show="!sidebarCollapsed" x-transition class="text-left">
+                            <div x-show="!sidebarCollapsed || sidebarHovered || mobileMenuOpen" x-transition class="text-left">
                                 <p class="text-sm font-medium text-white text-left">{{ user.first_name if user and user.first_name else 'Student' }} {{ user.last_name if user and user.last_name else 'User' }}</p>
                                 <p class="text-xs text-green-300 text-left" style="font-size: 10px;">{{ user.position if user and user.position else 'Student' }}</p>
                             </div>
                             <!-- Chevron Icon -->
-                            <svg x-show="!sidebarCollapsed" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4 text-white/70 flex-shrink-0">
+                            <svg x-show="!sidebarCollapsed || sidebarHovered || mobileMenuOpen" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4 text-white/70 flex-shrink-0">
                                 <polyline points="18 15 12 9 6 15"></polyline>
                             </svg>
                         </button>
@@ -649,15 +677,30 @@
                 </div>
             </div>
         </aside>
+
+        <!-- Mobile overlay (closes sidebar when tapped) -->
+        <div x-show="mobileMenuOpen" x-cloak class="fixed inset-0 bg-black/50 z-30 md:hidden" @click="mobileMenuOpen = false"></div>
         
         <!-- Main Content Area -->
         <div :class="sidebarCollapsed ? 'md:ml-20' : 'md:ml-64'" class="flex-1 flex flex-col transition-all duration-300">
             <!-- Top Header Bar -->
+            <header class="absolute inset-x-0 top-0 bg-transparent border-0 shadow-none z-20 pointer-events-none">
+                <div class="flex items-center px-4 sm:px-6 py-3 pointer-events-auto">
+                    <div class="flex items-center gap-3">
+                        <button type="button" class="md:hidden p-2 rounded-lg hover:bg-gray-100 transition-colors bg-white/90 backdrop-blur" @click="mobileMenuOpen = true">
+                            <i data-feather="menu" class="w-5 h-5 text-gray-700"></i>
+                        </button>
+                        <button type="button" class="hidden md:inline-flex lg:hidden p-2 rounded-lg hover:bg-gray-100 transition-colors bg-white/90 backdrop-blur" @click="sidebarCollapsed = !sidebarCollapsed">
+                            <i data-feather="sidebar" class="w-5 h-5 text-gray-700"></i>
+                        </button>
+                    </div>
+                </div>
+            </header>
                         
             <!-- Main Announcements Content -->
-            <main class="flex-1 overflow-y-auto bg-gray-50 p-6">
+            <main class="flex-1 overflow-y-auto bg-gray-50 p-4 sm:p-6">
                 <!-- Enhanced Announcements Header -->
-                <div class="gradient-bg-sidebar text-white shadow-2xl relative overflow-hidden rounded-[2rem] ml-1 mb-6">
+                <div class="gradient-bg-sidebar text-white shadow-2xl relative overflow-hidden rounded-[2rem] ml-0 sm:ml-1 mb-6">
                     <!-- Decorative Elements -->
                     <div class="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -translate-y-32 translate-x-32"></div>
                     <div class="absolute bottom-0 left-0 w-48 h-48 bg-yellow-400/10 rounded-full translate-y-24 -translate-x-24"></div>

@@ -38,6 +38,7 @@
     
     <!-- Lucide Icons -->
     <script src="/assets/js/libs/feather.min.js"></script>
+    <script defer src="/assets/js/icon-init.js"></script>
     
     <style>
         body {
@@ -83,7 +84,7 @@
             <!-- Success State -->
             <div class="success-animation">
                 <div class="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
-                    <i data-lucide="check-circle" class="w-10 h-10 text-green-600"></i>
+                    <i data-feather="check-circle" class="w-10 h-10 text-green-600"></i>
                 </div>
                 <h1 class="text-2xl font-bold text-gray-800 mb-4">Email Verified Successfully!</h1>
                 <p class="text-gray-600 mb-8 leading-relaxed">{{ message }}</p>
@@ -92,7 +93,7 @@
                     <a href="/pages/public/login.html" 
                        class="block w-full bg-primary hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-xl transition-all duration-300 transform hover:scale-105 shadow-lg hover:shadow-xl">
                         <div class="flex items-center justify-center gap-2">
-                            <i data-lucide="log-in" class="w-5 h-5"></i>
+                            <i data-feather="log-in" class="w-5 h-5"></i>
                             Login to Your Account
                         </div>
                     </a>
@@ -100,7 +101,7 @@
                     <a href="/pages/public/landing-page.html" 
                        class="block w-full bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium py-3 px-6 rounded-xl transition-all duration-300">
                         <div class="flex items-center justify-center gap-2">
-                            <i data-lucide="home" class="w-5 h-5"></i>
+                            <i data-feather="home" class="w-5 h-5"></i>
                             Back to Home
                         </div>
                     </a>
@@ -110,7 +111,7 @@
             <!-- Error State -->
             <div class="error-animation">
                 <div class="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-6">
-                    <i data-lucide="x-circle" class="w-10 h-10 text-red-600"></i>
+                    <i data-feather="x" class="w-10 h-10 text-red-600"></i>
                 </div>
                 <h1 class="text-2xl font-bold text-gray-800 mb-4">Verification Failed</h1>
                 <p class="text-gray-600 mb-8 leading-relaxed">{{ message }}</p>
@@ -119,7 +120,7 @@
                     <a href="/pages/public/login.html" 
                        class="block w-full bg-primary hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-xl transition-all duration-300 transform hover:scale-105 shadow-lg hover:shadow-xl">
                         <div class="flex items-center justify-center gap-2">
-                            <i data-lucide="user-plus" class="w-5 h-5"></i>
+                            <i data-feather="user-plus" class="w-5 h-5"></i>
                             Try Registration Again
                         </div>
                     </a>
@@ -127,7 +128,7 @@
                     <a href="/pages/public/landing-page.html" 
                        class="block w-full bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium py-3 px-6 rounded-xl transition-all duration-300">
                         <div class="flex items-center justify-center gap-2">
-                            <i data-lucide="home" class="w-5 h-5"></i>
+                            <i data-feather="home" class="w-5 h-5"></i>
                             Back to Home
                         </div>
                     </a>
@@ -144,9 +145,6 @@
         </div>
     </div>
 
-    <script>
-        // Initialize Lucide icons
-        lucide.createIcons();
-    </script>
+    
 </body>
 </html>

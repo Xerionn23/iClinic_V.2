@@ -39,7 +39,8 @@
     <link href="/assets/css/libs/inter-font.css" rel="stylesheet">
     
     <!-- Lucide Icons -->
-    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="/assets/js/libs/feather.min.js"></script>
+    <script defer src="/assets/js/icon-init.js"></script>
     
     <style>
         body {
@@ -148,7 +149,7 @@
         
         <!-- Back to Login Button -->
         <a href="{{ url_for('login') }}" class="inline-flex items-center gap-2 text-white/80 hover:text-white transition-colors group mb-6">
-            <i data-lucide="arrow-left" class="w-4 h-4 group-hover:-translate-x-1 transition-transform"></i>
+            <i data-feather="arrow-left" class="w-4 h-4 group-hover:-translate-x-1 transition-transform"></i>
             <span class="text-sm font-medium">Back to Login</span>
         </a>
         
@@ -169,7 +170,7 @@
             <!-- Account Info Display -->
             <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
                 <div class="flex items-center gap-3 mb-3">
-                    <i data-lucide="user-check" class="w-5 h-5 text-blue-600"></i>
+                    <i data-feather="user-check" class="w-5 h-5 text-blue-600"></i>
                     <span class="font-semibold text-blue-800">Account Information</span>
                 </div>
                 <div class="space-y-2 text-sm">
@@ -200,8 +201,8 @@
                         <input type="password" id="password" name="password" required
                                class="w-full pr-12" placeholder="Create a strong password">
                         <button type="button" id="togglePassword" class="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors">
-                            <i data-lucide="eye" class="w-5 h-5"></i>
-                            <i data-lucide="eye-off" class="w-5 h-5 hidden"></i>
+                            <i data-feather="eye" class="w-5 h-5"></i>
+                            <i data-feather="eye-off" class="w-5 h-5 hidden"></i>
                         </button>
                     </div>
                 </div>
@@ -213,8 +214,8 @@
                         <input type="password" id="confirmPassword" name="confirmPassword" required
                                class="w-full pr-12" placeholder="Confirm your password">
                         <button type="button" id="toggleConfirmPassword" class="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors">
-                            <i data-lucide="eye" class="w-5 h-5"></i>
-                            <i data-lucide="eye-off" class="w-5 h-5 hidden"></i>
+                            <i data-feather="eye" class="w-5 h-5"></i>
+                            <i data-feather="eye-off" class="w-5 h-5 hidden"></i>
                         </button>
                     </div>
                 </div>
@@ -235,7 +236,7 @@
                 <!-- Submit Button -->
                 <button type="submit" class="btn-primary w-full py-4 text-white font-semibold rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 text-lg">
                     <div class="flex items-center justify-center gap-2">
-                        <i data-lucide="user-plus" class="w-5 h-5"></i>
+                        <i data-feather="user-plus" class="w-5 h-5"></i>
                         Create My Account
                     </div>
                 </button>
@@ -245,11 +246,11 @@
         <!-- Professional Trust Indicators -->
         <div class="mt-8 flex items-center justify-center gap-8 text-white/80 text-sm">
             <div class="flex items-center gap-2">
-                <i data-lucide="shield-check" class="w-4 h-4"></i>
+                <i data-feather="shield" class="w-4 h-4"></i>
                 <span>HIPAA Compliant</span>
             </div>
             <div class="flex items-center gap-2">
-                <i data-lucide="lock" class="w-4 h-4"></i>
+                <i data-feather="lock" class="w-4 h-4"></i>
                 <span>SSL Secured</span>
             </div>
         </div>
@@ -274,7 +275,7 @@
             <div class="text-center">
                 <!-- Success Icon -->
                 <div class="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
-                    <i data-lucide="check-circle" class="w-12 h-12 text-green-600"></i>
+                    <i data-feather="check-circle" class="w-12 h-12 text-green-600"></i>
                 </div>
                 
                 <!-- Success Message -->
@@ -284,7 +285,7 @@
                 <!-- Account Details -->
                 <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6 text-left">
                     <div class="flex items-center gap-2 mb-3">
-                        <i data-lucide="user-check" class="w-5 h-5 text-blue-600"></i>
+                        <i data-feather="user-check" class="w-5 h-5 text-blue-600"></i>
                         <span class="font-semibold text-blue-800">Your Account Details</span>
                     </div>
                     <div class="space-y-2 text-sm">
@@ -305,14 +306,14 @@
                 
                 <!-- Redirect Info -->
                 <div class="flex items-center justify-center gap-2 text-sm text-gray-500 mb-6">
-                    <i data-lucide="clock" class="w-4 h-4"></i>
+                    <i data-feather="clock" class="w-4 h-4"></i>
                     <span>Redirecting to login in <span id="countdown">5</span> seconds...</span>
                 </div>
                 
                 <!-- Action Button -->
                 <button id="goToLoginBtn" class="btn-primary w-full py-3 text-white font-semibold rounded-xl shadow-lg hover:shadow-xl transition-all duration-300">
                     <div class="flex items-center justify-center gap-2">
-                        <i data-lucide="log-in" class="w-5 h-5"></i>
+                        <i data-feather="log-in" class="w-5 h-5"></i>
                         Go to Login Now
                     </div>
                 </button>
@@ -322,15 +323,12 @@
     
     <!-- JavaScript -->
     <script>
-        // Initialize Lucide icons
-        lucide.createIcons();
-        
         // Password toggle functionality
         function setupPasswordToggle(passwordId, toggleId) {
             const passwordInput = document.getElementById(passwordId);
             const toggleButton = document.getElementById(toggleId);
-            const eyeIcon = toggleButton.querySelector('[data-lucide="eye"]');
-            const eyeOffIcon = toggleButton.querySelector('[data-lucide="eye-off"]');
+            const eyeIcon = toggleButton.querySelector('[data-feather="eye"]');
+            const eyeOffIcon = toggleButton.querySelector('[data-feather="eye-off"]');
             
             toggleButton.addEventListener('click', function() {
                 const type = passwordInput.getAttribute('type') === 'password' ? 'text' : 'password';
@@ -458,9 +456,6 @@
             
             // Show modal
             successModal.classList.remove('hidden');
-            
-            // Reinitialize icons for modal
-            lucide.createIcons();
             
             // Start countdown
             let countdown = 5;
