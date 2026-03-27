@@ -85,6 +85,7 @@
     
     <!-- Inter Font -->
     <link href="/assets/css/libs/inter-font.css" rel="stylesheet">
+    <link rel="stylesheet" href="/assets/css/common.css">
     
     <style>
         * {
@@ -141,6 +142,11 @@
             background-color: #0f172a;
         }
         
+        html,
+        body {
+            height: 100%;
+        }
+
         body {
             background-color: #ffffff;
         }
@@ -495,7 +501,7 @@
                 box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
             }
         }
-        
+
         @keyframes healthTipGlow {
             0% {
                 border-color: #dbeafe;
@@ -507,13 +513,189 @@
                 border-color: #dbeafe;
             }
         }
-        
+
         .health-tip-animate {
             animation: healthTipPulse 3s ease-in-out infinite, healthTipGlow 3s ease-in-out infinite;
         }
-            
+
         /* Prevent modal flash before Alpine loads */
         [x-cloak] { display: none !important; }
+
+        :root {
+            --chat-pad: clamp(14px, 2.6vw, 24px);
+            --chat-gap: clamp(8px, 1.6vw, 12px);
+            --chat-avatar: clamp(24px, 3.2vw, 30px);
+            --chat-bubble-pad-y: clamp(8px, 1.3vw, 10px);
+            --chat-bubble-pad-x: clamp(10px, 1.6vw, 12px);
+            --chat-bubble-radius: 18px;
+            --chat-font: clamp(13px, 1.2vw, 14px);
+            --chat-meta: clamp(11px, 1.0vw, 12px);
+            --chat-sep: clamp(11px, 1.0vw, 12px);
+            --chat-icon: clamp(16px, 1.6vw, 18px);
+            --input-pad: clamp(12px, 2.2vw, 16px);
+        }
+
+        #chat-messages {
+            scroll-behavior: smooth;
+            overscroll-behavior: contain;
+            -webkit-overflow-scrolling: touch;
+            scroll-padding-bottom: 9rem;
+            padding-bottom: 9rem;
+            padding: var(--chat-pad);
+        }
+
+        .chat-bubble {
+            overflow-wrap: anywhere;
+            word-break: break-word;
+            font-size: var(--chat-font);
+        }
+
+        .chat-thread {
+            display: flex;
+            flex-direction: column;
+            gap: var(--chat-gap);
+        }
+
+        .date-separator {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: var(--chat-gap) 0;
+        }
+
+        .date-separator > span {
+            font-size: var(--chat-sep);
+            line-height: 1.2;
+            color: #6b7280;
+            background: rgba(255, 255, 255, 0.85);
+            border: 1px solid rgba(229, 231, 235, 0.9);
+            padding: 6px 10px;
+            border-radius: 9999px;
+            backdrop-filter: blur(8px);
+        }
+
+        .msg-row {
+            display: flex;
+            align-items: flex-end;
+            gap: 8px;
+        }
+
+        .msg-row.outgoing {
+            justify-content: flex-end;
+        }
+
+        .msg-row.incoming {
+            justify-content: flex-start;
+        }
+
+        .msg-avatar {
+            width: var(--chat-avatar);
+            height: var(--chat-avatar);
+            border-radius: 9999px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex: none;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+        }
+
+        .msg-stack {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            max-width: min(560px, 78vw);
+        }
+
+        .msg-meta {
+            font-size: var(--chat-meta);
+            line-height: 1.2;
+            color: #6b7280;
+            margin: 0 4px;
+        }
+
+        .bubble {
+            padding: var(--chat-bubble-pad-y) var(--chat-bubble-pad-x);
+            border-radius: var(--chat-bubble-radius);
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+        }
+
+        .bubble.outgoing {
+            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+            color: white;
+        }
+
+        .bubble.incoming {
+            background: #ffffff;
+            color: #111827;
+            border: 1px solid rgba(229, 231, 235, 0.9);
+        }
+
+        .bubble.group-first.incoming {
+            border-top-left-radius: 18px;
+        }
+
+        .bubble.group-mid.incoming,
+        .bubble.group-last.incoming {
+            border-top-left-radius: 10px;
+        }
+
+        .bubble.group-first.outgoing {
+            border-top-right-radius: 18px;
+        }
+
+        .bubble.group-mid.outgoing,
+        .bubble.group-last.outgoing {
+            border-top-right-radius: 10px;
+        }
+
+        .bubble.group-mid {
+            border-bottom-left-radius: 10px;
+            border-bottom-right-radius: 10px;
+        }
+
+        .bubble.group-first {
+            border-bottom-left-radius: 10px;
+            border-bottom-right-radius: 10px;
+        }
+
+        .bubble.group-last {
+            border-bottom-left-radius: 18px;
+            border-bottom-right-radius: 18px;
+        }
+
+        .msg-enter {
+            animation: msgEnter 180ms ease-out;
+        }
+
+        .chat-input-bar {
+            padding: var(--input-pad);
+        }
+
+        .chat-input-bar textarea {
+            font-size: var(--chat-font);
+            padding: 10px 12px;
+        }
+
+        .chat-input-bar button {
+            padding: 10px;
+        }
+
+        #chat-messages [data-feather],
+        .chat-input-bar [data-feather] {
+            width: var(--chat-icon);
+            height: var(--chat-icon);
+        }
+
+        @keyframes msgEnter {
+            from {
+                opacity: 0;
+                transform: translateY(6px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
     </style>
 </head>
 <body class="bg-white transition-colors duration-100 overflow-x-hidden" x-data="consultationChat()">
@@ -534,9 +716,14 @@ function consultationChat() {
     assignedStaff: null,
     newMessage: '',
     messages: [],
+    renderItems: [],
     currentConsultationId: null,
     consultationActive: false,
     isConnecting: false,
+    lastMessageId: 0,
+    pollingIntervalMs: 1200,
+    pollingTimer: null,
+    isPolling: false,
     nurses: [
         { id: 1, name: 'Clinic Nurse', status: 'online', avatar: 'CN', specialty: 'Senior Registered Nurse', lastSeen: 'Active now', experience: '8 years', rating: 4.9, consultations: 1247 }
     ],
@@ -574,6 +761,7 @@ function consultationChat() {
     isRecording: false,
     mediaRecorder: null,
     audioChunks: [],
+    isAtBottom: true,
     init() {
         // Initialize components after DOM is ready
         this.$nextTick(() => {
@@ -598,6 +786,14 @@ function consultationChat() {
             this.selectedNurse = this.nurses[0];
             // Check for existing consultation or start new one
             this.initializeConsultation();
+
+            const chatContainer = document.getElementById('chat-messages');
+            if (chatContainer) {
+                chatContainer.addEventListener('scroll', () => {
+                    this.isAtBottom = this.getIsNearBottom(chatContainer);
+                }, { passive: true });
+                this.isAtBottom = this.getIsNearBottom(chatContainer);
+            }
         });
         
         // Handle responsive sidebar
@@ -605,6 +801,93 @@ function consultationChat() {
         window.addEventListener('resize', () => this.handleResize());
         
         // Initialize feather icons will be called after staff is loaded
+    },
+
+    rebuildRenderItems() {
+        const items = [];
+        const messages = Array.isArray(this.messages) ? this.messages : [];
+
+        const getDayKey = (d) => {
+            const dt = new Date(d);
+            if (Number.isNaN(dt.getTime())) return 'invalid';
+            return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
+        };
+
+        const isSameDay = (a, b) => getDayKey(a) === getDayKey(b);
+
+        const minutesBetween = (a, b) => {
+            const da = new Date(a);
+            const db = new Date(b);
+            if (Number.isNaN(da.getTime()) || Number.isNaN(db.getTime())) return 999;
+            return Math.abs(db.getTime() - da.getTime()) / 60000;
+        };
+
+        let prevMeta = null;
+        for (let i = 0; i < messages.length; i++) {
+            const msg = messages[i];
+            const raw = msg?.sentAt || msg?.createdAt || msg?.time || null;
+            const dt = raw ? new Date(raw) : null;
+
+            if (!prevMeta || (dt && prevMeta.dt && !isSameDay(dt, prevMeta.dt))) {
+                items.push({
+                    kind: 'separator',
+                    id: `sep-${i}-${getDayKey(dt || new Date())}`,
+                    label: this.formatDateHeader(dt || new Date())
+                });
+            }
+
+            const next = messages[i + 1] || null;
+            const nextRaw = next?.sentAt || next?.createdAt || next?.time || null;
+            const nextDt = nextRaw ? new Date(nextRaw) : null;
+
+            const sameAsPrev = !!prevMeta && prevMeta.sender === msg.sender && dt && prevMeta.dt && isSameDay(dt, prevMeta.dt) && minutesBetween(prevMeta.dt, dt) <= 2;
+            const sameAsNext = !!next && next.sender === msg.sender && dt && nextDt && isSameDay(dt, nextDt) && minutesBetween(dt, nextDt) <= 2;
+
+            const groupPos = sameAsPrev && sameAsNext ? 'group-mid' : sameAsPrev && !sameAsNext ? 'group-last' : !sameAsPrev && sameAsNext ? 'group-first' : 'group-last';
+            const isIncoming = msg.sender !== 'student';
+            const showAvatar = isIncoming && !sameAsNext;
+            const showName = isIncoming && !sameAsPrev;
+            const showTime = !sameAsNext;
+
+            items.push({
+                kind: 'message',
+                id: msg.id || `m-${i}-${Date.now()}`,
+                sender: msg.sender,
+                content: msg.content,
+                type: msg.type || 'text',
+                audioUrl: msg.audioUrl,
+                dt: dt && !Number.isNaN(dt.getTime()) ? dt : null,
+                timeLabel: this.formatMessageTime(dt),
+                groupPos,
+                isIncoming,
+                showAvatar,
+                showName,
+                showTime
+            });
+
+            prevMeta = { sender: msg.sender, dt };
+        }
+
+        this.renderItems = items;
+    },
+
+    formatDateHeader(dateObj) {
+        const d = dateObj instanceof Date && !Number.isNaN(dateObj.getTime()) ? dateObj : new Date();
+        const now = new Date();
+        const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const startOfThatDay = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+        const diffDays = Math.round((startOfToday - startOfThatDay) / (1000 * 60 * 60 * 24));
+        if (diffDays === 0) return 'Today';
+        if (diffDays === 1) return 'Yesterday';
+        return d.toLocaleDateString([], { year: 'numeric', month: 'short', day: 'numeric' });
+    },
+
+    formatMessageTime(dateObj) {
+        const d = dateObj instanceof Date && !Number.isNaN(dateObj.getTime()) ? dateObj : null;
+        if (!d) return '';
+        const time = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+        const header = this.formatDateHeader(d);
+        return `${header}, ${time}`;
     },
     
     async initializeConsultation() {
@@ -674,18 +957,51 @@ function consultationChat() {
                 const messages = await response.json();
                 console.log(`Loaded ${messages.length} messages:`, messages);
                 
-                this.messages = messages.map(msg => ({
+                const chatContainer = document.getElementById('chat-messages');
+                const previousScrollPosition = chatContainer ? chatContainer.scrollTop + chatContainer.offsetHeight : 0;
+                const previousScrollHeight = chatContainer ? chatContainer.scrollHeight : 0;
+
+                const pendingLocalMessages = (this.messages || []).filter(m => m && m.localOnly);
+                
+                const dbMessages = messages.map(msg => ({
                     id: msg.id,
                     sender: msg.sender_type === 'patient' ? 'student' : 'nurse',
                     content: msg.message,
-                    time: this.formatTime(msg.sent_at || msg.created_at),
+                    sentAt: msg.sent_at || msg.created_at,
                     type: 'text'
                 }));
+
+                const maxId = dbMessages.reduce((acc, m) => {
+                    const idNum = typeof m.id === 'number' ? m.id : parseInt(m.id, 10);
+                    return Number.isFinite(idNum) ? Math.max(acc, idNum) : acc;
+                }, 0);
+                if (maxId > this.lastMessageId) {
+                    this.lastMessageId = maxId;
+                }
+
+                const seen = new Set();
+                const merged = [];
+
+                [...dbMessages, ...pendingLocalMessages].forEach(m => {
+                    const key = `${m.sender}|${m.content}|${m.sentAt || ''}|${m.type || 'text'}|${m.id}`;
+                    if (!seen.has(key)) {
+                        seen.add(key);
+                        merged.push(m);
+                    }
+                });
+
+                this.messages = merged;
                 
                 console.log(`Mapped messages:`, this.messages);
+
+                this.rebuildRenderItems();
+                
+                const shouldAutoScroll = chatContainer ? previousScrollPosition + chatContainer.offsetHeight >= previousScrollHeight - 100 : true;
                 
                 this.$nextTick(() => {
-                    this.scrollToBottom();
+                    if (shouldAutoScroll) {
+                        this.scrollToBottom(true);
+                    }
                 });
             } else if (response.status === 401) {
                 console.error('Authentication failed - redirecting to login');
@@ -699,18 +1015,97 @@ function consultationChat() {
         }
     },
     
-    startMessagePolling() {
-        // Poll for new messages every 3 seconds
-        setInterval(() => {
-            if (this.consultationActive && this.currentConsultationId) {
-                this.loadMessages();
+    async fetchNewMessages() {
+        if (!this.consultationActive || !this.currentConsultationId) return;
+        if (this.isPolling) return;
+        if (document.hidden) return;
+
+        this.isPolling = true;
+        try {
+            const url = `/api/online-consultations/${this.currentConsultationId}/messages?after_id=${encodeURIComponent(this.lastMessageId || 0)}&limit=200`;
+            const response = await fetch(url, {
+                method: 'GET',
+                credentials: 'same-origin',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            if (response.status === 401) {
+                console.error('Authentication failed - redirecting to login');
+                window.location.href = '/login';
+                return;
             }
-        }, 3000);
+
+            if (!response.ok) {
+                const errorText = await response.text().catch(() => '');
+                console.error('Failed to fetch new messages:', response.status, errorText);
+                return;
+            }
+
+            const newDb = await response.json();
+            if (!Array.isArray(newDb) || newDb.length === 0) return;
+
+            const mapped = newDb.map(msg => ({
+                id: msg.id,
+                sender: msg.sender_type === 'patient' ? 'student' : 'nurse',
+                content: msg.message,
+                sentAt: msg.sent_at || msg.created_at,
+                type: 'text'
+            }));
+
+            const maxId = mapped.reduce((acc, m) => {
+                const idNum = typeof m.id === 'number' ? m.id : parseInt(m.id, 10);
+                return Number.isFinite(idNum) ? Math.max(acc, idNum) : acc;
+            }, this.lastMessageId || 0);
+            this.lastMessageId = maxId;
+
+            const existingLocal = (this.messages || []).filter(m => m && m.localOnly);
+            const existingDb = (this.messages || []).filter(m => m && !m.localOnly);
+
+            const seen = new Set();
+            const merged = [];
+            [...existingDb, ...mapped, ...existingLocal].forEach(m => {
+                const key = `${m.sender}|${m.content}|${m.sentAt || ''}|${m.type || 'text'}|${m.id}`;
+                if (!seen.has(key)) {
+                    seen.add(key);
+                    merged.push(m);
+                }
+            });
+
+            this.messages = merged;
+            this.rebuildRenderItems();
+
+            this.$nextTick(() => {
+                this.scrollToBottom(false);
+            });
+        } catch (error) {
+            console.error('Error fetching new messages:', error);
+        } finally {
+            this.isPolling = false;
+        }
+    },
+    
+    startMessagePolling() {
+        if (this.pollingTimer) {
+            clearInterval(this.pollingTimer);
+            this.pollingTimer = null;
+        }
+
+        this.pollingTimer = setInterval(() => {
+            this.fetchNewMessages();
+        }, this.pollingIntervalMs);
+
+        document.addEventListener('visibilitychange', () => {
+            if (!document.hidden) {
+                this.fetchNewMessages();
+            }
+        }, { passive: true });
     },
     
     formatTime(dateString) {
         const date = new Date(dateString);
-        return date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+        return date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
     },
     
     initializeFeatherIcons() {
@@ -845,13 +1240,29 @@ function consultationChat() {
     selectNurse(nurse) {
         this.selectedNurse = nurse;
         // Filter messages for selected nurse or show all if it's the current conversation
-        this.scrollToBottom();
+        this.scrollToBottom(true);
     },
     async sendMessage() {
         if (this.newMessage.trim() === '' || !this.currentConsultationId) return;
         
         const messageText = this.newMessage.trim();
         this.newMessage = '';
+
+        const localId = `local_${Date.now()}`;
+        const optimisticMsg = {
+            id: localId,
+            sender: 'student',
+            content: messageText,
+            sentAt: new Date().toISOString(),
+            type: 'text',
+            localOnly: true
+        };
+
+        this.messages.push(optimisticMsg);
+        this.rebuildRenderItems();
+        this.$nextTick(() => {
+            this.scrollToBottom(true);
+        });
         
         try {
             const response = await fetch(`/api/online-consultations/${this.currentConsultationId}/send-message`, {
@@ -866,52 +1277,72 @@ function consultationChat() {
                 })
             });
             
+            if (response.status === 401) {
+                console.error('Authentication failed - redirecting to login');
+                window.location.href = '/login';
+                return;
+            }
+
             if (response.ok) {
-                // Add message to local state immediately for better UX
-                const newMsg = {
-                    id: Date.now(),
-                    sender: 'student',
-                    content: messageText,
-                    time: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})
-                };
-                
-                this.messages.push(newMsg);
-                
-                // Scroll to bottom after message is added
-                this.$nextTick(() => {
-                    this.scrollToBottom();
-                });
+                const payload = await response.json().catch(() => null);
+                const idx = this.messages.findIndex(m => m && m.id === localId);
+                if (idx !== -1) {
+                    this.messages[idx] = {
+                        ...this.messages[idx],
+                        id: payload && payload.message_id ? payload.message_id : this.messages[idx].id,
+                        localOnly: false
+                    };
+                }
+
+                this.rebuildRenderItems();
+
+                setTimeout(() => {
+                    this.loadMessages();
+                }, 600);
             } else {
-                console.error('Failed to send message');
+                const errorText = await response.text().catch(() => '');
+                console.error('Failed to send message:', response.status, errorText);
                 alert('Failed to send message. Please try again.');
+                this.messages = (this.messages || []).filter(m => m && m.id !== localId);
+                this.rebuildRenderItems();
                 // Restore the message text if sending failed
                 this.newMessage = messageText;
             }
         } catch (error) {
             console.error('Error sending message:', error);
             alert('Error sending message. Please try again.');
+            this.messages = (this.messages || []).filter(m => m && m.id !== localId);
+            this.rebuildRenderItems();
             // Restore the message text if sending failed
             this.newMessage = messageText;
         }
     },
-    scrollToBottom() {
+    
+    getIsNearBottom(chatContainer) {
+        if (!chatContainer) return true;
+        const threshold = 80;
+        const distanceFromBottom = chatContainer.scrollHeight - chatContainer.scrollTop - chatContainer.clientHeight;
+        return distanceFromBottom <= threshold;
+    },
+
+    scrollToBottom(force = false) {
         const chatContainer = document.getElementById('chat-messages');
-        if (chatContainer) {
-            chatContainer.scrollTop = chatContainer.scrollHeight;
+        if (!chatContainer) return;
+
+        if (!force) {
+            const shouldAutoScroll = this.getIsNearBottom(chatContainer);
+            if (!shouldAutoScroll) return;
+        }
+
+        const target = chatContainer.scrollHeight;
+        try {
+            chatContainer.scrollTo({ top: target, behavior: 'smooth' });
+        } catch (e) {
+            chatContainer.scrollTop = target;
         }
     },
     toggleSection(section) {
-        // If the clicked section is already open, close it
-        if (this.expandedSections[section]) {
-            this.expandedSections[section] = false;
-        } else {
-            // Close all sections first
-            Object.keys(this.expandedSections).forEach(key => {
-                this.expandedSections[key] = false;
-            });
-            // Then open the clicked section
-            this.expandedSections[section] = true;
-        }
+        this.expandedSections[section] = !this.expandedSections[section];
     },
     formatTime(time) {
         return time;
@@ -925,28 +1356,29 @@ function consultationChat() {
             this.mediaRecorder.ondataavailable = (event) => {
                 this.audioChunks.push(event.data);
             };
-            
+
             this.mediaRecorder.onstop = () => {
-                const audioBlob = new Blob(this.audioChunks, { type: 'audio/wav' });
-                const audioUrl = URL.createObjectURL(audioBlob);
-                
-                // Add voice message to chat
-                const voiceMessage = {
-                    id: this.messages.length + 1,
-                    sender: 'student',
-                    content: '🎤 Voice message',
-                    time: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}),
-                    type: 'voice',
-                    audioUrl: audioUrl
-                };
-                
-                this.messages.push(voiceMessage);
-                this.$nextTick(() => {
-                    this.scrollToBottom();
-                });
-                
-                // Stop all tracks
-                stream.getTracks().forEach(track => track.stop());
+                try {
+                    const audioBlob = new Blob(this.audioChunks, { type: 'audio/wav' });
+                    const audioUrl = URL.createObjectURL(audioBlob);
+
+                    const voiceMessage = {
+                        id: Date.now(),
+                        sender: 'student',
+                        content: '🎤 Voice message',
+                        sentAt: new Date().toISOString(),
+                        type: 'voice',
+                        audioUrl: audioUrl
+                    };
+
+                    this.messages.push(voiceMessage);
+                    this.rebuildRenderItems();
+                    this.$nextTick(() => {
+                        this.scrollToBottom(true);
+                    });
+                } finally {
+                    stream.getTracks().forEach(track => track.stop());
+                }
             };
             
             this.mediaRecorder.start();
@@ -973,7 +1405,7 @@ function consultationChat() {
 }
 </script>
     
-    <div class="flex min-h-[100dvh] md:h-screen md:overflow-hidden">
+    <div class="flex h-[100dvh] md:h-screen md:overflow-hidden">
         <!-- Sidebar -->
         <aside
                :class="[
@@ -1123,11 +1555,12 @@ function consultationChat() {
             </header>
 
             <!-- Main Chat Content -->
-            <main class="flex-1 flex flex-col min-h-0 bg-gray-50 p-4 sm:p-6 md:overflow-hidden">
+            <main class="flex-1 flex flex-col min-h-0 bg-gray-50 p-4 sm:p-6 overflow-hidden">
                 <!-- Enhanced Consultation Chat Header -->
                 <div class="gradient-bg-sidebar text-white shadow-2xl relative overflow-hidden rounded-[2rem] ml-1 mb-6">
                     <!-- Decorative Elements -->
                     <div class="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -translate-y-32 translate-x-32"></div>
+                    
                     <div class="absolute bottom-0 left-0 w-48 h-48 bg-yellow-400/10 rounded-full translate-y-24 -translate-x-24"></div>
                     
                     <!-- Header Content -->
@@ -1240,7 +1673,7 @@ function consultationChat() {
                         </div>
                         
                         <!-- Clean Chat Messages Area -->
-                        <div class="flex-1 min-h-0 overflow-y-auto p-6 space-y-4 bg-gray-50" id="chat-messages">
+                        <div class="flex-1 min-h-0 overflow-y-auto bg-gray-50" id="chat-messages">
                             <!-- Connection Status Message -->
                             <div x-show="isConnecting" class="flex justify-center">
                                 <div class="bg-yellow-100 border border-yellow-300 rounded-lg px-4 py-2 text-yellow-800 text-sm">
@@ -1287,48 +1720,46 @@ function consultationChat() {
                                 </div>
                             </div>
                             
-                            
-                            <template x-for="message in messages" :key="message.id">
-                                <div :class="message.sender === 'student' ? 'flex justify-end' : 'flex justify-start'" 
-                                     class="animate-fade-in">
-                                    <div class="flex items-end gap-2 max-w-xs lg:max-w-md" :class="message.sender === 'student' ? 'flex-row-reverse' : 'flex-row'">
-                                        <!-- Profile Avatar -->
-                                        <div class="flex-shrink-0 mb-6">
-                                            <div :class="message.sender === 'student' ? 'bg-gradient-to-br from-blue-500 to-blue-600' : 'bg-gradient-to-br from-green-500 to-green-600'" 
-                                                 class="w-8 h-8 rounded-full flex items-center justify-center shadow-md">
-                                                <span class="text-white text-xs font-bold" x-text="message.sender === 'student' ? '{{ user.first_name[0] if user and user.first_name else 'S' }}{{ user.last_name[0] if user and user.last_name else 'T' }}' : selectedNurse.avatar"></span>
-                                            </div>
-                                        </div>
-                                        
-                                        <!-- Message Content -->
-                                        <div class="flex-1">
-                                            <!-- Sender Name -->
-                                            <div :class="message.sender === 'student' ? 'text-right' : 'text-left'" class="mb-1">
-                                                <span class="text-xs font-medium text-gray-600" x-text="message.sender === 'student' ? '{{ user.first_name if user and user.first_name else 'You' }}' : selectedNurse.name"></span>
-                                            </div>
-                                            
-                                            <!-- Message Bubble -->
-                                            <div :class="message.sender === 'student' ? 'bg-blue-500 text-white ml-auto' : 'bg-white text-gray-800 border border-gray-200'" 
-                                                 class="px-4 py-3 rounded-2xl shadow-sm">
-                                                <div x-show="message.type === 'voice'">
-                                                    <div class="flex items-center gap-2">
-                                                        <i data-feather="volume-2" class="w-4 h-4 text-blue-500"></i>
-                                                        <span class="text-sm">Voice message</span>
-                                                        <audio :src="message.audioUrl" controls class="ml-2" style="height: 30px;"></audio>
+                            <div class="chat-thread">
+                                <template x-for="item in renderItems" :key="item.id">
+                                    <div>
+                                        <template x-if="item.kind === 'separator'">
+                                            <div class="date-separator"><span x-text="item.label"></span></div>
+                                        </template>
+                                        <template x-if="item.kind === 'message'">
+                                            <div class="msg-row msg-enter" :class="item.isIncoming ? 'incoming' : 'outgoing'">
+                                                <div class="msg-avatar" x-show="item.showAvatar" x-cloak
+                                                     :class="item.isIncoming ? 'bg-gradient-to-br from-green-500 to-green-600 text-white' : 'bg-gradient-to-br from-blue-500 to-blue-600 text-white'">
+                                                    <span class="text-xs font-bold" x-text="item.isIncoming ? selectedNurse.avatar : '{{ user.first_name[0] if user and user.first_name else 'S' }}{{ user.last_name[0] if user and user.last_name else 'T' }}'"></span>
+                                                </div>
+
+                                                <div class="msg-stack" :class="item.isIncoming ? 'items-start' : 'items-end'">
+                                                    <div class="msg-meta" x-show="item.showName" x-cloak
+                                                         :class="item.isIncoming ? 'text-left' : 'text-right'">
+                                                        <span x-text="item.isIncoming ? selectedNurse.name : '{{ user.first_name if user and user.first_name else 'You' }}'"></span>
+                                                    </div>
+
+                                                    <div class="bubble chat-bubble" :class="(item.isIncoming ? 'incoming' : 'outgoing') + ' ' + item.groupPos">
+                                                        <div x-show="item.type === 'voice'">
+                                                            <div class="flex items-center gap-2">
+                                                                <i data-feather="volume-2" class="w-4 h-4" :class="item.isIncoming ? 'text-green-600' : 'text-white'"></i>
+                                                                <span class="text-sm" :class="item.isIncoming ? 'text-gray-800' : 'text-white'">Voice message</span>
+                                                                <audio :src="item.audioUrl" controls class="ml-2" style="height: 30px;"></audio>
+                                                            </div>
+                                                        </div>
+                                                        <p x-show="item.type !== 'voice'" class="text-sm leading-relaxed" x-text="item.content"></p>
+                                                    </div>
+
+                                                    <div class="msg-meta" x-show="item.showTime" x-cloak
+                                                         :class="item.isIncoming ? 'text-left' : 'text-right'">
+                                                        <span x-text="item.timeLabel"></span>
                                                     </div>
                                                 </div>
-                                                <p x-show="message.type !== 'voice'" class="text-sm leading-relaxed" x-text="message.content"></p>
                                             </div>
-                                            
-                                            <!-- Timestamp -->
-                                            <div :class="message.sender === 'student' ? 'text-right' : 'text-left'" 
-                                                 class="mt-1">
-                                                <span class="text-xs text-gray-500" x-text="message.time"></span>
-                                            </div>
-                                        </div>
+                                        </template>
                                     </div>
-                                </div>
-                            </template>
+                                </template>
+                            </div>
                             
                             <!-- Typing Indicator -->
                             <div x-show="false" class="flex justify-start animate-fade-in">
@@ -1359,7 +1790,7 @@ function consultationChat() {
                         </div>
                         
                         <!-- Clean Message Input Bar -->
-                        <div class="bg-white border-t border-gray-200 p-4 flex-shrink-0">
+                        <div class="chat-input-bar bg-white border-t border-gray-200 flex-shrink-0">
                             
                             <!-- Privacy Reminder -->
                             <div x-show="consultationActive" class="mb-3">

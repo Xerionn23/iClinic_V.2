@@ -12580,11 +12580,23 @@ def api_get_consultation_messages(consultation_id):
     
     try:
         cursor = conn.cursor(buffered=True)  # Use buffered cursor to avoid unread results
+
+        after_id_raw = request.args.get('after_id')
+        limit_raw = request.args.get('limit')
+        try:
+            after_id = int(after_id_raw) if after_id_raw is not None and after_id_raw != '' else None
+        except Exception:
+            after_id = None
+        try:
+            limit = int(limit_raw) if limit_raw is not None and limit_raw != '' else 200
+        except Exception:
+            limit = 200
+        limit = max(1, min(limit, 500))
         
         # First, ensure the chat_messages table exists
         try:
             cursor.execute('DESCRIBE chat_messages')
-            cursor.fetchall()  # Consume the result
+            columns = cursor.fetchall()  # Consume the result
         except:
             # Create the table if it doesn't exist
             cursor.execute('''
@@ -12599,13 +12611,29 @@ def api_get_consultation_messages(consultation_id):
             ''')
             conn.commit()
             print("Created chat_messages table")
+
+            cursor.execute('DESCRIBE chat_messages')
+            columns = cursor.fetchall()
+
+        column_names = [col[0] for col in (columns or [])]
+        message_column = 'message_text' if 'message_text' in column_names else 'message'
         
-        cursor.execute('''
-            SELECT id, sender_type, message_text, sent_at
-            FROM chat_messages
-            WHERE consultation_id = %s
-            ORDER BY sent_at ASC
-        ''', (consultation_id,))
+        if after_id is not None:
+            cursor.execute(f'''
+                SELECT id, sender_type, {message_column}, sent_at
+                FROM chat_messages
+                WHERE consultation_id = %s AND id > %s
+                ORDER BY id ASC
+                LIMIT %s
+            ''', (consultation_id, after_id, limit))
+        else:
+            cursor.execute(f'''
+                SELECT id, sender_type, {message_column}, sent_at
+                FROM chat_messages
+                WHERE consultation_id = %s
+                ORDER BY id ASC
+                LIMIT %s
+            ''', (consultation_id, limit))
         messages = cursor.fetchall()
         cursor.close()
         conn.close()

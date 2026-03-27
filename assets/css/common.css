@@ -1,5 +1,66 @@
 /* iClinic Common Styles */
 
+:root {
+    --st-font-base: clamp(14px, 1.1vw, 16px);
+    --st-font-sm: clamp(12px, 1.0vw, 14px);
+    --st-font-xs: clamp(11px, 0.95vw, 12px);
+
+    --st-h1: clamp(20px, 2.2vw, 30px);
+    --st-h2: clamp(18px, 1.9vw, 24px);
+    --st-h3: clamp(16px, 1.6vw, 20px);
+
+    --st-pad-page: clamp(14px, 2.4vw, 24px);
+    --st-pad-card: clamp(14px, 2.0vw, 20px);
+    --st-gap: clamp(10px, 1.6vw, 16px);
+
+    --st-radius: 16px;
+    --st-radius-sm: 12px;
+
+    --st-icon: clamp(16px, 1.6vw, 20px);
+    --st-hit: 44px;
+}
+
+html {
+    text-size-adjust: 100%;
+    -webkit-text-size-adjust: 100%;
+}
+
+body {
+    font-size: var(--st-font-base);
+    line-height: 1.5;
+}
+
+h1 { font-size: var(--st-h1); line-height: 1.15; }
+h2 { font-size: var(--st-h2); line-height: 1.2; }
+h3 { font-size: var(--st-h3); line-height: 1.25; }
+
+button,
+input,
+textarea,
+select {
+    font: inherit;
+}
+
+textarea {
+    line-height: 1.4;
+}
+
+/* Feather icons end up as <svg class="feather ..."> */
+svg.feather {
+    width: var(--st-icon);
+    height: var(--st-icon);
+}
+
+/* Minimum comfortable touch targets */
+button,
+[role="button"],
+a.inline-flex,
+a.flex,
+input[type="button"],
+input[type="submit"] {
+    min-height: var(--st-hit);
+}
+
 /* Custom scrollbar */
 ::-webkit-scrollbar {
     width: 10px;
