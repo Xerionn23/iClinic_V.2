@@ -352,7 +352,7 @@
     async loadStudentInfo() {
         try {
             console.log('🔍 Loading user information...');
-            const response = await fetch('/api/user/profile');
+            const response = await fetch('/api/user/profile', { credentials: 'same-origin' });
             if (response.ok) {
                 const data = await response.json();
                 this.studentInfo = data;
@@ -625,9 +625,9 @@
                                     </div>
                                     <div class="mt-4 w-full">
                                         <p class="font-bold text-gray-900 text-base sm:text-lg" x-text="(studentInfo.first_name || 'User') + ' ' + (studentInfo.last_name || 'Name')"></p>
-                                        <p class="text-gray-600 text-sm" x-show="studentInfo.role === 'student'">Student ID: <span class="font-medium" x-text="studentInfo.student_number || 'N/A'"></span></p>
-                                        <p class="text-gray-600 text-sm" x-show="studentInfo.role === 'teaching_staff'">Faculty ID: <span class="font-medium" x-text="studentInfo.faculty_id || studentInfo.staff_id || 'N/A'"></span></p>
-                                        <p class="text-gray-600 text-sm" x-show="studentInfo.role === 'non_teaching_staff'">Staff ID: <span class="font-medium" x-text="studentInfo.staff_id || 'N/A'"></span></p>
+                                        <p class="text-gray-600 text-sm" x-show="(studentInfo.role || '').toLowerCase() === 'student'">Student ID: <span class="font-medium" x-text="studentInfo.student_number || 'N/A'"></span></p>
+                                        <p class="text-gray-600 text-sm" x-show="(studentInfo.role || '').toLowerCase() === 'teaching_staff'">Faculty ID: <span class="font-medium" x-text="studentInfo.faculty_id || studentInfo.staff_id || 'N/A'"></span></p>
+                                        <p class="text-gray-600 text-sm" x-show="(studentInfo.role || '').toLowerCase() === 'non_teaching_staff'">Staff ID: <span class="font-medium" x-text="studentInfo.staff_id || 'N/A'"></span></p>
                                     </div>
                                 </div>
                             </div>
@@ -640,25 +640,25 @@
                                         <h3 class="text-sm font-bold text-gray-800">Personal Information</h3>
                                     </div>
                                     <dl class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                        <div x-show="studentInfo.role === 'student'" class="rounded-lg bg-white border border-gray-100 p-3">
+                                        <div x-show="(studentInfo.role || '').toLowerCase() === 'student'" class="rounded-lg bg-white border border-gray-100 p-3">
                                             <dt class="text-xs font-medium text-gray-500">Course</dt>
                                             <dd class="mt-1 text-sm font-semibold text-gray-900" x-text="studentInfo.course || 'Course not specified'"></dd>
                                         </div>
-                                        <div x-show="studentInfo.role !== 'student'" class="rounded-lg bg-white border border-gray-100 p-3">
+                                        <div x-show="(studentInfo.role || '').toLowerCase() !== 'student'" class="rounded-lg bg-white border border-gray-100 p-3">
                                             <dt class="text-xs font-medium text-gray-500">Department</dt>
                                             <dd class="mt-1 text-sm font-semibold text-gray-900" x-text="studentInfo.department || studentInfo.position || 'Not specified'"></dd>
                                         </div>
                                         <div class="rounded-lg bg-white border border-gray-100 p-3">
                                             <dt class="text-xs font-medium text-gray-500">Email</dt>
-                                            <dd class="mt-1 text-sm font-semibold text-gray-900 break-all" x-text="studentInfo.username || 'Email not available'"></dd>
+                                            <dd class="mt-1 text-sm font-semibold text-gray-900 break-all" x-text="studentInfo.email || studentInfo.username || 'Email not available'"></dd>
                                         </div>
                                         <div class="rounded-lg bg-white border border-gray-100 p-3">
                                             <dt class="text-xs font-medium text-gray-500">Contact</dt>
                                             <dd class="mt-1 text-sm font-semibold text-gray-900" x-text="studentInfo.contact_number || 'Contact not available'"></dd>
                                         </div>
                                         <div class="rounded-lg bg-white border border-gray-100 p-3">
-                                            <dt class="text-xs font-medium text-gray-500">Role</dt>
-                                            <dd class="mt-1 text-sm font-semibold text-gray-900" x-text="studentInfo.role ? studentInfo.role.charAt(0).toUpperCase() + studentInfo.role.slice(1) : 'Student'"></dd>
+                                            <dt class="text-xs font-medium text-gray-500">Account Type</dt>
+                                            <dd class="mt-1 text-sm font-semibold text-gray-900" x-text="(studentInfo.role || '').toLowerCase() === 'student' ? 'Student' : (studentInfo.role ? studentInfo.role.charAt(0).toUpperCase() + studentInfo.role.slice(1) : 'User')"></dd>
                                         </div>
                                     </dl>
                                 </div>

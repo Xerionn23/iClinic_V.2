@@ -1592,7 +1592,7 @@ function consultationChat() {
                 
                 
                 <!-- Clean Single-Column Layout -->
-                <div class="flex-1 min-h-0 flex bg-white relative rounded-2xl border border-gray-200 overflow-hidden">
+                <div class="flex-1 min-h-[500px] h-[calc(100vh-280px)] flex bg-white relative rounded-2xl border border-gray-200 overflow-hidden shadow-sm">
                     <!-- Fixed Nurse Information Card (Left Side) - Hidden by default -->
                     <div x-show="showNurseInfo" 
                          x-transition:enter="transition ease-out duration-300"
@@ -1790,7 +1790,7 @@ function consultationChat() {
                         </div>
                         
                         <!-- Clean Message Input Bar -->
-                        <div class="chat-input-bar bg-white border-t border-gray-200 flex-shrink-0">
+                        <div class="chat-input-bar bg-white border-t border-gray-200 flex-shrink-0 mt-auto">
                             
                             <!-- Privacy Reminder -->
                             <div x-show="consultationActive" class="mb-3">

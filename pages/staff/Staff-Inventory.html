@@ -241,14 +241,12 @@
         /* Active sidebar item */
         .sidebar-item-active {
             background: linear-gradient(90deg, rgba(253, 184, 19, 0.2) 0%, rgba(253, 184, 19, 0.05) 100%);
-            border-left: 4px solid var(--accent);
-            box-shadow: 0 0 20px rgba(253, 184, 19, 0.2);
+            box-shadow: inset 4px 0 0 var(--accent), 0 0 20px rgba(253, 184, 19, 0.2);
         }
         
         .dark .sidebar-item-active {
             background: linear-gradient(90deg, rgba(253, 184, 19, 0.25) 0%, rgba(253, 184, 19, 0.05) 100%);
-            border-left: 4px solid var(--accent);
-            box-shadow: 0 0 25px rgba(253, 184, 19, 0.3);
+            box-shadow: inset 4px 0 0 var(--accent), 0 0 25px rgba(253, 184, 19, 0.3);
         }
         
         :root {
@@ -307,11 +305,11 @@
             </div>
             
             <!-- Navigation -->
-            <nav class="relative mt-8 px-4 space-y-2">
+            <nav class="relative mt-8 px-4 space-y-3">
                 <!-- Dashboard -->
                 <a href="{{ url_for('staff_dashboard') }}"
                    @click="if (isMobile) { mobileMenuOpen = false; document.body.classList.remove('mobile-menu-open'); }"
-                   class="flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all group hover:bg-white/10">
+                   class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all group hover:bg-white/10">
                     <div class="flex items-center justify-center" :class="(sidebarCollapsed && !sidebarHovered && !isMobile) ? 'w-full' : ''">
                         <i data-feather="home" class="w-5 h-5 group-hover:scale-110 transition-transform"></i>
                     </div>
@@ -321,7 +319,7 @@
                 <!-- Patients -->
                 <a href="{{ url_for('staff_patients') }}"
                    @click="if (isMobile) { mobileMenuOpen = false; document.body.classList.remove('mobile-menu-open'); }"
-                   class="flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all group hover:bg-white/10">
+                   class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all group hover:bg-white/10">
                     <div class="flex items-center justify-center" :class="(sidebarCollapsed && !sidebarHovered && !isMobile) ? 'w-full' : ''">
                         <i data-feather="users" class="w-5 h-5 group-hover:scale-110 transition-transform"></i>
                     </div>
@@ -331,7 +329,7 @@
                 <!-- Appointments -->
                 <a href="{{ url_for('staff_appointments') }}"
                    @click="if (isMobile) { mobileMenuOpen = false; document.body.classList.remove('mobile-menu-open'); }"
-                   class="flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all group hover:bg-white/10">
+                   class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all group hover:bg-white/10">
                     <div class="flex items-center justify-center" :class="(sidebarCollapsed && !sidebarHovered && !isMobile) ? 'w-full' : ''">
                         <i data-feather="calendar" class="w-5 h-5 group-hover:scale-110 transition-transform"></i>
                     </div>
@@ -341,7 +339,7 @@
                 <!-- Announcements -->
                 <a href="{{ url_for('staff_announcements') }}"
                    @click="if (isMobile) { mobileMenuOpen = false; document.body.classList.remove('mobile-menu-open'); }"
-                   class="flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all group hover:bg-white/10">
+                   class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all group hover:bg-white/10">
                     <div class="flex items-center justify-center" :class="(sidebarCollapsed && !sidebarHovered && !isMobile) ? 'w-full' : ''">
                         <i data-feather="volume-2" class="w-5 h-5 group-hover:scale-110 transition-transform"></i>
                     </div>
@@ -351,7 +349,7 @@
                 <!-- Consultations -->
                 <a href="{{ url_for('staff_consultations') }}"
                    @click="if (isMobile) { mobileMenuOpen = false; document.body.classList.remove('mobile-menu-open'); }"
-                   class="flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all group hover:bg-white/10">
+                   class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all group hover:bg-white/10">
                     <div class="flex items-center justify-center" :class="(sidebarCollapsed && !sidebarHovered && !isMobile) ? 'w-full' : ''">
                         <i data-feather="message-circle" class="w-5 h-5 group-hover:scale-110 transition-transform"></i>
                     </div>
@@ -361,7 +359,7 @@
                 <!-- Inventory -->
                 <a href="{{ url_for('staff_inventory') }}"
                    @click="if (isMobile) { mobileMenuOpen = false; document.body.classList.remove('mobile-menu-open'); }"
-                   class="sidebar-item-active flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all group">
+                   class="sidebar-item-active flex items-center gap-3 px-4 py-3 rounded-lg transition-all group">
                     <div class="flex items-center justify-center" :class="(sidebarCollapsed && !sidebarHovered && !isMobile) ? 'w-full' : ''">
                         <i data-feather="package" class="w-5 h-5 group-hover:scale-110 transition-transform"></i>
                     </div>
@@ -371,7 +369,7 @@
                 <!-- Reports -->
                 <a href="{{ url_for('staff_reports') }}"
                    @click="if (isMobile) { mobileMenuOpen = false; document.body.classList.remove('mobile-menu-open'); }"
-                   class="flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all group hover:bg-white/10">
+                   class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all group hover:bg-white/10">
                     <div class="flex items-center justify-center" :class="(sidebarCollapsed && !sidebarHovered && !isMobile) ? 'w-full' : ''">
                         <i data-feather="bar-chart-2" class="w-5 h-5 group-hover:scale-110 transition-transform"></i>
                     </div>

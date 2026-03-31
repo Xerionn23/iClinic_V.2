@@ -496,8 +496,8 @@
                     <span x-show="!sidebarCollapsed || sidebarHovered" class="font-medium">Onsite Queue</span>
                 </a>
 
-                <!-- Deans Reports (ONLY for Deans and President) -->
-                {% if user and user.role in ['deans', 'president'] %}
+                <!-- Deans Reports (ONLY for Deans) -->
+                {% if user and user.role == 'deans' %}
                 <a href="{{ url_for('deans_president_reports') }}"
                    class="sidebar-item-active flex items-center gap-3 px-4 py-3 rounded-lg transition-all group">
                     <div class="flex items-center justify-center" :class="sidebarCollapsed && !sidebarHovered ? 'w-full' : ''">
@@ -3718,7 +3718,7 @@ this would contain the actual report data and formatting.
                     <div style="border-top: 1px solid #111827; padding-top: 6px; text-align: center;">
                         <div style="font-weight: 700; letter-spacing: 0.2px;">Prepared by:</div>
                         <div style="font-weight: 700; margin-top: 2px;">{{ user.first_name }} {{ user.last_name }}</div>
-                        <div style="color: #374151; margin-top: 1px;">{% if user.role == 'president' %}President{% else %}Dean{% endif %}</div>
+                        <div style="color: #374151; margin-top: 1px;">Dean</div>
                     </div>
                 </div>
             </div>

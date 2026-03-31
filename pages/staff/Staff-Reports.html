@@ -9,12 +9,7 @@
     
     <!-- Tailwind CSS -->
     <script>
-        // 🔥 VERSION CHECK - SHOULD APPEAR IMMEDIATELY! 🔥
-        console.log('═══════════════════════════════════════════════════════════');
-        console.log('🔥🔥🔥 REPORTS PAGE VERSION 3.0 LOADED! 🔥🔥🔥');
-        console.log('🔥 OCTOBER ONLY FIX ACTIVE - 10:42 AM 🔥');
-        console.log('═══════════════════════════════════════════════════════════');
-        
+                
         // Suppress Tailwind CDN production warning completely
         const originalWarn = console.warn;
         console.warn = function(...args) {
@@ -35,9 +30,37 @@
     <!-- Alpine.js -->
     <script defer src="/assets/js/libs/alpine.min.js"></script>
     
-    <!-- Feather Icons -->
-    <script src="/assets/js/libs/feather.min.js"></script>
+    <!-- Lucide Icons (More Reliable Alternative) -->
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
     <script defer src="/assets/js/icon-init.js"></script>
+    
+    <!-- Enhanced Icon Initialization for Reports -->
+    <script>
+        document.addEventListener('alpine:initialized', function() {
+            // Ensure Lucide icons are properly initialized after Alpine.js
+            setTimeout(function() {
+                if (typeof lucide !== 'undefined' && lucide.createIcons) {
+                    try {
+                        lucide.createIcons();
+                        console.log('Lucide icons initialized successfully');
+                    } catch (error) {
+                        console.warn('Lucide icon initialization failed:', error);
+                    }
+                }
+            }, 100);
+        });
+        
+        // Also initialize on DOM content loaded as fallback
+        document.addEventListener('DOMContentLoaded', function() {
+            if (typeof lucide !== 'undefined' && lucide.createIcons) {
+                try {
+                    lucide.createIcons();
+                } catch (error) {
+                    console.warn('Lucide icon initialization failed:', error);
+                }
+            }
+        });
+    </script>
     
     <!-- Chart.js with Complete Error Suppression -->
     <script>
@@ -469,14 +492,12 @@
         /* Active sidebar item */
         .sidebar-item-active {
             background: linear-gradient(90deg, rgba(253, 184, 19, 0.2) 0%, rgba(253, 184, 19, 0.05) 100%);
-            border-left: 4px solid var(--accent);
-            box-shadow: 0 0 20px rgba(253, 184, 19, 0.2);
+            box-shadow: inset 4px 0 0 var(--accent), 0 0 20px rgba(253, 184, 19, 0.2);
         }
         
         .dark .sidebar-item-active {
             background: linear-gradient(90deg, rgba(253, 184, 19, 0.25) 0%, rgba(253, 184, 19, 0.05) 100%);
-            border-left: 4px solid var(--accent);
-            box-shadow: 0 0 25px rgba(253, 184, 19, 0.3);
+            box-shadow: inset 4px 0 0 var(--accent), 0 0 25px rgba(253, 184, 19, 0.3);
         }
         
         :root {
@@ -585,66 +606,66 @@
             </div>
             
             <!-- Navigation -->
-            <nav class="relative mt-8 px-4 space-y-2">
+            <nav class="relative mt-8 px-4 space-y-3">
                 <!-- Dashboard -->
                 <a href="{{ url_for('staff_dashboard') }}"
-                   class="flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all group hover:bg-white/10">
+                   class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all group hover:bg-white/10">
                     <div class="flex items-center justify-center" :class="sidebarCollapsed && !sidebarHovered ? 'w-full' : ''">
-                        <i data-feather="home" class="w-5 h-5 group-hover:scale-110 transition-transform"></i>
+                        <i data-lucide="home" class="w-5 h-5 group-hover:scale-110 transition-transform"></i>
                     </div>
                     <span x-show="!sidebarCollapsed || sidebarHovered" x-transition class="font-medium">Dashboard</span>
                 </a>
                 
                 <!-- Patients -->
                 <a href="{{ url_for('staff_patients') }}"
-                   class="flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all group hover:bg-white/10">
+                   class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all group hover:bg-white/10">
                     <div class="flex items-center justify-center" :class="sidebarCollapsed && !sidebarHovered ? 'w-full' : ''">
-                        <i data-feather="users" class="w-5 h-5 group-hover:scale-110 transition-transform"></i>
+                        <i data-lucide="users" class="w-5 h-5 group-hover:scale-110 transition-transform"></i>
                     </div>
                     <span x-show="!sidebarCollapsed || sidebarHovered" x-transition class="font-medium">Patients</span>
                 </a>
                 
                 <!-- Appointments -->
                 <a href="{{ url_for('staff_appointments') }}"
-                   class="flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all group hover:bg-white/10">
+                   class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all group hover:bg-white/10">
                     <div class="flex items-center justify-center" :class="sidebarCollapsed && !sidebarHovered ? 'w-full' : ''">
-                        <i data-feather="calendar" class="w-5 h-5 group-hover:scale-110 transition-transform"></i>
+                        <i data-lucide="calendar" class="w-5 h-5 group-hover:scale-110 transition-transform"></i>
                     </div>
                     <span x-show="!sidebarCollapsed || sidebarHovered" x-transition class="font-medium">Appointments</span>
                 </a>
                 
                 <!-- Announcements -->
                 <a href="{{ url_for('staff_announcements') }}"
-                   class="flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all group hover:bg-white/10">
+                   class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all group hover:bg-white/10">
                     <div class="flex items-center justify-center" :class="sidebarCollapsed && !sidebarHovered ? 'w-full' : ''">
-                        <i data-feather="volume-2" class="w-5 h-5 group-hover:scale-110 transition-transform"></i>
+                        <i data-lucide="volume-2" class="w-5 h-5 group-hover:scale-110 transition-transform"></i>
                     </div>
                     <span x-show="!sidebarCollapsed || sidebarHovered" x-transition class="font-medium">Announcements</span>
                 </a>
                 
                 <!-- Consultations -->
                 <a href="{{ url_for('staff_consultations') }}"
-                   class="flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all group hover:bg-white/10">
+                   class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all group hover:bg-white/10">
                     <div class="flex items-center justify-center" :class="sidebarCollapsed && !sidebarHovered ? 'w-full' : ''">
-                        <i data-feather="message-circle" class="w-5 h-5 group-hover:scale-110 transition-transform"></i>
+                        <i data-lucide="message-circle" class="w-5 h-5 group-hover:scale-110 transition-transform"></i>
                     </div>
                     <span x-show="!sidebarCollapsed || sidebarHovered" x-transition class="font-medium">Consultations</span>
                 </a>
                 
                 <!-- Inventory -->
                 <a href="{{ url_for('staff_inventory') }}"
-                   class="flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all group hover:bg-white/10">
+                   class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all group hover:bg-white/10">
                     <div class="flex items-center justify-center" :class="sidebarCollapsed && !sidebarHovered ? 'w-full' : ''">
-                        <i data-feather="package" class="w-5 h-5 group-hover:scale-110 transition-transform"></i>
+                        <i data-lucide="package" class="w-5 h-5 group-hover:scale-110 transition-transform"></i>
                     </div>
                     <span x-show="!sidebarCollapsed || sidebarHovered" x-transition class="font-medium">Inventory</span>
                 </a>
                 
                 <!-- Reports -->
                 <a href="{{ url_for('staff_reports') }}"
-                   class="sidebar-item-active flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all group">
+                   class="sidebar-item-active flex items-center gap-3 px-4 py-3 rounded-lg transition-all group">
                     <div class="flex items-center justify-center" :class="sidebarCollapsed && !sidebarHovered ? 'w-full' : ''">
-                        <i data-feather="bar-chart-2" class="w-5 h-5 group-hover:scale-110 transition-transform"></i>
+                        <i data-lucide="bar-chart-2" class="w-5 h-5 group-hover:scale-110 transition-transform"></i>
                     </div>
                     <span x-show="!sidebarCollapsed || sidebarHovered" x-transition class="font-medium">Reports</span>
                 </a>
@@ -664,7 +685,7 @@
                         <p class="text-sm font-medium text-white">{{ user.first_name }} {{ user.last_name }}</p>
                         <p class="text-xs text-yellow-300">{{ user.position }}</p>
                     </div>
-                    <i x-show="!sidebarCollapsed || sidebarHovered" data-feather="chevron-up" class="w-4 h-4 text-white/70"></i>
+                    <i x-show="!sidebarCollapsed || sidebarHovered" data-lucide="chevron-up" class="w-4 h-4 text-white/70"></i>
                 </button>
                 
                 <!-- User Dropdown -->
@@ -672,7 +693,7 @@
                      x-transition
                      class="absolute bottom-full left-4 right-4 mb-2 bg-white rounded-lg shadow-lg border border-gray-200 py-1">
                     <button @click="showLogoutConfirm = true; userDropdown = false" class="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-md mx-1">
-                        <i data-feather="log-out" class="w-4 h-4"></i>
+                        <i data-lucide="log-out" class="w-4 h-4"></i>
                         Logout
                     </button>
                 </div>
@@ -702,7 +723,7 @@
                             <div class="flex items-center gap-4">
                                 <div class="relative">
                                     <div class="w-12 h-12 bg-yellow-400 rounded-xl flex items-center justify-center shadow-lg transform rotate-2 hover:rotate-0 transition-transform duration-300">
-                                        <i data-feather="bar-chart-2" class="w-6 h-6 text-blue-900"></i>
+                                        <i data-lucide="bar-chart-2" class="w-6 h-6 text-blue-900"></i>
                                     </div>
                                 </div>
                                 <div>
@@ -710,7 +731,7 @@
                                         Reports & Analytics
                                     </h1>
                                     <div class="flex items-center gap-2 text-blue-100">
-                                        <i data-feather="activity" class="w-3 h-3"></i>
+                                        <i data-lucide="activity" class="w-3 h-3"></i>
                                         <span class="text-sm">Real-time clinic insights</span>
                                     </div>
                                 </div>
@@ -734,7 +755,7 @@
                     <!-- Error State -->
                     <div x-show="error" class="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
                         <div class="flex items-center">
-                            <i data-feather="alert-circle" class="w-5 h-5 text-red-500 mr-2"></i>
+                            <i data-lucide="alert-circle" class="w-5 h-5 text-red-500 mr-2"></i>
                             <p class="text-red-700" x-text="error"></p>
                         </div>
                         <button @click="loadDashboardData()" class="mt-2 text-red-600 hover:text-red-700 text-sm font-medium">
@@ -751,7 +772,7 @@
                             <div class="flex flex-col lg:flex-row lg:items-center gap-4">
                                 <div class="flex-1">
                                     <label class="block text-sm font-semibold text-gray-700 mb-2">
-                                        <i data-feather="search" class="w-4 h-4 inline mr-1"></i>
+                                        <i data-lucide="search" class="w-4 h-4 inline mr-1"></i>
                                         Search Chart
                                     </label>
                                     <select x-model="selectedChartFilter" @change="scrollToChart()" class="w-full px-4 py-3 border-2 border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-900 font-medium shadow-sm">
@@ -772,11 +793,11 @@
                                 <!-- Quick Action Buttons -->
                                 <div class="flex items-end gap-2">
                                     <button @click="selectedChartFilter = 'all'; showAllCharts()" class="px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium shadow-md transition-all duration-200 flex items-center gap-2">
-                                        <i data-feather="eye" class="w-4 h-4"></i>
+                                        <i data-lucide="eye" class="w-4 h-4"></i>
                                         Show All
                                     </button>
                                     <button @click="resetFilters()" class="px-4 py-3 bg-gray-600 hover:bg-gray-700 text-white rounded-lg font-medium shadow-md transition-all duration-200 flex items-center gap-2">
-                                        <i data-feather="refresh-cw" class="w-4 h-4"></i>
+                                        <i data-lucide="refresh-cw" class="w-4 h-4"></i>
                                         Reset
                                     </button>
                                 </div>
@@ -786,7 +807,7 @@
                             <div class="flex flex-col lg:flex-row lg:items-end gap-4">
                                 <div class="flex-1">
                                     <label class="block text-sm font-semibold text-gray-700 mb-2">
-                                        <i data-feather="calendar" class="w-4 h-4 inline mr-1"></i>
+                                        <i data-lucide="calendar" class="w-4 h-4 inline mr-1"></i>
                                         Time Period
                                     </label>
                                     <select x-model="selectedPeriod" @change="updateCharts()" class="w-full px-4 py-3 border-2 border-purple-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 bg-white text-gray-900 font-medium shadow-sm">
@@ -801,7 +822,7 @@
                                 
                                 <div class="flex-1">
                                     <label class="block text-sm font-semibold text-gray-700 mb-2">
-                                        <i data-feather="users" class="w-4 h-4 inline mr-1"></i>
+                                        <i data-lucide="users" class="w-4 h-4 inline mr-1"></i>
                                         Department
                                     </label>
                                     <select x-model="selectedDepartment" @change="updateCharts()" class="w-full px-4 py-3 border-2 border-green-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 bg-white text-gray-900 font-medium shadow-sm">
@@ -836,11 +857,11 @@
                                 </div>
                                 <div class="flex items-center gap-2 text-sm">
                                     <span class="px-3 py-1 bg-blue-100 text-blue-700 rounded-full font-medium">
-                                        <i data-feather="filter" class="w-3 h-3 inline mr-1"></i>
+                                        <i data-lucide="filter" class="w-3 h-3 inline mr-1"></i>
                                         <span x-text="getDepartmentName(selectedDepartment)"></span>
                                     </span>
                                     <span class="px-3 py-1 bg-purple-100 text-purple-700 rounded-full font-medium" x-show="selectedChartFilter !== 'all'">
-                                        <i data-feather="bar-chart-2" class="w-3 h-3 inline mr-1"></i>
+                                        <i data-lucide="bar-chart-2" class="w-3 h-3 inline mr-1"></i>
                                         Filtered Chart
                                     </span>
                                 </div>
@@ -857,7 +878,7 @@
                                 <div class="bg-gradient-to-br from-blue-50 via-blue-50 to-blue-100 rounded-3xl p-8 border border-blue-200 shadow-lg hover:shadow-xl transition-all duration-300">
                                     <div class="flex items-center justify-between mb-6">
                                         <div class="w-14 h-14 bg-blue-500 rounded-2xl flex items-center justify-center shadow-md">
-                                            <i data-feather="users" class="w-7 h-7 text-white"></i>
+                                            <i data-lucide="users" class="w-7 h-7 text-white"></i>
                                         </div>
                                         <div class="text-right">
                                             <div class="text-3xl font-bold text-blue-900" x-text="stats.totalPatients">0</div>
@@ -867,7 +888,7 @@
                                     <div class="flex items-center justify-between">
                                         <span class="text-sm text-blue-700">Growth Rate</span>
                                         <div class="flex items-center text-sm font-semibold text-green-600">
-                                            <i data-feather="trending-up" class="w-4 h-4 mr-1"></i>
+                                            <i data-lucide="trending-up" class="w-4 h-4 mr-1"></i>
                                             <span x-text="stats.patientsGrowth">+12%</span>
                                         </div>
                                     </div>
@@ -877,7 +898,7 @@
                                 <div class="bg-gradient-to-br from-purple-50 via-purple-50 to-purple-100 rounded-3xl p-8 border border-purple-200 shadow-lg hover:shadow-xl transition-all duration-300">
                                     <div class="flex items-center justify-between mb-6">
                                         <div class="w-14 h-14 bg-purple-500 rounded-2xl flex items-center justify-center shadow-md">
-                                            <i data-feather="package" class="w-7 h-7 text-white"></i>
+                                            <i data-lucide="package" class="w-7 h-7 text-white"></i>
                                         </div>
                                         <div class="text-right">
                                             <div class="text-3xl font-bold text-purple-900" x-text="stats.totalMedicines || 0">0</div>
@@ -887,7 +908,7 @@
                                     <div class="flex items-center justify-between">
                                         <span class="text-sm text-purple-700">Stock Status</span>
                                         <div class="flex items-center text-sm font-semibold text-purple-600">
-                                            <i data-feather="check-circle" class="w-4 h-4 mr-1"></i>
+                                            <i data-lucide="check-circle" class="w-4 h-4 mr-1"></i>
                                             <span>Available</span>
                                         </div>
                                     </div>
@@ -897,7 +918,7 @@
                                 <div class="bg-gradient-to-br from-green-50 via-green-50 to-green-100 rounded-3xl p-8 border border-green-200 shadow-lg hover:shadow-xl transition-all duration-300">
                                     <div class="flex items-center justify-between mb-6">
                                         <div class="w-14 h-14 bg-green-500 rounded-2xl flex items-center justify-center shadow-md">
-                                            <i data-feather="message-circle" class="w-7 h-7 text-white"></i>
+                                            <i data-lucide="message-circle" class="w-7 h-7 text-white"></i>
                                         </div>
                                         <div class="text-right">
                                             <div class="text-3xl font-bold text-green-900" x-text="stats.totalConsultations">0</div>
@@ -907,7 +928,7 @@
                                     <div class="flex items-center justify-between">
                                         <span class="text-sm text-green-700">Growth Rate</span>
                                         <div class="flex items-center text-sm font-semibold text-green-600">
-                                            <i data-feather="trending-up" class="w-4 h-4 mr-1"></i>
+                                            <i data-lucide="trending-up" class="w-4 h-4 mr-1"></i>
                                             <span x-text="stats.consultationsGrowth">+6%</span>
                                         </div>
                                     </div>
@@ -945,11 +966,11 @@
                                                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                                                 <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4l3-3-3-3v4a8 8 0 100 16v-4l-3 3 3 3v-4a8 8 0 01-8-8z"></path>
                                             </svg>
-                                            <i x-show="!chartInsightsLoading['revenueChart']" data-feather="sparkles" class="w-4 h-4"></i>
+                                            <i x-show="!chartInsightsLoading['revenueChart']" data-lucide="sparkles" class="w-4 h-4"></i>
                                             <span x-text="chartInsightsLoading['revenueChart'] ? 'Analyzing…' : 'AI Explain'"></span>
                                         </button>
                                         <button @click="exportChart('revenueChart', 'Medicine_Usage_Chart')" class="bg-purple-50 hover:bg-purple-100 text-purple-700 px-4 py-2 rounded-lg text-sm flex items-center space-x-2 transition-colors border border-purple-200">
-                                            <i data-feather="download" class="w-4 h-4"></i>
+                                            <i data-lucide="download" class="w-4 h-4"></i>
                                             <span>Export</span>
                                         </button>
                                     </div>
@@ -984,11 +1005,11 @@
                                                     <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                                                     <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4l3-3-3-3v4a8 8 0 100 16v-4l-3 3 3 3v-4a8 8 0 01-8-8z"></path>
                                                 </svg>
-                                                <i x-show="!chartInsightsLoading['monthlyVisitsChart']" data-feather="sparkles" class="w-4 h-4"></i>
+                                                <i x-show="!chartInsightsLoading['monthlyVisitsChart']" data-lucide="sparkles" class="w-4 h-4"></i>
                                                 <span x-text="chartInsightsLoading['monthlyVisitsChart'] ? 'Analyzing…' : 'AI Explain'"></span>
                                             </button>
                                             <button @click="exportChart('monthlyVisitsChart', 'Monthly_Visits')" class="bg-blue-50 hover:bg-blue-100 text-blue-700 px-4 py-2 rounded-lg text-sm flex items-center space-x-2 transition-colors border border-blue-200">
-                                                <i data-feather="download" class="w-4 h-4"></i>
+                                                <i data-lucide="download" class="w-4 h-4"></i>
                                                 <span>Export</span>
                                             </button>
                                         </div>
@@ -999,7 +1020,7 @@
                                         <!-- Time Period Filter -->
                                         <div class="flex-1">
                                             <label class="block text-xs font-semibold text-gray-700 mb-1">
-                                                <i data-feather="calendar" class="w-3 h-3 inline mr-1"></i>
+                                                <i data-lucide="calendar" class="w-3 h-3 inline mr-1"></i>
                                                 Time Period
                                             </label>
                                             <select x-model="monthlyVisitsPeriod" @change="updateMonthlyVisitsChart()" class="w-full px-3 py-2 border-2 border-purple-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 bg-white text-gray-900 text-sm">
@@ -1013,7 +1034,7 @@
                                         <!-- Department Filter -->
                                         <div class="flex-1">
                                             <label class="block text-xs font-semibold text-gray-700 mb-1">
-                                                <i data-feather="users" class="w-3 h-3 inline mr-1"></i>
+                                                <i data-lucide="users" class="w-3 h-3 inline mr-1"></i>
                                                 Department
                                             </label>
                                             <select x-model="monthlyVisitsDepartment" @change="updateMonthlyVisitsChart()" class="w-full px-3 py-2 border-2 border-green-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 bg-white text-gray-900 text-sm">
@@ -1068,11 +1089,11 @@
                                                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                                                 <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4l3-3-3-3v4a8 8 0 100 16v-4l-3 3 3 3v-4a8 8 0 01-8-8z"></path>
                                             </svg>
-                                            <i x-show="!chartInsightsLoading['patientDemographicsChart']" data-feather="sparkles" class="w-4 h-4"></i>
+                                            <i x-show="!chartInsightsLoading['patientDemographicsChart']" data-lucide="sparkles" class="w-4 h-4"></i>
                                             <span x-text="chartInsightsLoading['patientDemographicsChart'] ? 'Analyzing…' : 'AI Explain'"></span>
                                         </button>
                                         <button @click="exportChart('patientDemographicsChart', 'Patient_Demographics')" class="bg-blue-50 hover:bg-blue-100 text-blue-700 px-4 py-2 rounded-lg text-sm flex items-center space-x-2 transition-colors border border-blue-200">
-                                            <i data-feather="download" class="w-4 h-4"></i>
+                                            <i data-lucide="download" class="w-4 h-4"></i>
                                             <span>Export</span>
                                         </button>
                                     </div>
@@ -1106,11 +1127,11 @@
                                                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                                                 <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4l3-3-3-3v4a8 8 0 100 16v-4l-3 3 3 3v-4a8 8 0 01-8-8z"></path>
                                             </svg>
-                                            <i x-show="!chartInsightsLoading['medicalRecordsChart']" data-feather="sparkles" class="w-4 h-4"></i>
+                                            <i x-show="!chartInsightsLoading['medicalRecordsChart']" data-lucide="sparkles" class="w-4 h-4"></i>
                                             <span x-text="chartInsightsLoading['medicalRecordsChart'] ? 'Analyzing…' : 'AI Explain'"></span>
                                         </button>
                                         <button @click="exportChart('medicalRecordsChart', 'Medical_Records_Trends')" class="bg-green-50 hover:bg-green-100 text-green-700 px-4 py-2 rounded-lg text-sm flex items-center space-x-2 transition-colors border border-green-200">
-                                            <i data-feather="download" class="w-4 h-4"></i>
+                                            <i data-lucide="download" class="w-4 h-4"></i>
                                             <span>Export</span>
                                         </button>
                                     </div>
@@ -1144,11 +1165,11 @@
                                                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                                                 <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4l3-3-3-3v4a8 8 0 100 16v-4l-3 3 3 3v-4a8 8 0 01-8-8z"></path>
                                             </svg>
-                                            <i x-show="!chartInsightsLoading['stockLevelsChart']" data-feather="sparkles" class="w-4 h-4"></i>
+                                            <i x-show="!chartInsightsLoading['stockLevelsChart']" data-lucide="sparkles" class="w-4 h-4"></i>
                                             <span x-text="chartInsightsLoading['stockLevelsChart'] ? 'Analyzing…' : 'AI Explain'"></span>
                                         </button>
                                         <button @click="exportChart('stockLevelsChart', 'Medicine_Stock_Levels')" class="bg-orange-50 hover:bg-orange-100 text-orange-700 px-4 py-2 rounded-lg text-sm flex items-center space-x-2 transition-colors border border-orange-200">
-                                            <i data-feather="download" class="w-4 h-4"></i>
+                                            <i data-lucide="download" class="w-4 h-4"></i>
                                             <span>Export</span>
                                         </button>
                                     </div>
@@ -1182,11 +1203,11 @@
                                                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                                                 <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4l3-3-3-3v4a8 8 0 100 16v-4l-3 3 3 3v-4a8 8 0 01-8-8z"></path>
                                             </svg>
-                                            <i x-show="!chartInsightsLoading['suppliesStatusChart']" data-feather="sparkles" class="w-4 h-4"></i>
+                                            <i x-show="!chartInsightsLoading['suppliesStatusChart']" data-lucide="sparkles" class="w-4 h-4"></i>
                                             <span x-text="chartInsightsLoading['suppliesStatusChart'] ? 'Analyzing…' : 'AI Explain'"></span>
                                         </button>
                                         <button @click="exportChart('suppliesStatusChart', 'Clinic_Supplies_Status')" class="bg-teal-50 hover:bg-teal-100 text-teal-700 px-4 py-2 rounded-lg text-sm flex items-center space-x-2 transition-colors border border-teal-200">
-                                            <i data-feather="download" class="w-4 h-4"></i>
+                                            <i data-lucide="download" class="w-4 h-4"></i>
                                             <span>Export</span>
                                         </button>
                                     </div>
@@ -1306,10 +1327,22 @@
 
                 // Initialize function
                 init() {
-                    console.log('🚀 Initializing Reports Module...');
                     this.setDefaultDates();
                     this.loadDashboardData();
                     this.updateLastRefreshTime();
+                    
+                    // Initialize Lucide icons after data loads
+                    this.$nextTick(() => {
+                        setTimeout(() => {
+                            if (typeof lucide !== 'undefined' && lucide.createIcons) {
+                                try {
+                                    lucide.createIcons();
+                                } catch (error) {
+                                    console.warn('Lucide icon initialization failed:', error);
+                                }
+                            }
+                        }, 200);
+                    });
                 },
                 
                 setDefaultDates() {
@@ -1621,6 +1654,19 @@
                         
                         // Initialize charts with real data after ensuring DOM and visibility
                         this.scheduleChartInitialization();
+                        
+                        // Initialize Lucide icons after data loads
+                        this.$nextTick(() => {
+                            setTimeout(() => {
+                                if (typeof lucide !== 'undefined' && lucide.createIcons) {
+                                    try {
+                                        lucide.createIcons();
+                                    } catch (error) {
+                                        console.warn('Lucide icon initialization failed:', error);
+                                    }
+                                }
+                            }, 300);
+                        });
                         
                         // Summary of loaded data
                         const totalRecords = patients.length + visits.length + consultations.length + medicines.length;
@@ -2403,12 +2449,12 @@
                 initializeFeatherIcons() {
                     try {
                         if (typeof feather !== 'undefined' && feather.replace) {
-                            // Get all elements with data-feather attribute
-                            const featherElements = document.querySelectorAll('[data-feather]');
+                            // Get all elements with data-lucide attribute
+                            const featherElements = document.querySelectorAll('[data-lucide]');
                             
                             featherElements.forEach(element => {
                                 try {
-                                    const iconName = element.getAttribute('data-feather');
+                                    const iconName = element.getAttribute('data-lucide');
                                     if (feather.icons && feather.icons[iconName]) {
                                         const iconSvg = feather.icons[iconName].toSvg({
                                             width: element.getAttribute('width') || '24',
@@ -3016,11 +3062,13 @@
                     // Show loading state briefly
                     const button = event.target;
                     const originalText = button.innerHTML;
-                    button.innerHTML = '<i data-feather="loader" class="w-4 h-4 animate-spin"></i><span>Refreshing...</span>';
+                    button.innerHTML = '<i data-lucide="loader" class="w-4 h-4 animate-spin"></i><span>Refreshing...</span>';
                     
                     setTimeout(() => {
                         button.innerHTML = originalText;
-                        feather.replace();
+                        if (typeof lucide !== 'undefined' && lucide.createIcons) {
+                            lucide.createIcons();
+                        }
                     }, 2000);
                 },
                 
@@ -3517,20 +3565,28 @@
                                                 label: 'Medicine Usage',
                                                 data: this.topMedicines.map(med => med.prescriptions),
                                                 backgroundColor: [
-                                                    'rgba(59, 130, 246, 0.8)',
-                                                    'rgba(16, 185, 129, 0.8)',
-                                                    'rgba(245, 158, 11, 0.8)',
-                                                    'rgba(239, 68, 68, 0.8)',
-                                                    'rgba(147, 51, 234, 0.8)'
+                                                    'rgba(99, 102, 241, 0.8)',   // Indigo
+                                                    'rgba(34, 197, 94, 0.8)',     // Green
+                                                    'rgba(251, 146, 60, 0.8)',    // Orange
+                                                    'rgba(239, 68, 68, 0.8)',     // Red
+                                                    'rgba(139, 92, 246, 0.8)',    // Purple
+                                                    'rgba(14, 165, 233, 0.8)',    // Sky
+                                                    'rgba(245, 158, 11, 0.8)',    // Yellow
+                                                    'rgba(236, 72, 153, 0.8)'     // Pink
                                                 ],
                                                 borderColor: [
-                                                    '#3B82F6',
-                                                    '#10B981',
-                                                    '#F59E0B',
-                                                    '#EF4444',
-                                                    '#9333EA'
+                                                    'rgb(99, 102, 241)',
+                                                    'rgb(34, 197, 94)',
+                                                    'rgb(251, 146, 60)',
+                                                    'rgb(239, 68, 68)',
+                                                    'rgb(139, 92, 246)',
+                                                    'rgb(14, 165, 233)',
+                                                    'rgb(245, 158, 11)',
+                                                    'rgb(236, 72, 153)'
                                                 ],
-                                                borderWidth: 2
+                                                borderWidth: 2,
+                                                borderRadius: 8,
+                                                borderSkipped: false,
                                             }]
                                         },
                                         options: {
@@ -3767,9 +3823,33 @@
                             datasets: [{
                                 label: 'Number of Cases',
                                 data: topComplaints.map(([,count]) => count),
-                                backgroundColor: 'rgba(16, 185, 129, 0.8)',
-                                borderColor: '#10B981',
-                                borderWidth: 2
+                                backgroundColor: [
+                                    'rgba(99, 102, 241, 0.8)',   // Indigo
+                                    'rgba(139, 92, 246, 0.8)',   // Purple
+                                    'rgba(236, 72, 153, 0.8)',   // Pink
+                                    'rgba(59, 130, 246, 0.8)',   // Blue
+                                    'rgba(16, 185, 129, 0.8)',   // Green
+                                    'rgba(245, 158, 11, 0.8)',   // Yellow
+                                    'rgba(251, 146, 60, 0.8)',   // Orange
+                                    'rgba(239, 68, 68, 0.8)',    // Red
+                                    'rgba(107, 114, 128, 0.8)',  // Gray
+                                    'rgba(14, 165, 233, 0.8)'    // Sky
+                                ],
+                                borderColor: [
+                                    'rgb(99, 102, 241)',
+                                    'rgb(139, 92, 246)',
+                                    'rgb(236, 72, 153)',
+                                    'rgb(59, 130, 246)',
+                                    'rgb(16, 185, 129)',
+                                    'rgb(245, 158, 11)',
+                                    'rgb(251, 146, 60)',
+                                    'rgb(239, 68, 68)',
+                                    'rgb(107, 114, 128)',
+                                    'rgb(14, 165, 233)'
+                                ],
+                                borderWidth: 2,
+                                borderRadius: 8,
+                                borderSkipped: false,
                             }]
                         },
                         options: {
@@ -4152,20 +4232,20 @@
                                     label: 'Number of Appointments',
                                     data: data,
                                     backgroundColor: [
-                                        'rgba(59, 130, 246, 0.8)',
-                                        'rgba(16, 185, 129, 0.8)',
-                                        'rgba(245, 158, 11, 0.8)',
-                                        'rgba(239, 68, 68, 0.8)',
-                                        'rgba(147, 51, 234, 0.8)',
-                                        'rgba(236, 72, 153, 0.8)'
+                                        'rgba(99, 102, 241, 0.8)',   // Indigo
+                                        'rgba(34, 197, 94, 0.8)',     // Green
+                                        'rgba(251, 146, 60, 0.8)',    // Orange
+                                        'rgba(239, 68, 68, 0.8)',     // Red
+                                        'rgba(139, 92, 246, 0.8)',    // Purple
+                                        'rgba(236, 72, 153, 0.8)'     // Pink
                                     ],
                                     borderColor: [
-                                        '#3B82F6',
-                                        '#10B981',
-                                        '#F59E0B',
-                                        '#EF4444',
-                                        '#9333EA',
-                                        '#EC4899'
+                                        'rgb(99, 102, 241)',
+                                        'rgb(34, 197, 94)',
+                                        'rgb(251, 146, 60)',
+                                        'rgb(239, 68, 68)',
+                                        'rgb(139, 92, 246)',
+                                        'rgb(236, 72, 153)'
                                     ],
                                     borderWidth: 2
                                 }]
@@ -4230,12 +4310,14 @@
                                     label: 'Consultations',
                                     data: Object.values(statusCount),
                                     backgroundColor: [
-                                        'rgba(16, 185, 129, 0.8)',   // Green for Active
-                                        'rgba(59, 130, 246, 0.8)',   // Blue for Completed
+                                        'rgba(34, 197, 94, 0.8)',    // Green for Active
+                                        'rgba(59, 130, 246, 0.8)',    // Blue for Completed
                                         'rgba(107, 114, 128, 0.8)'   // Gray for Ended
                                     ],
-                                    borderColor: ['#10B981', '#3B82F6', '#6B7280'],
-                                    borderWidth: 2
+                                    borderColor: ['rgb(34, 197, 94)', 'rgb(59, 130, 246)', 'rgb(107, 114, 128)'],
+                                    borderWidth: 2,
+                                    borderRadius: 8,
+                                    borderSkipped: false,
                                 }]
                             },
                             options: {
@@ -4326,6 +4408,17 @@
 
                     const medicines = this.rawData.medicines.slice(0, 8); // Top 8 medicines
 
+                    const palette = [
+                        { bg: 'rgba(99, 102, 241, 0.85)', border: 'rgb(99, 102, 241)' },   // Indigo
+                        { bg: 'rgba(34, 197, 94, 0.85)', border: 'rgb(34, 197, 94)' },     // Green
+                        { bg: 'rgba(251, 146, 60, 0.85)', border: 'rgb(251, 146, 60)' },   // Orange
+                        { bg: 'rgba(239, 68, 68, 0.85)', border: 'rgb(239, 68, 68)' },     // Red
+                        { bg: 'rgba(14, 165, 233, 0.85)', border: 'rgb(14, 165, 233)' },   // Sky
+                        { bg: 'rgba(139, 92, 246, 0.85)', border: 'rgb(139, 92, 246)' },   // Purple
+                        { bg: 'rgba(236, 72, 153, 0.85)', border: 'rgb(236, 72, 153)' },   // Pink
+                        { bg: 'rgba(245, 158, 11, 0.85)', border: 'rgb(245, 158, 11)' },   // Amber
+                    ];
+
                     this.stockLevelsChart = this.createChartSafely(canvas, {
                         type: 'bar',
                         data: {
@@ -4336,19 +4429,11 @@
                             datasets: [{
                                 label: 'Stock Quantity',
                                 data: medicines.map(med => med.quantity || 0),
-                                backgroundColor: medicines.map(med => {
-                                    const qty = med.quantity || 0;
-                                    if (qty > 50) return 'rgba(16, 185, 129, 0.8)';      // Green - Good stock
-                                    if (qty > 20) return 'rgba(245, 158, 11, 0.8)';     // Yellow - Low stock
-                                    return 'rgba(239, 68, 68, 0.8)';                    // Red - Critical stock
-                                }),
-                                borderColor: medicines.map(med => {
-                                    const qty = med.quantity || 0;
-                                    if (qty > 50) return '#10B981';
-                                    if (qty > 20) return '#F59E0B';
-                                    return '#EF4444';
-                                }),
-                                borderWidth: 2
+                                backgroundColor: medicines.map((_, i) => palette[i % palette.length].bg),
+                                borderColor: medicines.map((_, i) => palette[i % palette.length].border),
+                                borderWidth: 2,
+                                borderRadius: 8,
+                                borderSkipped: false,
                             }]
                         },
                         options: {
@@ -6781,6 +6866,23 @@ this would contain the actual report data and formatting.
                 </div>
             </div>
     </div>
+
+    <!-- Final Fallback Icon Initialization -->
+    <script>
+        // Ensure all Lucide icons are properly rendered
+        window.addEventListener('load', function() {
+            setTimeout(function() {
+                if (typeof lucide !== 'undefined' && lucide.createIcons) {
+                    try {
+                        lucide.createIcons();
+                        console.log('Final Lucide icons initialization completed');
+                    } catch (error) {
+                        console.warn('Final Lucide icon initialization failed:', error);
+                    }
+                }
+            }, 500);
+        });
+    </script>
 
 </body>
 </html>

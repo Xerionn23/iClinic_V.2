@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -35,13 +35,34 @@
         /* Sidebar gradient */
         .gradient-bg-sidebar {
             background: linear-gradient(135deg, #0056b3 0%, #003d82 100%);
+            position: relative;
+        }
+
+        .gradient-bg-sidebar::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(45deg, transparent, rgba(253, 184, 19, 0.1), transparent);
+            pointer-events: none;
+        }
+
+        .dark .gradient-bg-sidebar {
+            background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
         }
         
         /* Active sidebar item */
         .sidebar-item-active {
             background: linear-gradient(90deg, rgba(253, 184, 19, 0.2) 0%, rgba(253, 184, 19, 0.05) 100%);
-            border-left: 4px solid #FDB813;
-            box-shadow: 0 0 20px rgba(253, 184, 19, 0.2);
+            box-shadow: inset 4px 0 0 var(--accent), 0 0 20px rgba(253, 184, 19, 0.2);
+        }
+
+        .dark .sidebar-item-active {
+            background: linear-gradient(90deg, rgba(253, 184, 19, 0.25) 0%, rgba(253, 184, 19, 0.05) 100%);
+            box-shadow: inset 4px 0 0 var(--accent), 0 0 25px rgba(253, 184, 19, 0.3);
+        }
+
+        :root {
+            --accent: #FDB813;
         }
         
         /* Mobile overlay */
@@ -105,6 +126,32 @@
             opacity: 1;
             visibility: visible;
         }
+
+        aside svg.feather,
+        header svg.feather {
+            width: clamp(18px, 4.2vw, 20px) !important;
+            height: clamp(18px, 4.2vw, 20px) !important;
+        }
+
+        header svg.feather {
+            width: clamp(18px, 5vw, 22px) !important;
+            height: clamp(18px, 5vw, 22px) !important;
+        }
+
+        .icon-action-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: clamp(4px, 1.2vw, 6px);
+            border-radius: 0.5rem;
+            line-height: 1;
+        }
+
+        .icon-action-btn svg.feather,
+        .icon-action-btn i[data-feather] {
+            width: clamp(14px, 3.8vw, 18px) !important;
+            height: clamp(14px, 3.8vw, 18px) !important;
+        }
     </style>
     
     <script>
@@ -160,13 +207,12 @@
         }
     </script>
 </head>
-<body class="bg-gray-50" x-data="{
+<body class="bg-gray-50 overflow-x-hidden" x-data="{
     sidebarCollapsed: false,
     sidebarHovered: false,
     userDropdown: false,
     showAddModal: false,
     mobileMenuOpen: false,
-    isMobile: false,
     announcements: [],
     archivedAnnouncements: [],
     showArchiveModal: false,
@@ -232,6 +278,15 @@
         });
     },
     
+    refreshIcons() {
+        if (typeof safeFeatherReplace === 'undefined') return;
+        if (typeof this.$nextTick !== 'function') {
+            safeFeatherReplace();
+            return;
+        }
+        this.$nextTick(() => safeFeatherReplace());
+    },
+    
     async loadAnnouncements() {
         this.loading = true;
         this.error = null;
@@ -249,177 +304,8 @@
             this.error = 'Failed to connect to server';
         } finally {
             this.loading = false;
+            this.refreshIcons();
         }
-    },
-    
-    normalizeTimeValue(timeValue) {
-        const time = (timeValue || '').trim();
-        if (!time) return '23:59:59';
-
-        // 12-hour strings like: 11:59 PM, 11:59PM, 11:59:30 AM
-        const ampm = time.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?\s*(AM|PM)$/i);
-        if (ampm) {
-            let hour = Number(ampm[1]);
-            const minute = Number(ampm[2]);
-            const second = Number(ampm[3] || '0');
-            const period = String(ampm[4] || '').toUpperCase();
-
-            if (!Number.isFinite(hour) || !Number.isFinite(minute) || !Number.isFinite(second)) return '23:59:59';
-            if (hour < 1 || hour > 12) return '23:59:59';
-            if (minute < 0 || minute > 59) return '23:59:59';
-            if (second < 0 || second > 59) return '23:59:59';
-
-            if (period === 'AM') {
-                if (hour === 12) hour = 0;
-            } else {
-                if (hour !== 12) hour += 12;
-            }
-
-            const hh = String(hour).padStart(2, '0');
-            const mm = String(minute).padStart(2, '0');
-            const ss = String(second).padStart(2, '0');
-            return `${hh}:${mm}:${ss}`;
-        }
-
-        // 24-hour strings like: 8:05, 08:05, 8:05:00, 08:05:00
-        const time24 = time.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
-        if (time24) {
-            const hour = Number(time24[1]);
-            const minute = Number(time24[2]);
-            const second = Number(time24[3] || '0');
-            if (!Number.isFinite(hour) || !Number.isFinite(minute) || !Number.isFinite(second)) return '23:59:59';
-            if (hour < 0 || hour > 23) return '23:59:59';
-            if (minute < 0 || minute > 59) return '23:59:59';
-            if (second < 0 || second > 59) return '23:59:59';
-
-            const hh = String(hour).padStart(2, '0');
-            const mm = String(minute).padStart(2, '0');
-            const ss = String(second).padStart(2, '0');
-            return `${hh}:${mm}:${ss}`;
-        }
-        return '23:59:59';
-    },
-
-    getTodayLocalDateString() {
-        const now = new Date();
-        const year = now.getFullYear();
-        const month = String(now.getMonth() + 1).padStart(2, '0');
-        const day = String(now.getDate()).padStart(2, '0');
-        return `${year}-${month}-${day}`;
-    },
-
-    buildManilaDateTimeFromParts(year, month, day, hours, minutes, seconds) {
-        if (![year, month, day, hours, minutes, seconds].every(Number.isFinite)) return null;
-        return new Date(Date.UTC(year, month - 1, day, hours - 8, minutes, seconds));
-    },
-
-    buildLocalDateTime(dateStr, timeStr) {
-        if (!dateStr) return null;
-        const dateParts = String(dateStr).split('-');
-        if (dateParts.length !== 3) return null;
-        const year = Number(dateParts[0]);
-        const month = Number(dateParts[1]);
-        const day = Number(dateParts[2]);
-        if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) return null;
-
-        const normalized = this.normalizeTimeValue(timeStr);
-        const timeParts = normalized.split(':');
-        const hours = Number(timeParts[0]);
-        const minutes = Number(timeParts[1]);
-        const seconds = Number(timeParts[2]);
-        if (![hours, minutes, seconds].every(Number.isFinite)) return null;
-
-        return new Date(year, month - 1, day, hours, minutes, seconds);
-    },
-
-    syncNewExpirationTimeFrom12Hr() {
-        if (!this.newExpirationHour || this.newExpirationMinute === '') {
-            this.newAnnouncement.expiration_time = '';
-            return;
-        }
-        let hour = Number(this.newExpirationHour);
-        const minute = Number(this.newExpirationMinute);
-        if (!Number.isFinite(hour) || !Number.isFinite(minute)) {
-            this.newAnnouncement.expiration_time = '';
-            return;
-        }
-        if (this.newExpirationPeriod === 'AM') {
-            if (hour === 12) hour = 0;
-        } else {
-            if (hour !== 12) hour += 12;
-        }
-        const hh = String(hour).padStart(2, '0');
-        const mm = String(minute).padStart(2, '0');
-        this.newAnnouncement.expiration_time = `${hh}:${mm}:00`;
-    },
-
-    syncEditExpirationTimeFrom12Hr() {
-        if (!this.editingAnnouncement) return;
-        if (!this.editExpirationHour || this.editExpirationMinute === '') {
-            this.editingAnnouncement.expiration_time = '';
-            return;
-        }
-        let hour = Number(this.editExpirationHour);
-        const minute = Number(this.editExpirationMinute);
-        if (!Number.isFinite(hour) || !Number.isFinite(minute)) {
-            this.editingAnnouncement.expiration_time = '';
-            return;
-        }
-        if (this.editExpirationPeriod === 'AM') {
-            if (hour === 12) hour = 0;
-        } else {
-            if (hour !== 12) hour += 12;
-        }
-        const hh = String(hour).padStart(2, '0');
-        const mm = String(minute).padStart(2, '0');
-        this.editingAnnouncement.expiration_time = `${hh}:${mm}:00`;
-    },
-
-    set12HrTimeFromStored(timeValue, isEdit) {
-        const normalized = this.normalizeTimeValue(timeValue);
-        const parts = normalized.split(':');
-        let hour24 = Number(parts[0]);
-        const minute = Number(parts[1]);
-        if (!Number.isFinite(hour24) || !Number.isFinite(minute)) return;
-        const period = hour24 >= 12 ? 'PM' : 'AM';
-        let hour12 = hour24 % 12;
-        if (hour12 === 0) hour12 = 12;
-        if (isEdit) {
-            this.editExpirationHour = String(hour12);
-            this.editExpirationMinute = String(minute).padStart(2, '0');
-            this.editExpirationPeriod = period;
-        } else {
-            this.newExpirationHour = String(hour12);
-            this.newExpirationMinute = String(minute).padStart(2, '0');
-            this.newExpirationPeriod = period;
-        }
-    },
-
-    parseExpirationDateTime(announcement) {
-        if (!announcement || !announcement.expiration_date) return null;
-        return this.buildLocalDateTime(announcement.expiration_date, announcement.expiration_time);
-    },
-
-    isExpirationInPast(dateStr, timeStr) {
-        if (!dateStr) return true;
-        const expires = this.buildLocalDateTime(dateStr, timeStr);
-        if (!expires || Number.isNaN(expires.getTime())) return true;
-        return expires.getTime() <= Date.now();
-    },
-
-    isExpired(announcement) {
-        if (!announcement.expiration_date) return false;
-        
-        const now = new Date();
-        const expirationDateTime = this.parseExpirationDateTime(announcement);
-        if (!expirationDateTime || Number.isNaN(expirationDateTime.getTime())) return false;
-        
-        return now > expirationDateTime;
-    },
-    
-    async checkExpiredAnnouncements() {
-        // Reload announcements to check for expired ones
-        await this.loadAnnouncements();
     },
     
     async loadArchivedAnnouncements() {
@@ -430,7 +316,7 @@
                 const allAnnouncements = await response.json();
                 // Filter only expired announcements
                 this.archivedAnnouncements = allAnnouncements.filter(ann => this.isExpired(ann));
-                console.log('📦 Loaded archived announcements:', this.archivedAnnouncements.length);
+                console.log('ðŸ“¦ Loaded archived announcements:', this.archivedAnnouncements.length);
             } else {
                 alert('Failed to load archived announcements');
             }
@@ -439,9 +325,12 @@
             alert('Failed to connect to server');
         } finally {
             this.loadingArchive = false;
+            this.refreshIcons();
         }
     },
     
+    // ... rest of the code remains the same ...
+
     openArchive() {
         this.showArchiveModal = true;
         this.loadArchivedAnnouncements();
@@ -548,6 +437,140 @@
         const last = parts.length > 1 ? parts[parts.length - 1][0] : '';
         const initials = `${first}${last}`.toUpperCase();
         return initials || '?';
+    },
+
+    getTodayLocalDateString() {
+        const now = new Date();
+        const year = now.getFullYear();
+        const month = String(now.getMonth() + 1).padStart(2, '0');
+        const day = String(now.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    },
+
+    parseExpirationDateTime(announcement) {
+        const dateRaw = String(announcement?.expiration_date || '').trim();
+        if (!dateRaw) return null;
+
+        const dateMatch = dateRaw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+        if (!dateMatch) return null;
+
+        const year = Number(dateMatch[1]);
+        const month = Number(dateMatch[2]);
+        const day = Number(dateMatch[3]);
+
+        const timeRaw = String(announcement?.expiration_time || '').trim();
+        if (!timeRaw) {
+            return new Date(year, month - 1, day, 23, 59, 59);
+        }
+
+        const timeMatch = timeRaw.match(/^(\d{2}):(\d{2})(?::(\d{2}))?$/);
+        if (!timeMatch) {
+            return new Date(year, month - 1, day, 23, 59, 59);
+        }
+
+        const hour = Number(timeMatch[1]);
+        const minute = Number(timeMatch[2]);
+        const second = Number(timeMatch[3] || '0');
+        return new Date(year, month - 1, day, hour, minute, second);
+    },
+
+    isExpired(announcement) {
+        const exp = this.parseExpirationDateTime(announcement);
+        if (!exp || Number.isNaN(exp.getTime())) return false;
+        return exp.getTime() < Date.now();
+    },
+
+    checkExpiredAnnouncements() {
+        this.announcements = (this.announcements || []).filter(ann => !this.isExpired(ann));
+    },
+
+    normalizeTimeValue(timeValue) {
+        const raw = String(timeValue || '').trim();
+        if (!raw) return null;
+        const m = raw.match(/^(\d{2}):(\d{2})(?::(\d{2}))?$/);
+        if (!m) return null;
+        const hh = m[1];
+        const mm = m[2];
+        const ss = String(m[3] || '00').padStart(2, '0');
+        return `${hh}:${mm}:${ss}`;
+    },
+
+    syncNewExpirationTimeFrom12Hr() {
+        if (!this.newExpirationHour || !this.newExpirationMinute) {
+            this.newAnnouncement.expiration_time = '';
+            return;
+        }
+
+        let hour = Number(this.newExpirationHour);
+        const minute = String(this.newExpirationMinute).padStart(2, '0');
+        const period = String(this.newExpirationPeriod || 'AM').toUpperCase();
+
+        if (period === 'PM' && hour < 12) hour += 12;
+        if (period === 'AM' && hour === 12) hour = 0;
+
+        this.newAnnouncement.expiration_time = `${String(hour).padStart(2, '0')}:${minute}:00`;
+    },
+
+    syncEditExpirationTimeFrom12Hr() {
+        if (!this.editExpirationHour || !this.editExpirationMinute) {
+            this.editingAnnouncement.expiration_time = '';
+            return;
+        }
+
+        let hour = Number(this.editExpirationHour);
+        const minute = String(this.editExpirationMinute).padStart(2, '0');
+        const period = String(this.editExpirationPeriod || 'AM').toUpperCase();
+
+        if (period === 'PM' && hour < 12) hour += 12;
+        if (period === 'AM' && hour === 12) hour = 0;
+
+        this.editingAnnouncement.expiration_time = `${String(hour).padStart(2, '0')}:${minute}:00`;
+    },
+
+    set12HrTimeFromStored(storedTimeValue, forEdit = false) {
+        const raw = String(storedTimeValue || '').trim();
+        if (!raw) {
+            if (forEdit) {
+                this.editExpirationHour = '';
+                this.editExpirationMinute = '';
+                this.editExpirationPeriod = 'PM';
+            } else {
+                this.newExpirationHour = '';
+                this.newExpirationMinute = '';
+                this.newExpirationPeriod = 'PM';
+            }
+            return;
+        }
+
+        const m = raw.match(/^(\d{2}):(\d{2})(?::\d{2})?$/);
+        if (!m) return;
+        const hh24 = Number(m[1]);
+        const mm = m[2];
+        const period = hh24 >= 12 ? 'PM' : 'AM';
+        let hh12 = hh24 % 12;
+        if (hh12 === 0) hh12 = 12;
+
+        if (forEdit) {
+            this.editExpirationHour = String(hh12);
+            this.editExpirationMinute = String(mm);
+            this.editExpirationPeriod = period;
+        } else {
+            this.newExpirationHour = String(hh12);
+            this.newExpirationMinute = String(mm);
+            this.newExpirationPeriod = period;
+        }
+    },
+
+    isExpirationInPast(expirationDate, expirationTime) {
+        const dateRaw = String(expirationDate || '').trim();
+        if (!dateRaw) return false;
+        const probe = {
+            expiration_date: dateRaw,
+            expiration_time: this.normalizeTimeValue(expirationTime) || ''
+        };
+        const dt = this.parseExpirationDateTime(probe);
+        if (!dt || Number.isNaN(dt.getTime())) return false;
+        return dt.getTime() < Date.now();
     },
     
     async createAnnouncement() {
@@ -900,48 +923,39 @@
         return categories.size;
     },
     handleResize() {
-        this.isMobile = window.innerWidth < 768;
-        if (this.isMobile) {
+        if (window.innerWidth < 768) {
+            this.sidebarCollapsed = true;
+            this.mobileMenuOpen = false;
+        } else if (window.innerWidth >= 1024) {
             this.sidebarCollapsed = false;
             this.mobileMenuOpen = false;
-            document.body.classList.remove('mobile-menu-open');
         } else {
-            this.sidebarCollapsed = false;
             this.mobileMenuOpen = false;
-            document.body.classList.remove('mobile-menu-open');
         }
     },
     toggleMobileMenu() {
-        if (this.isMobile) {
-            this.mobileMenuOpen = !this.mobileMenuOpen;
-            document.body.classList.toggle('mobile-menu-open', this.mobileMenuOpen);
-        }
+        this.mobileMenuOpen = !this.mobileMenuOpen;
     }
 }">
     
-    <div class="flex h-screen overflow-hidden">
-        <!-- Mobile Overlay -->
-        <div class="mobile-overlay md:hidden" 
-             :class="{ 'active': mobileMenuOpen }"
-             @click="mobileMenuOpen = false; document.body.classList.remove('mobile-menu-open');"></div>
-
+    <div class="flex min-h-[100dvh] md:h-screen md:overflow-hidden">
         <!-- Sidebar -->
         <aside :class="[
-                   !isMobile ? (sidebarCollapsed ? 'w-20' : 'w-64') : '',
-                   isMobile && mobileMenuOpen ? 'translate-x-0' : '',
-                   isMobile && !mobileMenuOpen ? '-translate-x-full' : ''
+                   sidebarCollapsed ? 'md:w-20' : 'md:w-64',
+                   mobileMenuOpen ? 'translate-x-0' : '-translate-x-full',
+                   'md:translate-x-0'
                ]" 
-               class="fixed left-0 top-0 h-screen w-[18rem] max-w-[85vw] gradient-bg-sidebar text-white transition-all duration-300 shadow-2xl z-50"
+               class="fixed left-0 top-0 h-[100dvh] md:h-screen w-64 gradient-bg-sidebar text-white transition-all duration-300 shadow-2xl z-40 flex flex-col overflow-y-auto"
                @mouseenter="sidebarHovered = true"
                @mouseleave="sidebarHovered = false">
         
             <!-- Logo -->
             <div class="relative p-6">
-                <div class="flex items-center gap-3" :class="(sidebarCollapsed && !sidebarHovered && !isMobile) ? 'justify-center' : ''">
+                <div class="flex items-center gap-3" :class="(sidebarCollapsed && !sidebarHovered && !mobileMenuOpen) ? 'justify-center' : ''">
                     <div class="flex items-center justify-center">
                         <img src="../assets/img/iclinic-logo.png" alt="Norzagaray College" class="w-14 h-14 object-contain">
                     </div>
-                    <div x-show="isMobile || !sidebarCollapsed || sidebarHovered" x-transition>
+                    <div x-show="!sidebarCollapsed || sidebarHovered || mobileMenuOpen" x-transition>
                         <h1 class="text-xl font-bold text-white">iClinic</h1>
                         <p class="text-xs text-yellow-300">Norzagaray College</p>
                     </div>
@@ -949,92 +963,92 @@
             </div>
             
             <!-- Navigation -->
-            <nav class="relative mt-8 px-4 space-y-2">
+            <nav class="relative mt-8 px-4 space-y-3">
                 <!-- Dashboard -->
                 <a href="{{ url_for('staff_dashboard') }}"
-                   @click="if (isMobile) { mobileMenuOpen = false; document.body.classList.remove('mobile-menu-open'); }"
-                   class="flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all group hover:bg-white/10">
-                    <div class="flex items-center justify-center" :class="(sidebarCollapsed && !sidebarHovered && !isMobile) ? 'w-full' : ''">
+                   @click="mobileMenuOpen = false"
+                   class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all group hover:bg-white/10">
+                    <div class="flex items-center justify-center" :class="(sidebarCollapsed && !sidebarHovered && !mobileMenuOpen) ? 'w-full' : ''">
                         <i data-feather="home" class="w-5 h-5 group-hover:scale-110 transition-transform"></i>
                     </div>
-                    <span x-show="isMobile || !sidebarCollapsed || sidebarHovered" x-transition class="font-medium">Dashboard</span>
+                    <span x-show="!sidebarCollapsed || sidebarHovered || mobileMenuOpen" x-transition class="font-medium">Dashboard</span>
                 </a>
                 
                 <!-- Patients -->
                 <a href="{{ url_for('staff_patients') }}"
-                   @click="if (isMobile) { mobileMenuOpen = false; document.body.classList.remove('mobile-menu-open'); }"
-                   class="flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all group hover:bg-white/10">
-                    <div class="flex items-center justify-center" :class="(sidebarCollapsed && !sidebarHovered && !isMobile) ? 'w-full' : ''">
+                   @click="mobileMenuOpen = false"
+                   class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all group hover:bg-white/10">
+                    <div class="flex items-center justify-center" :class="(sidebarCollapsed && !sidebarHovered && !mobileMenuOpen) ? 'w-full' : ''">
                         <i data-feather="users" class="w-5 h-5 group-hover:scale-110 transition-transform"></i>
                     </div>
-                    <span x-show="isMobile || !sidebarCollapsed || sidebarHovered" x-transition class="font-medium">Patients</span>
+                    <span x-show="!sidebarCollapsed || sidebarHovered || mobileMenuOpen" x-transition class="font-medium">Patients</span>
                 </a>
                 
                 <!-- Appointments -->
                 <a href="{{ url_for('staff_appointments') }}"
-                   @click="if (isMobile) { mobileMenuOpen = false; document.body.classList.remove('mobile-menu-open'); }"
-                   class="flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all group hover:bg-white/10">
-                    <div class="flex items-center justify-center" :class="(sidebarCollapsed && !sidebarHovered && !isMobile) ? 'w-full' : ''">
+                   @click="mobileMenuOpen = false"
+                   class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all group hover:bg-white/10">
+                    <div class="flex items-center justify-center" :class="(sidebarCollapsed && !sidebarHovered && !mobileMenuOpen) ? 'w-full' : ''">
                         <i data-feather="calendar" class="w-5 h-5 group-hover:scale-110 transition-transform"></i>
                     </div>
-                    <span x-show="isMobile || !sidebarCollapsed || sidebarHovered" x-transition class="font-medium">Appointments</span>
+                    <span x-show="!sidebarCollapsed || sidebarHovered || mobileMenuOpen" x-transition class="font-medium">Appointments</span>
                 </a>
                 
                 <!-- Announcements -->
                 <a href="{{ url_for('staff_announcements') }}"
-                   @click="if (isMobile) { mobileMenuOpen = false; document.body.classList.remove('mobile-menu-open'); }"
-                   class="sidebar-item-active flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all group">
-                    <div class="flex items-center justify-center" :class="(sidebarCollapsed && !sidebarHovered && !isMobile) ? 'w-full' : ''">
+                   @click="mobileMenuOpen = false"
+                   class="sidebar-item-active flex items-center gap-3 px-4 py-3 rounded-lg transition-all group">
+                    <div class="flex items-center justify-center" :class="(sidebarCollapsed && !sidebarHovered && !mobileMenuOpen) ? 'w-full' : ''">
                         <i data-feather="volume-2" class="w-5 h-5 group-hover:scale-110 transition-transform"></i>
                     </div>
-                    <span x-show="isMobile || !sidebarCollapsed || sidebarHovered" x-transition class="font-medium">Announcements</span>
+                    <span x-show="!sidebarCollapsed || sidebarHovered || mobileMenuOpen" x-transition class="font-medium">Announcements</span>
                 </a>
                 
                 <!-- Consultations -->
                 <a href="{{ url_for('staff_consultations') }}"
-                   @click="if (isMobile) { mobileMenuOpen = false; document.body.classList.remove('mobile-menu-open'); }"
-                   class="flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all group hover:bg-white/10">
-                    <div class="flex items-center justify-center" :class="(sidebarCollapsed && !sidebarHovered && !isMobile) ? 'w-full' : ''">
+                   @click="mobileMenuOpen = false"
+                   class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all group hover:bg-white/10">
+                    <div class="flex items-center justify-center" :class="(sidebarCollapsed && !sidebarHovered && !mobileMenuOpen) ? 'w-full' : ''">
                         <i data-feather="message-circle" class="w-5 h-5 group-hover:scale-110 transition-transform"></i>
                     </div>
-                    <span x-show="isMobile || !sidebarCollapsed || sidebarHovered" x-transition class="font-medium">Consultations</span>
+                    <span x-show="!sidebarCollapsed || sidebarHovered || mobileMenuOpen" x-transition class="font-medium">Consultations</span>
                 </a>
                 
                 <!-- Inventory -->
                 <a href="{{ url_for('staff_inventory') }}"
-                   @click="if (isMobile) { mobileMenuOpen = false; document.body.classList.remove('mobile-menu-open'); }"
-                   class="flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all group hover:bg-white/10">
-                    <div class="flex items-center justify-center" :class="(sidebarCollapsed && !sidebarHovered && !isMobile) ? 'w-full' : ''">
+                   @click="mobileMenuOpen = false"
+                   class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all group hover:bg-white/10">
+                    <div class="flex items-center justify-center" :class="(sidebarCollapsed && !sidebarHovered && !mobileMenuOpen) ? 'w-full' : ''">
                         <i data-feather="package" class="w-5 h-5 group-hover:scale-110 transition-transform"></i>
                     </div>
-                    <span x-show="isMobile || !sidebarCollapsed || sidebarHovered" x-transition class="font-medium">Inventory</span>
+                    <span x-show="!sidebarCollapsed || sidebarHovered || mobileMenuOpen" x-transition class="font-medium">Inventory</span>
                 </a>
                 
                 <!-- Reports -->
                 <a href="{{ url_for('staff_reports') }}"
-                   @click="if (isMobile) { mobileMenuOpen = false; document.body.classList.remove('mobile-menu-open'); }"
-                   class="flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all group hover:bg-white/10">
-                    <div class="flex items-center justify-center" :class="(sidebarCollapsed && !sidebarHovered && !isMobile) ? 'w-full' : ''">
+                   @click="mobileMenuOpen = false"
+                   class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all group hover:bg-white/10">
+                    <div class="flex items-center justify-center" :class="(sidebarCollapsed && !sidebarHovered && !mobileMenuOpen) ? 'w-full' : ''">
                         <i data-feather="bar-chart-2" class="w-5 h-5 group-hover:scale-110 transition-transform"></i>
                     </div>
-                    <span x-show="isMobile || !sidebarCollapsed || sidebarHovered" x-transition class="font-medium">Reports</span>
+                    <span x-show="!sidebarCollapsed || sidebarHovered || mobileMenuOpen" x-transition class="font-medium">Reports</span>
                 </a>
             </nav>
         
         <!-- User Profile -->
-        <div class="absolute bottom-0 w-full p-4 bg-gradient-to-t from-black/20 to-transparent">
+        <div class="mt-auto w-full p-4 bg-gradient-to-t from-black/20 to-transparent">
             <div class="relative" @click.outside="userDropdown = false">
                 <button @click="userDropdown = !userDropdown" 
                         class="w-full flex items-center gap-3 p-2 rounded-lg hover:bg-white/10 transition-colors" 
-                        :class="(sidebarCollapsed && !sidebarHovered && !isMobile) ? 'justify-center' : ''">
+                        :class="(sidebarCollapsed && !sidebarHovered && !mobileMenuOpen) ? 'justify-center' : ''">
                     <div class="w-10 h-10 bg-gradient-to-br from-yellow-400 to-yellow-500 rounded-full flex items-center justify-center shadow-lg">
                         <span class="text-blue-900 font-bold">{{ user.first_name[0] }}{{ user.last_name[0] }}</span>
                     </div>
-                    <div x-show="isMobile || !sidebarCollapsed || sidebarHovered" x-transition class="flex-1 text-left">
+                    <div x-show="!sidebarCollapsed || sidebarHovered || mobileMenuOpen" x-transition class="flex-1 text-left">
                         <p class="text-sm font-medium text-white">{{ user.first_name }} {{ user.last_name }}</p>
                         <p class="text-xs text-yellow-300">{{ user.position }}</p>
                     </div>
-                    <i x-show="isMobile || !sidebarCollapsed || sidebarHovered" data-feather="chevron-up" class="w-4 h-4 text-white/70"></i>
+                    <i x-show="!sidebarCollapsed || sidebarHovered || mobileMenuOpen" data-feather="chevron-up" class="w-4 h-4 text-white/70"></i>
                 </button>
                 
                 <!-- User Dropdown -->
@@ -1050,34 +1064,37 @@
             </div>
         </div>
         </aside>
+
+        <!-- Mobile overlay (closes sidebar when tapped) -->
+        <div x-show="mobileMenuOpen" x-cloak class="fixed inset-0 bg-black/50 z-30 md:hidden" @click="mobileMenuOpen = false"></div>
         
         <!-- Main Content Area -->
         <div :class="sidebarCollapsed ? 'md:ml-20' : 'md:ml-64'" class="flex-1 flex flex-col transition-all duration-300 md:pl-4">
             
-            <!-- Mobile Header -->
-            <header class="md:hidden bg-white shadow-sm border-b border-gray-200 px-4 py-3 flex items-center justify-between">
-                <button @click="toggleMobileMenu()" class="p-2 rounded-lg hover:bg-gray-100 transition-colors">
-                    <i data-feather="menu" class="w-6 h-6 text-gray-600"></i>
-                </button>
-                <div class="flex items-center gap-2">
-                    <img src="../assets/img/iclinic-logo.png" alt="iClinic" class="w-8 h-8">
-                    <h1 class="text-lg font-bold text-gray-900">Announcements</h1>
+            <!-- Top Header Bar -->
+            <header class="absolute inset-x-0 top-0 bg-transparent border-0 shadow-none z-20 pointer-events-none">
+                <div class="flex items-center px-4 sm:px-6 py-3 pointer-events-auto">
+                    <div class="flex items-center gap-3">
+                        <button type="button" class="md:hidden p-2 rounded-lg hover:bg-gray-100 transition-colors bg-white/90 backdrop-blur" @click="mobileMenuOpen = true">
+                            <i data-feather="menu" class="w-5 h-5 text-gray-700"></i>
+                        </button>
+                        <button type="button" class="hidden md:inline-flex lg:hidden p-2 rounded-lg hover:bg-gray-100 transition-colors bg-white/90 backdrop-blur" @click="sidebarCollapsed = !sidebarCollapsed">
+                            <i data-feather="sidebar" class="w-5 h-5 text-gray-700"></i>
+                        </button>
+                    </div>
                 </div>
-                <button @click="showAddModal = true" class="p-2 rounded-lg bg-blue-500 hover:bg-blue-600 text-white transition-colors">
-                    <i data-feather="plus" class="w-5 h-5"></i>
-                </button>
             </header>
             
             <!-- Main Announcements Content -->
-            <main class="flex-1 overflow-hidden bg-gray-50 p-6">
+            <main class="flex-1 bg-gray-50 p-4 sm:p-6 md:overflow-y-auto">
                 <!-- Enhanced Announcements Header -->
-                <div class="gradient-bg-sidebar text-white shadow-2xl relative overflow-hidden rounded-[2rem] ml-1">
+                <div class="gradient-bg-sidebar text-white shadow-2xl relative overflow-hidden rounded-[2rem] ml-0 sm:ml-1 mb-6">
                     <!-- Decorative Elements -->
                     <div class="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -translate-y-32 translate-x-32"></div>
                     <div class="absolute bottom-0 left-0 w-48 h-48 bg-yellow-400/10 rounded-full translate-y-24 -translate-x-24"></div>
                     
                     <!-- Header Content -->
-                    <div class="relative px-6 py-5">
+                    <div class="relative px-4 sm:px-6 py-4 sm:py-5">
                         <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                             <!-- Title Section -->
                             <div class="flex items-center gap-4">
@@ -1345,7 +1362,7 @@
                                                     <h3 class="text-xl font-bold text-gray-900 group-hover:text-blue-600 transition-colors mt-1 truncate" x-text="announcement.title"></h3>
                                                     <div class="text-sm text-gray-600 mt-1">
                                                         <span class="font-medium" x-text="announcement.author"></span>
-                                                        <span class="text-gray-400">•</span>
+                                                        <span class="text-gray-400">â€¢</span>
                                                         <span :title="formatDate(announcement.created_at || announcement.date)" x-text="getCreatedMetaText(announcement)"></span>
                                                     </div>
                                                 </div>
@@ -1743,7 +1760,7 @@
                                             <div class="mt-2 text-sm text-gray-600">
                                                 <span class="font-medium">Posted by</span>
                                                 <span class="font-semibold" x-text="viewingAnnouncement?.author"></span>
-                                                <span class="text-gray-400">•</span>
+                                                <span class="text-gray-400">â€¢</span>
                                                 <span :title="formatDate(viewingAnnouncement?.created_at || viewingAnnouncement?.date)" x-text="getCreatedMetaText(viewingAnnouncement)"></span>
                                             </div>
                                         </div>
@@ -1983,3 +2000,4 @@
     </button>
 </body>
 </html>
+

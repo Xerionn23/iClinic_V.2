@@ -270,14 +270,12 @@
         /* Active sidebar item */
         .sidebar-item-active {
             background: linear-gradient(90deg, rgba(253, 184, 19, 0.2) 0%, rgba(253, 184, 19, 0.05) 100%);
-            border-left: 4px solid var(--accent);
-            box-shadow: 0 0 20px rgba(253, 184, 19, 0.2);
+            box-shadow: inset 4px 0 0 var(--accent), 0 0 20px rgba(253, 184, 19, 0.2);
         }
         
         .dark .sidebar-item-active {
             background: linear-gradient(90deg, rgba(253, 184, 19, 0.25) 0%, rgba(253, 184, 19, 0.05) 100%);
-            border-left: 4px solid var(--accent);
-            box-shadow: 0 0 25px rgba(253, 184, 19, 0.3);
+            box-shadow: inset 4px 0 0 var(--accent), 0 0 25px rgba(253, 184, 19, 0.3);
         }
         
         :root {
@@ -501,16 +499,14 @@
         this.error = null;
         
         try {
-            console.log('📊 Loading dashboard statistics...');
-            const response = await fetch('/api/dashboard/stats');
+                        const response = await fetch('/api/dashboard/stats');
             
             if (!response.ok) {
                 throw new Error(`HTTP ${response.status}: ${response.statusText}`);
             }
             
             const data = await response.json();
-            console.log('✅ Dashboard data loaded:', data);
-            
+                        
             // Update stats with animation
             this.animateValue('totalPatients', 0, data.total_patients, 1500);
             this.animateValue('appointmentsToday', 0, data.appointments_today, 1000);
@@ -541,8 +537,7 @@
     async loadChartData() {
         // Prevent multiple simultaneous loads
         if (this.chartsLoaded) {
-            console.log('⚠️ Charts already loaded, skipping...');
-            return;
+                        return;
         }
         
         try {
@@ -555,8 +550,7 @@
             // Load common illnesses data
             const illnessesResponse = await fetch('/api/dashboard/common-illnesses');
             const illnessesData = await illnessesResponse.json();
-            console.log('📊 Illnesses Data:', illnessesData);
-            
+                        
             // Destroy existing charts if they exist
             if (this.monthlyVisitsChart) {
                 this.monthlyVisitsChart.destroy();
@@ -569,10 +563,8 @@
             
             // Initialize Monthly Visits Chart
             const visitsCtx = document.getElementById('monthlyVisitsChart');
-            console.log('🔍 Monthly Visits Canvas:', visitsCtx);
-            if (visitsCtx && visitsCtx.getContext) {
-                console.log('📊 Creating Monthly Visits Chart...');
-                this.monthlyVisitsChart = new Chart(visitsCtx, {
+                        if (visitsCtx && visitsCtx.getContext) {
+                                this.monthlyVisitsChart = new Chart(visitsCtx, {
                     type: 'bar',
                     data: {
                         labels: visitsData.months,
@@ -628,10 +620,8 @@
             
             // Initialize Common Illnesses Chart
             const illnessesCtx = document.getElementById('commonIllnessesChart');
-            console.log('🔍 Common Illnesses Canvas:', illnessesCtx);
-            if (illnessesCtx && illnessesCtx.getContext) {
-                console.log('📊 Creating Common Illnesses Chart...');
-                this.commonIllnessesChart = new Chart(illnessesCtx, {
+                        if (illnessesCtx && illnessesCtx.getContext) {
+                                this.commonIllnessesChart = new Chart(illnessesCtx, {
                     type: 'doughnut',
                     data: {
                         labels: illnessesData.illnesses,
@@ -689,10 +679,8 @@
                 });
             }
             
-            console.log('📊 Charts initialized successfully');
-        } catch (error) {
-            console.error('❌ Error loading chart data:', error);
-        }
+                    } catch (error) {
+                    }
     },
     
     animateValue(property, start, end, duration) {
@@ -1242,10 +1230,8 @@
                     }
                 });
                 
-                console.log('✅ Feather icons initialized safely');
-            } catch (error) {
-                console.warn('⚠️ Feather initialization error:', error.message);
-            }
+                            } catch (error) {
+                            }
         }
         
         // Initialize on page load

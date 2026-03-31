@@ -790,12 +790,6 @@
                         idInput.pattern = '[0-9]{4}-[0-9]{4}';
                         idInput.title = 'Format: YYYY-NNNN (e.g., 2022-0186)';
                         break;
-                    case 'president':
-                        idLabel.textContent = 'President ID';
-                        idInput.placeholder = 'Enter your president ID (e.g., PRES-001)';
-                        idInput.pattern = 'PRES-[0-9]{3}';
-                        idInput.title = 'Format: PRES-NNN (e.g., PRES-001)';
-                        break;
                     case 'deans':
                         idLabel.textContent = 'Dean ID';
                         idInput.placeholder = 'Enter your dean ID (e.g., DEAN-001)';
@@ -855,10 +849,6 @@
                     case 'student':
                         roleNoticeTitle.textContent = 'Student Account Request';
                         roleNoticeText.textContent = 'Enter your student number. A verification link will be sent to your institutional email to complete account setup. You can request multiple times if needed.';
-                        break;
-                    case 'president':
-                        roleNoticeTitle.textContent = 'President Account Request';
-                        roleNoticeText.textContent = 'Enter your president ID. A verification link will be sent to your institutional email to complete account setup. You can request multiple times if needed.';
                         break;
                     case 'deans':
                         roleNoticeTitle.textContent = 'Dean Account Request';
