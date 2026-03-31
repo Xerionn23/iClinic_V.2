@@ -128,13 +128,13 @@ def _send_email_html(to_email: str, subject: str, html_content: str) -> bool:
         try:
             return _send_with_starttls()
         except (smtplib.SMTPServerDisconnected, smtplib.SMTPConnectError, smtplib.SMTPHeloError, socket.timeout, ConnectionResetError, OSError) as e:
-            print(f"⚠️ STARTTLS SMTP failed ({type(e).__name__}: {e}). Trying SSL (465)...")
+            print(f"STARTTLS SMTP failed ({type(e).__name__}: {e}). Trying SSL (465)...")
             return _send_with_ssl()
     except smtplib.SMTPAuthenticationError as auth_error:
-        print(f"❌ Gmail Authentication Failed: {auth_error}")
+        print(f"Gmail Authentication Failed: {auth_error}")
         return False
     except Exception as email_error:
-        print(f"❌ Failed to send email: {email_error}")
+        print(f"Failed to send email: {email_error}")
         return False
 
 
@@ -435,10 +435,10 @@ def _send_clinic_event_notifications_background(event_payload: dict):
 
                 # small delay per batch to reduce Gmail throttling
                 time.sleep(1.2)
-                print(f"✅ Batch {batch_index}/{total_batches} sent ({len(batch)} recipients)")
+                print(f"Batch {batch_index}/{total_batches} sent ({len(batch)} recipients)")
             except Exception as send_err:
                 batches_failed += 1
-                print(f"❌ Batch {batch_index}/{total_batches} failed: {type(send_err).__name__}: {send_err}")
+                print(f"Batch {batch_index}/{total_batches} failed: {type(send_err).__name__}: {send_err}")
                 # backoff before next batch
                 time.sleep(min(10, 2 + batch_index))
             finally:
@@ -448,9 +448,9 @@ def _send_clinic_event_notifications_background(event_payload: dict):
                 except Exception:
                     pass
 
-        print(f"✅ Clinic event notification batches sent: {batches_sent}, failed: {batches_failed} (estimated recipients emailed: {recipients_sent_estimate})")
+        print(f"Clinic event notification batches sent: {batches_sent}, failed: {batches_failed} (estimated recipients emailed: {recipients_sent_estimate})")
     except Exception as e:
-        print(f"❌ Clinic event notification background job failed: {e}")
+        print(f"Clinic event notification background job failed: {e}")
 
 def _resolve_medical_record_table(role):
     role_normalized = (role or '').strip().lower()
@@ -464,8 +464,6 @@ def _resolve_medical_record_table(role):
         return 'non_teaching_medical_records'
     if role_normalized in ['dean', 'deans']:
         return 'dean_medical_records'
-    if role_normalized in ['president', 'presidents']:
-        return 'president_medical_records'
     return None
 
 
@@ -916,7 +914,6 @@ def api_endorse_medical_record():
             return jsonify({'error': 'Database connection failed'}), 500
 
         cursor = conn.cursor()
-
         cursor.execute(f"SELECT id, endorsement_required, endorsement_status FROM {table} WHERE id = %s", (record_id,))
         row = cursor.fetchone()
         if not row:
@@ -1091,27 +1088,6 @@ def api_notify_guardian_major_case():
             if row:
                 patient_email = row[0]
                 contact_number = row[1]
-        elif role_normalized in ['president', 'presidents']:
-            cursor.execute('''
-                SELECT mr.president_id
-                FROM president_medical_records mr
-                WHERE mr.id = %s
-                LIMIT 1
-            ''', (record_id,))
-            r0 = cursor.fetchone()
-            if r0:
-                unified_source_id = r0[0]
-            cursor.execute('''
-                SELECT p.email, p.emergency_contact_number
-                FROM president_medical_records mr
-                INNER JOIN president p ON mr.president_id = p.id
-                WHERE mr.id = %s
-                LIMIT 1
-            ''', (record_id,))
-            row = cursor.fetchone()
-            if row:
-                patient_email = row[0]
-                contact_number = row[1]
 
         # Override SMS recipient (and optionally email) from patients_unified emergency contact fields when available.
         # This keeps SMS recipient aligned with the Staff Patients UI (patients_unified.emergency_contact_number).
@@ -1129,8 +1105,6 @@ def api_notify_guardian_major_case():
                     role_for_unified = 'Non-Teaching Staff'
                 elif role_normalized in ['dean', 'deans']:
                     role_for_unified = 'Dean'
-                elif role_normalized in ['president', 'presidents']:
-                    role_for_unified = 'President'
 
                 unified_row = None
                 if role_for_unified and unified_identifier:
@@ -1364,7 +1338,7 @@ def validate_id_and_get_info(cursor, role, id_number, full_name, email):
         elif role == 'teaching_staff':
             # Check if teaching staff exists with this faculty ID
             cursor.execute('''
-                SELECT id, first_name, last_name, email, rank, specialization
+                SELECT id, first_name, last_name, email, position, specialization
                 FROM teaching 
                 WHERE faculty_id = %s
             ''', (id_number,))
@@ -1390,7 +1364,7 @@ def validate_id_and_get_info(cursor, role, id_number, full_name, email):
                     'teaching_id': teaching_record[0],
                     'first_name': teaching_record[1],
                     'last_name': teaching_record[2],
-                    'rank': teaching_record[4],
+                    'position': teaching_record[4],
                     'specialization': teaching_record[5],
                     'gmail': teaching_record[3]  # Email from database
                 }
@@ -1535,39 +1509,6 @@ def validate_id_and_get_info(cursor, role, id_number, full_name, email):
                     'gmail': dean_record[3]  # Email from database
                 }
             }
-            
-        elif role == 'president':
-            # Check if president exists with this president ID
-            cursor.execute('''
-                SELECT id, first_name, last_name, email
-                FROM president 
-                WHERE president_id = %s AND status = 'Active'
-            ''', (id_number,))
-            
-            president_record = cursor.fetchone()
-            if not president_record:
-                return {
-                    'valid': False,
-                    'message': f'President ID {id_number} not found in database or inactive. Please contact Administration.'
-                }
-            
-            # Verify name matches
-            db_full_name = f"{president_record[1]} {president_record[2]}".strip()
-            if db_full_name.lower() != full_name.lower():
-                return {
-                    'valid': False,
-                    'message': f'Name mismatch. Database shows: {db_full_name}'
-                }
-            
-            return {
-                'valid': True,
-                'info': {
-                    'president_id': president_record[0],
-                    'first_name': president_record[1],
-                    'last_name': president_record[2],
-                    'gmail': president_record[3]  # Email from database
-                }
-            }
         
         else:
             return {
@@ -1693,6 +1634,27 @@ def init_db():
     except Exception as e:
         if "Duplicate column name" not in str(e):
             print(f"â„¹ï¸  is_active column check: {e}")
+
+    try:
+        cursor.execute("SHOW COLUMNS FROM students LIKE 'emergency_contact_name'")
+        if not cursor.fetchone():
+            cursor.execute("ALTER TABLE students ADD COLUMN emergency_contact_name VARCHAR(100) AFTER mobile_no")
+    except Exception:
+        pass
+
+    try:
+        cursor.execute("SHOW COLUMNS FROM students LIKE 'emergency_contact_relationship'")
+        if not cursor.fetchone():
+            cursor.execute("ALTER TABLE students ADD COLUMN emergency_contact_relationship VARCHAR(50) AFTER emergency_contact_name")
+    except Exception:
+        pass
+
+    try:
+        cursor.execute("SHOW COLUMNS FROM students LIKE 'emergency_contact_number'")
+        if not cursor.fetchone():
+            cursor.execute("ALTER TABLE students ADD COLUMN emergency_contact_number VARCHAR(20) AFTER emergency_contact_relationship")
+    except Exception:
+        pass
 
     try:
         cursor.execute("SHOW COLUMNS FROM students LIKE 'emergency_contact_email'")
@@ -2043,6 +2005,8 @@ def init_db():
             brand_model VARCHAR(100),
             last_maintenance DATE,
             purchase_date DATE,
+            arrival_date DATE,
+            expiry_date DATE,
             cost DECIMAL(10,2),
             supplier VARCHAR(100),
             notes TEXT,
@@ -2050,6 +2014,20 @@ def init_db():
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
         )
     ''')
+
+    try:
+        cursor.execute("SHOW COLUMNS FROM clinic_supplies LIKE 'expiry_date'")
+        if not cursor.fetchone():
+            cursor.execute("ALTER TABLE clinic_supplies ADD COLUMN expiry_date DATE AFTER purchase_date")
+    except Exception as e:
+        print(f"Note: Could not add expiry_date column to clinic_supplies (may already exist): {e}")
+
+    try:
+        cursor.execute("SHOW COLUMNS FROM clinic_supplies LIKE 'arrival_date'")
+        if not cursor.fetchone():
+            cursor.execute("ALTER TABLE clinic_supplies ADD COLUMN arrival_date DATE AFTER purchase_date")
+    except Exception as e:
+        print(f"Note: Could not add arrival_date column to clinic_supplies (may already exist): {e}")
     
     # Create default clinic staff users if not exists
     cursor.execute('SELECT COUNT(*) FROM users WHERE username = %s', ('admin',))
@@ -2142,6 +2120,23 @@ def init_db():
             notes TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        )
+    ''')
+    
+    # Appointment logs table for tracking reschedule/cancel actions
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS appointment_logs (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            appointment_id INT NOT NULL,
+            action ENUM('cancelled', 'rescheduled', 'completed') NOT NULL,
+            old_date DATE,
+            old_time TIME,
+            new_date DATE,
+            new_time TIME,
+            reason TEXT,
+            created_by INT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (appointment_id) REFERENCES appointments(id) ON DELETE CASCADE
         )
     ''')
     
@@ -2475,7 +2470,7 @@ def init_db():
             first_name VARCHAR(50) NOT NULL,
             last_name VARCHAR(50) NOT NULL,
             email VARCHAR(100) UNIQUE NOT NULL,
-            rank VARCHAR(50),
+            position VARCHAR(50),
             status ENUM('Active', 'Inactive', 'On Leave') DEFAULT 'Active',
             hire_date DATE,
             specialization VARCHAR(100),
@@ -2562,7 +2557,7 @@ def init_db():
             
             for staff in sample_teaching_staff:
                 cursor.execute('''
-                    INSERT INTO teaching (faculty_id, faculty_number, first_name, last_name, email, rank, status, hire_date, specialization, age, gender, contact_number, is_archived)
+                    INSERT INTO teaching (faculty_id, faculty_number, first_name, last_name, email, position, status, hire_date, specialization, age, gender, contact_number, is_archived)
                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 ''', staff)
             
@@ -3115,139 +3110,6 @@ def init_db():
     except Exception as e:
         print(f"Note: Could not add classification/endorsement columns to dean_medical_records (may already exist): {e}")
     
-    # President table
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS president (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            president_id VARCHAR(20) UNIQUE NOT NULL,
-            employee_number VARCHAR(20),
-            first_name VARCHAR(50) NOT NULL,
-            last_name VARCHAR(50) NOT NULL,
-            middle_name VARCHAR(50),
-            email VARCHAR(100) UNIQUE NOT NULL,
-            status ENUM('Active', 'Inactive', 'On Leave') DEFAULT 'Active',
-            appointment_date DATE,
-            age INT,
-            gender ENUM('Male', 'Female', 'Other') DEFAULT 'Male',
-            contact_number VARCHAR(20),
-            address TEXT,
-            blood_type VARCHAR(10),
-            emergency_contact_name VARCHAR(100),
-            emergency_contact_relationship VARCHAR(50),
-            emergency_contact_number VARCHAR(20),
-            allergies TEXT,
-            medical_conditions TEXT,
-            is_archived BOOLEAN DEFAULT FALSE,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-        )
-    ''')
-    
-    # President medical records table
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS president_medical_records (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            president_id INT,
-            visit_date DATE NOT NULL,
-            visit_time TIME,
-            chief_complaint TEXT,
-            medical_history TEXT,
-            food_allergies TEXT,
-            medicine_allergies TEXT,
-            fever_duration VARCHAR(50),
-            current_medication TEXT,
-            medication_schedule TEXT,
-            blood_pressure_systolic INT,
-            blood_pressure_diastolic INT,
-            pulse_rate INT,
-            temperature DECIMAL(4,1),
-            respiratory_rate INT,
-            weight DECIMAL(5,2),
-            height DECIMAL(5,2),
-            bmi DECIMAL(4,1),
-            symptoms TEXT,
-            treatment TEXT,
-            prescribed_medicine TEXT,
-            dental_procedure TEXT,
-            procedure_notes TEXT,
-            follow_up_date DATE,
-            special_instructions TEXT,
-            notes TEXT,
-            illness_classification_suggested VARCHAR(10),
-            illness_classification_suggested_reason TEXT,
-            illness_classification_final VARCHAR(10),
-            illness_classification_override_reason TEXT,
-            endorsement_required BOOLEAN DEFAULT FALSE,
-            endorsement_status VARCHAR(20) DEFAULT 'not_required',
-            endorsed_at DATETIME,
-            staff_name VARCHAR(100),
-            staff_id INT,
-            will_stay_in_clinic BOOLEAN DEFAULT FALSE,
-            stay_reason TEXT,
-            expected_checkout_time DATETIME,
-            actual_checkout_time DATETIME,
-            checkout_notes TEXT,
-            stay_status ENUM('not_staying', 'staying', 'checked_out') DEFAULT 'not_staying',
-            admission_time DATETIME,
-            discharge_time DATETIME,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-            FOREIGN KEY (president_id) REFERENCES president(id) ON DELETE CASCADE,
-            FOREIGN KEY (staff_id) REFERENCES users(id)
-        )
-    ''')
-
-    try:
-        schema_updates = [
-            ("medical_history", "ALTER TABLE president_medical_records ADD COLUMN medical_history TEXT AFTER chief_complaint"),
-            ("food_allergies", "ALTER TABLE president_medical_records ADD COLUMN food_allergies TEXT AFTER medical_history"),
-            ("medicine_allergies", "ALTER TABLE president_medical_records ADD COLUMN medicine_allergies TEXT AFTER food_allergies"),
-            ("fever_duration", "ALTER TABLE president_medical_records ADD COLUMN fever_duration VARCHAR(50) AFTER medicine_allergies"),
-            ("current_medication", "ALTER TABLE president_medical_records ADD COLUMN current_medication TEXT AFTER fever_duration"),
-            ("medication_schedule", "ALTER TABLE president_medical_records ADD COLUMN medication_schedule TEXT AFTER current_medication"),
-            ("blood_pressure_systolic", "ALTER TABLE president_medical_records ADD COLUMN blood_pressure_systolic INT AFTER medication_schedule"),
-            ("blood_pressure_diastolic", "ALTER TABLE president_medical_records ADD COLUMN blood_pressure_diastolic INT AFTER blood_pressure_systolic"),
-            ("pulse_rate", "ALTER TABLE president_medical_records ADD COLUMN pulse_rate INT AFTER blood_pressure_diastolic"),
-            ("temperature", "ALTER TABLE president_medical_records ADD COLUMN temperature DECIMAL(4,1) AFTER pulse_rate"),
-            ("respiratory_rate", "ALTER TABLE president_medical_records ADD COLUMN respiratory_rate INT AFTER temperature"),
-            ("weight", "ALTER TABLE president_medical_records ADD COLUMN weight DECIMAL(5,2) AFTER respiratory_rate"),
-            ("height", "ALTER TABLE president_medical_records ADD COLUMN height DECIMAL(5,2) AFTER weight"),
-            ("bmi", "ALTER TABLE president_medical_records ADD COLUMN bmi DECIMAL(4,1) AFTER height"),
-            ("symptoms", "ALTER TABLE president_medical_records ADD COLUMN symptoms TEXT AFTER bmi"),
-            ("dental_procedure", "ALTER TABLE president_medical_records ADD COLUMN dental_procedure TEXT AFTER prescribed_medicine"),
-            ("procedure_notes", "ALTER TABLE president_medical_records ADD COLUMN procedure_notes TEXT AFTER dental_procedure"),
-            ("follow_up_date", "ALTER TABLE president_medical_records ADD COLUMN follow_up_date DATE AFTER procedure_notes"),
-            ("special_instructions", "ALTER TABLE president_medical_records ADD COLUMN special_instructions TEXT AFTER follow_up_date"),
-            ("will_stay_in_clinic", "ALTER TABLE president_medical_records ADD COLUMN will_stay_in_clinic BOOLEAN DEFAULT FALSE AFTER staff_id"),
-            ("stay_reason", "ALTER TABLE president_medical_records ADD COLUMN stay_reason TEXT AFTER will_stay_in_clinic"),
-            ("stay_status", "ALTER TABLE president_medical_records ADD COLUMN stay_status ENUM('not_staying', 'staying', 'checked_out') DEFAULT 'not_staying' AFTER stay_reason"),
-            ("admission_time", "ALTER TABLE president_medical_records ADD COLUMN admission_time DATETIME AFTER stay_status"),
-            ("discharge_time", "ALTER TABLE president_medical_records ADD COLUMN discharge_time DATETIME AFTER admission_time"),
-        ]
-
-        for col_name, alter_sql in schema_updates:
-            try:
-                cursor.execute(f"SHOW COLUMNS FROM president_medical_records LIKE '{col_name}'")
-                if not cursor.fetchone():
-                    cursor.execute(alter_sql)
-            except Exception as e:
-                print(f"Note: Could not ensure column '{col_name}' exists on president_medical_records: {e}")
-    except Exception as e:
-        print(f"Note: Could not run schema updates for president_medical_records: {e}")
-
-    try:
-        cursor.execute("SHOW COLUMNS FROM president_medical_records LIKE 'illness_classification_suggested'")
-        if not cursor.fetchone():
-            cursor.execute("ALTER TABLE president_medical_records ADD COLUMN illness_classification_suggested VARCHAR(10) AFTER notes")
-            cursor.execute("ALTER TABLE president_medical_records ADD COLUMN illness_classification_suggested_reason TEXT AFTER illness_classification_suggested")
-            cursor.execute("ALTER TABLE president_medical_records ADD COLUMN illness_classification_final VARCHAR(10) AFTER illness_classification_suggested_reason")
-            cursor.execute("ALTER TABLE president_medical_records ADD COLUMN illness_classification_override_reason TEXT AFTER illness_classification_final")
-            cursor.execute("ALTER TABLE president_medical_records ADD COLUMN endorsement_required BOOLEAN DEFAULT FALSE AFTER illness_classification_override_reason")
-            cursor.execute("ALTER TABLE president_medical_records ADD COLUMN endorsement_status VARCHAR(20) DEFAULT 'not_required' AFTER endorsement_required")
-            cursor.execute("ALTER TABLE president_medical_records ADD COLUMN endorsed_at DATETIME AFTER endorsement_status")
-    except Exception as e:
-        print(f"Note: Could not add classification/endorsement columns to president_medical_records (may already exist): {e}")
-    
     # Nurses table
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS nurses (
@@ -3529,32 +3391,6 @@ def init_db():
     except Exception as e:
         print(f"âš ï¸ Error adding sample deans: {e}")
     
-    # Add sample president data if table is empty
-    try:
-        cursor.execute('SELECT COUNT(*) FROM president')
-        count = cursor.fetchone()[0]
-        
-        if count == 0:
-            print("Adding sample president data...")
-            
-            sample_president = [
-                ('PRES-001', 'P1001', 'Emilio', 'Aguinaldo', 'F.', 'president@norzagaray.edu.ph', 'Active', '2010-01-01', 58, 'Male', '09451234595', 'Norzagaray, Bulacan', 'O+', 'Hilaria Aguinaldo', 'Wife', '09461234596', 'None', 'None', False)
-            ]
-            
-            for president in sample_president:
-                cursor.execute('''
-                    INSERT INTO president (president_id, employee_number, first_name, last_name, middle_name, email, 
-                                         status, appointment_date, age, gender, contact_number, address, blood_type, 
-                                         emergency_contact_name, emergency_contact_relationship, emergency_contact_number, 
-                                         allergies, medical_conditions, is_archived)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                ''', president)
-            
-            conn.commit()
-            print(f"âœ… Added {len(sample_president)} sample president record")
-    except Exception as e:
-        print(f"âš ï¸ Error adding sample president: {e}")
-    
     # Add emergency contact columns to students table if they don't exist
     try:
         cursor.execute('''
@@ -3820,19 +3656,53 @@ def login():
             session['last_name'] = user[5]
             session['position'] = user[6]
             session['email'] = user[7]  # âœ… ADD EMAIL TO SESSION!
+            # Store the login identifier (student number / staff id) for consistent profile lookup
+            session['identifier_id'] = user_id
+
+            # Hydrate missing student identity from students table (some user accounts may have blank names)
+            try:
+                role_norm = (user[3] or '').strip().lower()
+                needs_name = not (session.get('first_name') and session.get('last_name'))
+                needs_email = not session.get('email')
+
+                if role_norm == 'student' and (needs_name or needs_email):
+                    cursor.execute(
+                        'SELECT student_number, first_name, last_name, email FROM students WHERE student_number = %s LIMIT 1',
+                        (user_id,)
+                    )
+                    srow = cursor.fetchone()
+
+                    if not srow and session.get('email'):
+                        cursor.execute(
+                            'SELECT student_number, first_name, last_name, email FROM students WHERE email = %s LIMIT 1',
+                            (session.get('email'),)
+                        )
+                        srow = cursor.fetchone()
+
+                    if srow:
+                        student_number, s_first, s_last, s_email = srow
+                        if needs_name:
+                            session['first_name'] = session.get('first_name') or s_first
+                            session['last_name'] = session.get('last_name') or s_last
+                        if needs_email and s_email:
+                            session['email'] = s_email
+
+                        # Optionally persist back to users table for future logins
+                        try:
+                            cursor.execute(
+                                'UPDATE users SET first_name = COALESCE(NULLIF(first_name, ""), %s), last_name = COALESCE(NULLIF(last_name, ""), %s), email = COALESCE(NULLIF(email, ""), %s), user_id = COALESCE(NULLIF(user_id, ""), %s) WHERE id = %s',
+                                (s_first, s_last, s_email, student_number, user[0])
+                            )
+                            conn.commit()
+                        except Exception:
+                            pass
+            except Exception:
+                pass
             
             print(f"âœ… Session created - Email: {user[7]}")  # Debug log
             
-            # Fetch President ID or Dean ID if applicable (before closing connection)
-            if user[3] == 'president':
-                cursor.execute('SELECT president_id, first_name, last_name FROM president WHERE email = %s LIMIT 1', (user[1],))
-                president_data = cursor.fetchone()
-                if president_data:
-                    session['identifier_id'] = president_data[0]  # Store president_id (e.g., PRES-001)
-                    session['first_name'] = president_data[1]  # Override with actual first name from president table
-                    session['last_name'] = president_data[2]  # Override with actual last name from president table
-                    print(f"âœ… President ID stored: {president_data[0]}, Name: {president_data[1]} {president_data[2]}")
-            elif user[3] == 'deans':
+            # Fetch Dean ID if applicable (before closing connection)
+            if user[3] == 'deans':
                 cursor.execute('SELECT dean_id, first_name, last_name FROM deans WHERE email = %s LIMIT 1', (user[1],))
                 dean_data = cursor.fetchone()
                 if dean_data:
@@ -3846,7 +3716,7 @@ def login():
             # Determine redirect URL based on user role
             print(f"ðŸ” User role from database: '{user[3]}'")  # Debug: Check exact role value
             
-            if user[3] in ['student', 'teaching_staff', 'non_teaching_staff', 'deans', 'president']:
+            if user[3] in ['student', 'teaching_staff', 'non_teaching_staff', 'deans']:
                 redirect_url = url_for('student_dashboard')
                 print(f"âœ… Redirecting to student dashboard")
             elif user[3] in ['admin', 'it_staff']:
@@ -3994,30 +3864,6 @@ def forgot_password():
                     user_name = f"{user[1]} {user[2]}"
                 else:
                     # Dean exists but hasn't completed registration
-                    cursor.close()
-                    conn.close()
-                    return jsonify({
-                        'success': False, 
-                        'message': 'Your account registration is not yet complete. Please check your email for the verification link or request a new account.'
-                    }), 400
-        
-        # Try to find by president_id
-        if not user_email:
-            try:
-                cursor.execute('SELECT email, first_name, last_name FROM president WHERE president_id = %s AND status = "Active"', (user_id,))
-            except:
-                # Fallback if status column doesn't exist
-                cursor.execute('SELECT email, first_name, last_name FROM president WHERE president_id = %s', (user_id,))
-            president = cursor.fetchone()
-            if president:
-                # Check if president has completed registration (has user account)
-                cursor.execute('SELECT email, first_name, last_name FROM users WHERE email = %s', (president[0],))
-                user = cursor.fetchone()
-                if user:
-                    user_email = user[0]
-                    user_name = f"{user[1]} {user[2]}"
-                else:
-                    # President exists but hasn't completed registration
                     cursor.close()
                     conn.close()
                     return jsonify({
@@ -4343,7 +4189,6 @@ def verify_email():
             'admin': 'admin',  # Admins get 'admin' role
             'it_staff': 'it_staff',  # IT Staff get 'it_staff' role
             'non_teaching_staff': 'non_teaching_staff',  # Fixed: Keep as non_teaching_staff
-            'president': 'president',
             'deans': 'deans'
         }
         
@@ -4354,7 +4199,6 @@ def verify_email():
             'admin': 'System Administrator',
             'it_staff': 'IT Staff',
             'non_teaching_staff': 'Non-Teaching Staff',
-            'president': 'President',
             'deans': 'Dean'
         }
         
@@ -4489,7 +4333,6 @@ def request_account():
             'admin': 'Administrator',
             'teaching_staff': 'Teaching Staff',
             'non_teaching_staff': 'Non-Teaching Staff',
-            'president': 'President',
             'deans': 'Dean'
         }
         role_display = role_names.get(role, role)
@@ -4732,7 +4575,6 @@ def complete_registration():
                 'it_staff': ('it_staff', 'IT Staff'),
                 'teaching_staff': ('teaching_staff', 'Teaching Staff'),  # Fixed: Keep as teaching_staff
                 'non_teaching_staff': ('non_teaching_staff', 'Non-Teaching Staff'),  # Fixed: Keep as non_teaching_staff
-                'president': ('president', 'President'),  # Fixed: Keep as president
                 'deans': ('deans', 'Dean')  # Fixed: Keep as deans
             }
             
@@ -4792,11 +4634,6 @@ def get_institutional_email(cursor, role, id_number):
         elif role == 'deans':
             # Look up dean Gmail from deans table
             cursor.execute('SELECT email FROM deans WHERE dean_id = %s OR employee_number = %s', (id_number, id_number))
-            result = cursor.fetchone()
-            return result[0] if result else None
-        elif role == 'president':
-            # Look up president Gmail from president table
-            cursor.execute('SELECT email FROM president WHERE president_id = %s OR employee_number = %s', (id_number, id_number))
             result = cursor.fetchone()
             return result[0] if result else None
         elif role == 'non_teaching_staff':
@@ -5148,48 +4985,49 @@ def get_dashboard_stats():
         low_stock_medicines = 0
         recent_activities = []
         
-        # Total Patients (Students + Visitors + Teaching + Non-Teaching + Deans + President)
+        # Total Patients (using patients_unified for consistency with patients page)
         try:
-            # Count active students
-            cursor.execute('SELECT COUNT(*) FROM students WHERE is_active = TRUE')
-            student_count = cursor.fetchone()[0] or 0
-            
-            # Count active visitors
-            cursor.execute('SELECT COUNT(*) FROM visitors WHERE is_active = TRUE')
-            visitor_count = cursor.fetchone()[0] or 0
-            
-            # Count teaching staff
-            teaching_count = 0
-            cursor.execute("SHOW TABLES LIKE 'teaching'")
-            if cursor.fetchone():
-                cursor.execute('SELECT COUNT(*) FROM teaching WHERE is_archived = FALSE AND is_active = TRUE')
-                teaching_count = cursor.fetchone()[0] or 0
-            
-            # Count non-teaching staff
-            non_teaching_count = 0
-            cursor.execute("SHOW TABLES LIKE 'non_teaching_staff'")
-            if cursor.fetchone():
-                cursor.execute('SELECT COUNT(*) FROM non_teaching_staff WHERE is_archived = FALSE AND is_active = TRUE')
-                non_teaching_count = cursor.fetchone()[0] or 0
-            
-            # Count deans
-            deans_count = 0
-            cursor.execute("SHOW TABLES LIKE 'deans'")
-            if cursor.fetchone():
-                cursor.execute('SELECT COUNT(*) FROM deans WHERE is_archived = FALSE AND is_active = TRUE')
-                deans_count = cursor.fetchone()[0] or 0
-            
-            # Count president
-            president_count = 0
-            cursor.execute("SHOW TABLES LIKE 'president'")
-            if cursor.fetchone():
-                cursor.execute('SELECT COUNT(*) FROM president WHERE is_archived = FALSE')
-                president_count = cursor.fetchone()[0] or 0
-            
-            total_patients = student_count + visitor_count + teaching_count + non_teaching_count + deans_count + president_count
-            print(f"âœ… Total patients: {total_patients} (Students: {student_count}, Visitors: {visitor_count}, Teaching: {teaching_count}, Non-Teaching: {non_teaching_count}, Deans: {deans_count}, President: {president_count})")
+            cursor.execute('SELECT COUNT(*) FROM patients_unified WHERE is_active = 1')
+            total_patients = cursor.fetchone()[0] or 0
+            print(f"Total patients from patients_unified: {total_patients}")
         except Exception as e:
-            print(f"âš ï¸ Error counting patients: {e}")
+            print(f"Error counting patients from unified table: {e}")
+            # Fallback to source table counting
+            try:
+                # Count active students
+                cursor.execute('SELECT COUNT(*) FROM students WHERE is_active = TRUE')
+                student_count = cursor.fetchone()[0] or 0
+                
+                # Count active visitors
+                cursor.execute('SELECT COUNT(*) FROM visitors WHERE is_active = TRUE')
+                visitor_count = cursor.fetchone()[0] or 0
+                
+                # Count teaching staff
+                teaching_count = 0
+                cursor.execute("SHOW TABLES LIKE 'teaching'")
+                if cursor.fetchone():
+                    cursor.execute('SELECT COUNT(*) FROM teaching WHERE is_archived = FALSE AND is_active = TRUE')
+                    teaching_count = cursor.fetchone()[0] or 0
+                
+                # Count non-teaching staff
+                non_teaching_count = 0
+                cursor.execute("SHOW TABLES LIKE 'non_teaching_staff'")
+                if cursor.fetchone():
+                    cursor.execute('SELECT COUNT(*) FROM non_teaching_staff WHERE is_archived = FALSE AND is_active = TRUE')
+                    non_teaching_count = cursor.fetchone()[0] or 0
+                
+                # Count deans
+                deans_count = 0
+                cursor.execute("SHOW TABLES LIKE 'deans'")
+                if cursor.fetchone():
+                    cursor.execute('SELECT COUNT(*) FROM deans WHERE is_archived = FALSE AND is_active = TRUE')
+                    deans_count = cursor.fetchone()[0] or 0
+                
+                total_patients = student_count + visitor_count + teaching_count + non_teaching_count + deans_count
+                print(f"Fallback total patients: {total_patients} (Students: {student_count}, Visitors: {visitor_count}, Teaching: {teaching_count}, Non-Teaching: {non_teaching_count}, Deans: {deans_count})")
+            except Exception as fallback_error:
+                print(f"Fallback counting also failed: {fallback_error}")
+                total_patients = 0
         
         # Appointments Today
         try:
@@ -5246,16 +5084,17 @@ def get_dashboard_stats():
         except Exception as e:
             print(f"âš ï¸ Error counting patients in clinic: {e}")
         
-        # Low Stock Medicines (quantity < 20)
+        # Low Stock Medicines (quantity_in_stock < 20)
         try:
             cursor.execute('''
                 SELECT COUNT(*) FROM medicines 
-                WHERE quantity < 20
+                WHERE quantity_in_stock < 20
             ''')
             low_stock_medicines = cursor.fetchone()[0] or 0
-            print(f"âœ… Low stock medicines: {low_stock_medicines}")
+            print(f"Low stock medicines: {low_stock_medicines}")
         except Exception as e:
-            print(f"âš ï¸ Error counting low stock: {e}")
+            print(f"Error counting low stock: {e}")
+            low_stock_medicines = 0
         
         # Recent Activities (Last 10)
         recent_activities = []
@@ -5396,8 +5235,6 @@ def get_monthly_visits():
                 SELECT visit_date FROM non_teaching_medical_records WHERE visit_date >= DATE_SUB(CURDATE(), INTERVAL 6 MONTH)
                 UNION ALL
                 SELECT visit_date FROM dean_medical_records WHERE visit_date >= DATE_SUB(CURDATE(), INTERVAL 6 MONTH)
-                UNION ALL
-                SELECT visit_date FROM president_medical_records WHERE visit_date >= DATE_SUB(CURDATE(), INTERVAL 6 MONTH)
             ) AS all_records
             GROUP BY DATE_FORMAT(visit_date, %s), DATE_FORMAT(visit_date, %s)
             ORDER BY DATE_FORMAT(visit_date, %s)
@@ -5480,10 +5317,6 @@ def get_common_illnesses():
                     SELECT diagnosis, visit_date FROM dean_medical_records 
                     WHERE MONTH(visit_date) = MONTH(CURDATE()) AND YEAR(visit_date) = YEAR(CURDATE())
                     AND diagnosis IS NOT NULL AND diagnosis != ''
-                    UNION ALL
-                    SELECT diagnosis, visit_date FROM president_medical_records 
-                    WHERE MONTH(visit_date) = MONTH(CURDATE()) AND YEAR(visit_date) = YEAR(CURDATE())
-                    AND diagnosis IS NOT NULL AND diagnosis != ''
                 ) AS all_diagnoses
                 GROUP BY diagnosis
                 ORDER BY count DESC
@@ -5562,39 +5395,39 @@ def it_dashboard():
     }
     return render_template('pages/admin/ADMIN-dashboard.html', user=user_info)
 
-@app.route('/deans-president/dashboard')
-def deans_president_dashboard():
-    """Serve the deans/president dashboard"""
+@app.route('/deans/dashboard')
+def deans_dashboard():
+    """Serve the deans dashboard"""
     if 'user_id' not in session:
         return redirect(url_for('login_page'))
     
-    # Check if user is actually a dean or president
-    if session.get('role') not in ['president', 'deans']:
-        flash('Access denied. This page is for Deans and President only.', 'error')
+    # Check if user is actually a dean
+    if session.get('role') not in ['deans']:
+        flash('Access denied. This page is for Deans only.', 'error')
         return redirect(url_for('login_page'))
     
-    return redirect(url_for('deans_president_reports'))
+    return redirect(url_for('deans_reports'))
 
-@app.route('/deans-president/consultation-chat')
-def deans_president_consultation_chat():
-    """Serve the deans/president consultation chat page"""
+@app.route('/deans/consultation-chat')
+def deans_consultation_chat():
+    """Serve the deans consultation chat page"""
     if 'user_id' not in session:
         return redirect(url_for('login_page'))
     
-    # Check if user is actually a dean or president
-    if session.get('role') not in ['president', 'deans']:
-        flash('Access denied. This page is for Deans and President only.', 'error')
+    # Check if user is actually a dean
+    if session.get('role') not in ['deans']:
+        flash('Access denied. This page is for Deans only.', 'error')
         return redirect(url_for('login_page'))
     
     return redirect(url_for('staff_consultations'))
 
-@app.route('/api/deans-president/dashboard-stats')
-def api_deans_president_dashboard_stats():
-    """API endpoint for President/Deans dashboard statistics"""
+@app.route('/api/deans/dashboard-stats')
+def api_deans_dashboard_stats():
+    """API endpoint for Deans dashboard statistics"""
     if 'user_id' not in session:
         return jsonify({'error': 'Unauthorized'}), 401
     
-    if session.get('role') not in ['president', 'deans']:
+    if session.get('role') not in ['deans']:
         return jsonify({'error': 'Access denied'}), 403
     
     try:
@@ -5688,13 +5521,13 @@ def api_deans_president_dashboard_stats():
         print(f"Error fetching dashboard stats: {e}")
         return jsonify({'error': str(e)}), 500
 
-@app.route('/api/deans-president/recent-reports')
-def api_deans_president_recent_reports():
+@app.route('/api/deans/recent-reports')
+def api_deans_recent_reports():
     """API endpoint for recent student health reports"""
     if 'user_id' not in session:
         return jsonify({'error': 'Unauthorized'}), 401
     
-    if session.get('role') not in ['president', 'deans']:
+    if session.get('role') not in ['deans']:
         return jsonify({'error': 'Access denied'}), 403
     
     try:
@@ -5749,13 +5582,13 @@ def api_deans_president_recent_reports():
         print(f"Error fetching recent reports: {e}")
         return jsonify({'error': str(e)}), 500
 
-@app.route('/api/deans-president/monthly-department-reports')
-def api_deans_president_monthly_department_reports():
+@app.route('/api/deans/monthly-department-reports')
+def api_deans_monthly_department_reports():
     """API endpoint for monthly reports by department"""
     if 'user_id' not in session:
         return jsonify({'error': 'Unauthorized'}), 401
     
-    if session.get('role') not in ['president', 'deans']:
+    if session.get('role') not in ['deans']:
         return jsonify({'error': 'Access denied'}), 403
     
     try:
@@ -5803,13 +5636,13 @@ def api_deans_president_monthly_department_reports():
         print(f"Error fetching monthly department reports: {e}")
         return jsonify({'error': str(e)}), 500
 
-@app.route('/api/deans-president/common-illnesses')
-def api_deans_president_common_illnesses():
+@app.route('/api/deans/common-illnesses')
+def api_deans_common_illnesses():
     """API endpoint for most common illnesses/complaints"""
     if 'user_id' not in session:
         return jsonify({'error': 'Unauthorized'}), 401
     
-    if session.get('role') not in ['president', 'deans']:
+    if session.get('role') not in ['deans']:
         return jsonify({'error': 'Access denied'}), 403
     
     try:
@@ -5869,13 +5702,78 @@ def api_deans_president_common_illnesses():
         print(f"Error fetching common illnesses: {e}")
         return jsonify({'error': str(e)}), 500
 
-@app.route('/api/deans-president/gender-distribution')
-def api_deans_president_gender_distribution():
+@app.route('/api/deans/age-distribution')
+def api_deans_age_distribution():
+    """API endpoint for age distribution of clinic visitors"""
+    if 'user_id' not in session:
+        return jsonify({'error': 'Unauthorized'}), 401
+    
+    if session.get('role') not in ['deans']:
+        return jsonify({'error': 'Access denied'}), 403
+    
+    try:
+        month = request.args.get('month')
+        year = request.args.get('year')
+        
+        conn = DatabaseConfig.get_connection()
+        if not conn:
+            return jsonify({'error': 'Database connection failed'}), 500
+        
+        cursor = conn.cursor()
+        ticket_number = generate_unique_ticket_number(conn)
+        
+        # Get age distribution of clinic visitors
+        if month and year:
+            query = '''
+                SELECT 
+                    TIMESTAMPDIFF(YEAR, s.std_Birthdate, CURDATE()) as age,
+                    COUNT(mr.id) as visit_count,
+                    COUNT(DISTINCT mr.student_number) as unique_students
+                FROM medical_records mr
+                INNER JOIN students s ON mr.student_number = s.student_number
+                WHERE MONTH(mr.visit_date) = %s AND YEAR(mr.visit_date) = %s
+                AND s.std_Birthdate IS NOT NULL
+                GROUP BY TIMESTAMPDIFF(YEAR, s.std_Birthdate, CURDATE())
+            '''
+            cursor.execute(query, (month, year))
+        else:
+            query = '''
+                SELECT 
+                    TIMESTAMPDIFF(YEAR, s.std_Birthdate, CURDATE()) as age,
+                    COUNT(mr.id) as visit_count,
+                    COUNT(DISTINCT mr.student_number) as unique_students
+                FROM medical_records mr
+                INNER JOIN students s ON mr.student_number = s.student_number
+                WHERE s.std_Birthdate IS NOT NULL
+                GROUP BY TIMESTAMPDIFF(YEAR, s.std_Birthdate, CURDATE())
+            '''
+            cursor.execute(query)
+        
+        age_data = cursor.fetchall()
+        
+        cursor.close()
+        conn.close()
+        
+        return jsonify({
+            'success': True,
+            'ageDistribution': [{
+                'age': row[0],
+                'visitCount': row[1],
+                'uniqueStudents': row[2]
+            } for row in age_data]
+        })
+        
+    except Exception as e:
+        print(f"Error fetching age distribution: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/deans/gender-distribution')
+def api_deans_gender_distribution():
     """API endpoint for gender distribution of clinic visitors"""
     if 'user_id' not in session:
         return jsonify({'error': 'Unauthorized'}), 401
     
-    if session.get('role') not in ['president', 'deans']:
+    if session.get('role') not in ['deans']:
         return jsonify({'error': 'Access denied'}), 403
     
     try:
@@ -5934,13 +5832,13 @@ def api_deans_president_gender_distribution():
         print(f"Error fetching gender distribution: {e}")
         return jsonify({'error': str(e)}), 500
 
-@app.route('/api/deans-president/monthly-visits-data')
-def api_deans_president_monthly_visits_data():
+@app.route('/api/deans/monthly-visits-data')
+def api_deans_monthly_visits_data():
     """API endpoint for daily visits data for a specific month"""
     if 'user_id' not in session:
         return jsonify({'error': 'Unauthorized'}), 401
     
-    if session.get('role') not in ['president', 'deans']:
+    if session.get('role') not in ['deans']:
         return jsonify({'error': 'Access denied'}), 403
     
     try:
@@ -6111,12 +6009,12 @@ def staff_print_reports():
 
 @app.route('/student/dashboard')
 def student_dashboard():
-    """Serve the student dashboard (for students, teaching staff, non-teaching staff, deans, and president)"""
+    """Serve the student dashboard (for students, teaching staff, non-teaching staff, and deans)"""
     if 'user_id' not in session:
         return redirect(url_for('login_page'))
     
-    # Allow students, teaching staff, non-teaching staff, deans, and president
-    if session.get('role') not in ['student', 'teaching_staff', 'non_teaching_staff', 'deans', 'president']:
+    # Allow students, teaching staff, non-teaching staff, and deans
+    if session.get('role') not in ['student', 'teaching_staff', 'non_teaching_staff', 'deans']:
         flash('Access denied. This page is for students and staff members.', 'error')
         return redirect(url_for('login_page'))
     
@@ -6132,11 +6030,11 @@ def student_dashboard():
 
 @app.route('/student/onsite-queue')
 def student_onsite_queue():
-    """Serve the onsite queue page for patients (students, teaching staff, non-teaching staff, deans, and president)."""
+    """Serve the onsite queue page for patients (students, teaching staff, non-teaching staff, and deans)."""
     if 'user_id' not in session:
         return redirect(url_for('login_page'))
 
-    if session.get('role') not in ['student', 'teaching_staff', 'non_teaching_staff', 'deans', 'president']:
+    if session.get('role') not in ['student', 'teaching_staff', 'non_teaching_staff', 'deans']:
         flash('Access denied. This page is for students and staff members.', 'error')
         return redirect(url_for('login_page'))
 
@@ -6151,12 +6049,12 @@ def student_onsite_queue():
 
 @app.route('/student/health-records')
 def student_health_records():
-    """Serve the student health records page (for students, teaching staff, non-teaching staff, deans, and president)"""
+    """Serve the student health records page (for students, teaching staff, non-teaching staff, and deans)"""
     if 'user_id' not in session:
         return redirect(url_for('login_page'))
     
-    # Allow students, teaching staff, non-teaching staff, deans, and president
-    if session.get('role') not in ['student', 'teaching_staff', 'non_teaching_staff', 'deans', 'president']:
+    # Allow students, teaching staff, non-teaching staff, and deans
+    if session.get('role') not in ['student', 'teaching_staff', 'non_teaching_staff', 'deans']:
         flash('Access denied. This page is for students and staff members.', 'error')
         return redirect(url_for('login_page'))
     
@@ -6171,12 +6069,12 @@ def student_health_records():
 
 @app.route('/student/appointments')
 def student_appointments():
-    """Serve the student appointments page (for students, teaching staff, non-teaching staff, deans, and president)"""
+    """Serve the student appointments page (for students, teaching staff, non-teaching staff, and deans)"""
     if 'user_id' not in session:
         return redirect(url_for('login_page'))
     
-    # Allow students, teaching staff, non-teaching staff, deans, and president
-    if session.get('role') not in ['student', 'teaching_staff', 'non_teaching_staff', 'deans', 'president']:
+    # Allow students, teaching staff, non-teaching staff, and deans
+    if session.get('role') not in ['student', 'teaching_staff', 'non_teaching_staff', 'deans']:
         flash('Access denied. This page is for students and staff members.', 'error')
         return redirect(url_for('login_page'))
     
@@ -6191,12 +6089,12 @@ def student_appointments():
 
 @app.route('/student/consultation-chat')
 def student_consultation_chat():
-    """Serve the student consultation chat page (for students, teaching staff, non-teaching staff, deans, and president)"""
+    """Serve the student consultation chat page (for students, teaching staff, non-teaching staff, and deans)"""
     if 'user_id' not in session:
         return redirect(url_for('login_page'))
     
-    # Allow students, teaching staff, non-teaching staff, deans, and president
-    if session.get('role') not in ['student', 'teaching_staff', 'non_teaching_staff', 'deans', 'president']:
+    # Allow students, teaching staff, non-teaching staff, and deans
+    if session.get('role') not in ['student', 'teaching_staff', 'non_teaching_staff', 'deans']:
         flash('Access denied. This page is for students and staff members.', 'error')
         return redirect(url_for('login_page'))
     
@@ -6211,12 +6109,12 @@ def student_consultation_chat():
 
 @app.route('/student/announcements')
 def student_announcements():
-    """Serve the student announcements page (for students, teaching staff, non-teaching staff, deans, and president)"""
+    """Serve the student announcements page (for students, teaching staff, non-teaching staff, and deans)"""
     if 'user_id' not in session:
         return redirect(url_for('login_page'))
     
-    # Allow students, teaching staff, non-teaching staff, deans, and president
-    if session.get('role') not in ['student', 'teaching_staff', 'non_teaching_staff', 'deans', 'president']:
+    # Allow students, teaching staff, non-teaching staff, and deans
+    if session.get('role') not in ['student', 'teaching_staff', 'non_teaching_staff', 'deans']:
         flash('Access denied. This page is for students and staff members.', 'error')
         return redirect(url_for('login_page'))
     
@@ -6229,15 +6127,15 @@ def student_announcements():
     }
     return render_template('STUDENT/ST-Announcement.html', user=user_info)
 
-@app.route('/deans_president/reports')
-def deans_president_reports():
-    """Serve the reports page (ONLY for deans and president)"""
+@app.route('/deans/reports')
+def deans_reports():
+    """Serve the reports page (ONLY for deans)"""
     if 'user_id' not in session:
         return redirect(url_for('login_page'))
     
-    # ONLY allow deans and president
-    if session.get('role') not in ['deans', 'president']:
-        flash('Access denied. This page is only for Deans and President.', 'error')
+    # ONLY allow deans
+    if session.get('role') not in ['deans']:
+        flash('Access denied. This page is only for Deans.', 'error')
         return redirect(url_for('login_page'))
     
     user_info = {
@@ -6247,7 +6145,7 @@ def deans_president_reports():
         'role': session.get('role'),
         'position': session.get('position')
     }
-    return render_template('pages/deans_president/DEANS_REPORT.html', user=user_info)
+    return render_template('pages/deans/DEANS_REPORT.html', user=user_info)
 
 @app.route('/patients')
 def staff_patients():
@@ -6698,7 +6596,7 @@ def api_patient_queue_status():
             }
         ), 200
     except Exception as e:
-        print(f"❌ Error getting patient queue status: {e}")
+        print(f"Error getting patient queue status: {e}")
         return jsonify({'error': 'Failed to load queue status'}), 500
     finally:
         try:
@@ -6963,15 +6861,7 @@ def api_public_patient_count():
         else:
             dean_count = 0
         
-        # Count president
-        cursor.execute("SHOW TABLES LIKE 'president'")
-        if cursor.fetchone():
-            cursor.execute('SELECT COUNT(*) FROM president WHERE is_archived = FALSE')
-            president_count = cursor.fetchone()[0] or 0
-        else:
-            president_count = 0
-        
-        total_count = student_count + visitor_count + teaching_count + non_teaching_count + dean_count + president_count
+        total_count = student_count + visitor_count + teaching_count + non_teaching_count + dean_count
         
         print(f"ðŸ“Š Patient Count Breakdown:")
         print(f"   Students: {student_count}")
@@ -6979,7 +6869,6 @@ def api_public_patient_count():
         print(f"   Teaching Staff: {teaching_count}")
         print(f"   Non-Teaching Staff: {non_teaching_count}")
         print(f"   Deans: {dean_count}")
-        print(f"   President: {president_count}")
         print(f"   TOTAL: {total_count}")
         
         cursor.close()
@@ -6992,8 +6881,7 @@ def api_public_patient_count():
                 'visitors': visitor_count,
                 'teaching_staff': teaching_count,
                 'non_teaching_staff': non_teaching_count,
-                'deans': dean_count,
-                'president': president_count
+                'deans': dean_count
             }
         }), 200
         
@@ -7022,13 +6910,13 @@ def api_all_patients():
         cursor.execute('''
             SELECT patient_id, role, source_id, identifier, first_name, middle_name, last_name, suffix,
                    gender, age, birthdate, email, contact_number,
-                   department, course, level, position, rank,
+                   department, course, level, position,
                    blood_type, allergies, medical_conditions,
                    emergency_contact_name, emergency_contact_relationship, emergency_contact_number, emergency_contact_email,
                    is_active
             FROM patients_unified
             WHERE is_active = 1
-              AND role IN ('Student', 'Visitor', 'Teaching Staff', 'Non-Teaching Staff', 'Dean', 'President')
+              AND role IN ('Student', 'Visitor', 'Teaching Staff', 'Non-Teaching Staff', 'Dean')
             ORDER BY last_name, first_name
         ''')
 
@@ -7041,7 +6929,6 @@ def api_all_patients():
         teaching_ids = []
         non_teaching_ids = []
         dean_ids = []
-        president_ids = []
 
         for r in rows:
             role = (r.get('role') or '').strip()
@@ -7062,9 +6949,6 @@ def api_all_patients():
             elif role == 'Dean':
                 if source_id is not None:
                     dean_ids.append(source_id)
-            elif role == 'President':
-                if source_id is not None:
-                    president_ids.append(source_id)
 
         refreshed_emergency_by_key = {}
 
@@ -7176,29 +7060,6 @@ def api_all_patients():
         except Exception as e:
             print(f"Note: Could not refresh dean emergency contacts for /api/all-patients: {e}")
 
-        # President
-        try:
-            if president_ids:
-                cursor.execute(
-                    '''
-                    SELECT id,
-                           emergency_contact_name, emergency_contact_relationship,
-                           emergency_contact_number, emergency_contact_email
-                    FROM president
-                    WHERE id IN %s
-                    ''',
-                    (tuple(president_ids),)
-                )
-                for p in cursor.fetchall():
-                    refreshed_emergency_by_key[('President', p.get('id'))] = {
-                        'emergency_contact_name': p.get('emergency_contact_name'),
-                        'emergency_contact_relationship': p.get('emergency_contact_relationship'),
-                        'emergency_contact_number': p.get('emergency_contact_number'),
-                        'emergency_contact_email': p.get('emergency_contact_email')
-                    }
-        except Exception as e:
-            print(f"Note: Could not refresh president emergency contacts for /api/all-patients: {e}")
-
         for r in rows:
             role = r.get('role') or 'Unknown'
             source_id = r.get('source_id')
@@ -7236,8 +7097,6 @@ def api_all_patients():
                 legacy_id = f"NT{source_id}" if source_id is not None else None
             elif role == 'Dean':
                 legacy_id = f"D{source_id}" if source_id is not None else None
-            elif role == 'President':
-                legacy_id = f"P{source_id}" if source_id is not None else None
             elif role == 'Nurse':
                 legacy_id = f"N{source_id}" if source_id is not None else None
             elif role == 'Admin':
@@ -7278,7 +7137,6 @@ def api_all_patients():
                 'picture': None,
                 'birthdate': str(r.get('birthdate')) if r.get('birthdate') else None,
                 'position': r.get('position'),
-                'rank': r.get('rank'),
                 'blood_type': r.get('blood_type') or 'N/A',
                 'allergies': r.get('allergies') or 'None',
                 'medical_conditions': r.get('medical_conditions') or 'None',
@@ -7364,7 +7222,7 @@ def api_archived_patients():
         if cursor.fetchone():
             cursor.execute('''
                 SELECT id, faculty_id, first_name, last_name, email, 
-                       rank, specialization, age, gender, contact_number, archived_at
+                       position, specialization, age, gender, contact_number, archived_at
                 FROM teaching 
                 WHERE is_active = FALSE AND is_archived = FALSE
                 ORDER BY archived_at DESC, last_name, first_name
@@ -7389,7 +7247,7 @@ def api_archived_patients():
                     'email': t[4] or 'N/A',
                     'contact': t[9] or 'N/A',
                     'department': t[6] or 'N/A',
-                    'rank': t[5] or 'N/A',
+                    'position': t[5] or 'N/A',
                     'role': 'Teaching Staff',
                     'archived_date': archived_date,
                     'archived_time': archived_time
@@ -7588,7 +7446,7 @@ def api_add_visitor():
         return jsonify({'error': 'No data provided'}), 400
     
     # Validate required fields
-    required_fields = ['first_name', 'last_name', 'gender', 'age', 'email']
+    required_fields = ['first_name', 'last_name', 'gender', 'age']
     for field in required_fields:
         if not data.get(field):
             return jsonify({'error': f'Missing required field: {field}'}), 400
@@ -7625,8 +7483,8 @@ def api_add_visitor():
         
         # Insert new visitor
         cursor.execute('''
-            INSERT INTO visitors (first_name, middle_name, last_name, suffix, gender, age, blood_type, email, contact_number)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+            INSERT INTO visitors (first_name, middle_name, last_name, suffix, gender, age, blood_type, contact_number)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
         ''', (
             data['first_name'],
             middle_name,
@@ -7635,8 +7493,7 @@ def api_add_visitor():
             data.get('gender'),
             int(data['age']),
             data.get('blood_type', ''),
-            data.get('email'),
-            data.get('contact_number', '')
+            None
         ))
         
         visitor_id = cursor.lastrowid
@@ -7662,7 +7519,7 @@ def api_add_visitor():
                     data.get('suffix', '') or '',
                     data.get('gender'),
                     int(data['age']),
-                    data.get('email'),
+                    None,
                     data.get('contact_number', ''),
                     1
                 ))
@@ -7701,7 +7558,7 @@ def api_get_visitors():
     cursor = conn.cursor()
     try:
         cursor.execute('''
-            SELECT id, first_name, middle_name, last_name, suffix, gender, age, blood_type, email, contact_number, created_at
+            SELECT id, first_name, middle_name, last_name, suffix, gender, age, blood_type, contact_number, created_at
             FROM visitors ORDER BY last_name, first_name
         ''')
         visitors = cursor.fetchall()
@@ -7718,9 +7575,7 @@ def api_get_visitors():
             'full_name': f"{v[1]} {v[2] + ' ' if v[2] else ''}{v[3]}{' ' + v[4] if v[4] else ''}".strip(),
             'age': v[6],
             'blood_type': v[7],
-            'email': v[8],
-            'contact_number': v[9],
-            'created_at': str(v[10]) if v[10] else None
+            'created_at': str(v[9]) if v[9] else None
         } for v in visitors])
         
     except Exception as e:
@@ -7781,7 +7636,7 @@ def api_check_duplicate_patient():
         # Visitors
         try:
             cursor.execute('''
-                SELECT id, first_name, middle_name, last_name, email
+                SELECT id, first_name, middle_name, last_name
                 FROM visitors
                 WHERE LOWER(TRIM(first_name)) = %s
                   AND LOWER(TRIM(COALESCE(middle_name, ''))) = %s
@@ -7794,7 +7649,7 @@ def api_check_duplicate_patient():
                     'type': 'Visitor',
                     'id': f"V{r[0]}",
                     'name': full_name,
-                    'additional_info': (r[4] or '').strip() or 'Visitor'
+                    'additional_info': 'Visitor'
                 })
         except Exception:
             pass
@@ -8381,7 +8236,7 @@ def api_teaching():
         ticket_number = generate_unique_ticket_number(conn)
         cursor.execute('''
             SELECT id, faculty_id, faculty_number, first_name, last_name, email, 
-                   rank, status, hire_date, specialization, is_archived, 
+                   position, status, hire_date, specialization, is_archived, 
                    created_at, updated_at
             FROM teaching 
             ORDER BY last_name, first_name
@@ -8399,7 +8254,7 @@ def api_teaching():
             'first_name': t[3],
             'last_name': t[4],
             'email': t[5],
-            'rank': t[6],
+            'position': t[6],
             'status': t[7],
             'hire_date': t[8].strftime('%Y-%m-%d') if t[8] else None,
             'specialization': t[9],
@@ -8434,6 +8289,22 @@ def api_add_medicine():
     
     cursor = conn.cursor()
     try:
+        def _validate_expiry_date_not_within_30_days(expiry_date_raw, label='Expiry date'):
+            if not expiry_date_raw:
+                return f'{label} is required.'
+            try:
+                expiry_dt = datetime.strptime(str(expiry_date_raw), '%Y-%m-%d').date()
+            except Exception:
+                return f'{label} is invalid. Expected YYYY-MM-DD.'
+
+            today = datetime.now().date()
+            diff_days = (expiry_dt - today).days
+            if diff_days < 0:
+                return f'Unable to add this item because the expiry date ({expiry_dt.isoformat()}) has already passed. Please select a valid expiry date.'
+            if diff_days <= 30:
+                return f'Unable to add this item because it expires too soon. The expiry date ({expiry_dt.isoformat()}) is {diff_days} day(s) away. Please use an expiry date more than 30 days from today.'
+            return None
+
         # Check if medicine already exists
         cursor.execute('''
             SELECT medicine_id FROM medicines 
@@ -8469,6 +8340,12 @@ def api_add_medicine():
         batches_added = []
         if 'batches' in data and data['batches']:
             for batch in data['batches']:
+                expiry_error = _validate_expiry_date_not_within_30_days(batch.get('expiry_date'), label='Batch expiry date')
+                if expiry_error:
+                    cursor.close()
+                    conn.close()
+                    return jsonify({'error': expiry_error}), 400
+
                 cursor.execute('''
                     INSERT INTO medicine_batches 
                     (medicine_id, batch_number, quantity, expiry_date, arrival_date, 
@@ -8486,6 +8363,12 @@ def api_add_medicine():
                 ))
                 batches_added.append(cursor.lastrowid)
         elif 'quantity' in data and 'expiry_date' in data:
+            expiry_error = _validate_expiry_date_not_within_30_days(data.get('expiry_date'), label='Expiry date')
+            if expiry_error:
+                cursor.close()
+                conn.close()
+                return jsonify({'error': expiry_error}), 400
+
             # Legacy support: single batch from old form format
             cursor.execute('''
                 INSERT INTO medicine_batches 
@@ -8553,6 +8436,22 @@ def api_add_medicine_batch():
     
     cursor = conn.cursor()
     try:
+        def _validate_expiry_date_not_within_30_days(expiry_date_raw, label='Batch expiry date'):
+            if not expiry_date_raw:
+                return f'{label} is required.'
+            try:
+                expiry_dt = datetime.strptime(str(expiry_date_raw), '%Y-%m-%d').date()
+            except Exception:
+                return f'{label} is invalid. Expected YYYY-MM-DD.'
+
+            today = datetime.now().date()
+            diff_days = (expiry_dt - today).days
+            if diff_days < 0:
+                return f'Unable to add this item because the expiry date ({expiry_dt.isoformat()}) has already passed. Please select a valid expiry date.'
+            if diff_days <= 30:
+                return f'Unable to add this item because it expires too soon. The expiry date ({expiry_dt.isoformat()}) is {diff_days} day(s) away. Please use an expiry date more than 30 days from today.'
+            return None
+
         # Verify medicine exists
         cursor.execute('SELECT medicine_id, medicine_name FROM medicines WHERE medicine_id = %s', (medicine_id,))
         medicine = cursor.fetchone()
@@ -8565,6 +8464,12 @@ def api_add_medicine_batch():
         # Add batches
         batches_added = []
         for batch in batches:
+            expiry_error = _validate_expiry_date_not_within_30_days(batch.get('expiry_date'), label='Batch expiry date')
+            if expiry_error:
+                cursor.close()
+                conn.close()
+                return jsonify({'error': expiry_error}), 400
+
             cursor.execute('''
                 INSERT INTO medicine_batches 
                 (medicine_id, batch_number, quantity, expiry_date, arrival_date, 
@@ -9240,81 +9145,6 @@ def api_update_visitor_medical_record(record_id):
         print(f"Error updating visitor medical record: {e}")
         return jsonify({'error': f'Database error: {str(e)}'}), 500
 
-@app.route('/api/update-president-medical-record/<int:record_id>', methods=['PUT'])
-def api_update_president_medical_record(record_id):
-    """API endpoint to update an existing medical record for the president"""
-    if 'user_id' not in session:
-        return jsonify({'error': 'Unauthorized'}), 401
-    
-    try:
-        data = request.get_json()
-        if not data:
-            return jsonify({'error': 'No data provided'}), 400
-        
-        conn = DatabaseConfig.get_connection()
-        if not conn:
-            return jsonify({'error': 'Database connection failed'}), 500
-        
-        cursor = conn.cursor()
-        ticket_number = generate_unique_ticket_number(conn)
-        
-        print(f"Updating president medical record ID: {record_id}")
-        
-        # Update president medical record
-        cursor.execute('''
-            UPDATE president_medical_records SET
-                chief_complaint = %s,
-                symptoms = %s,
-                treatment = %s,
-                prescribed_medicine = %s,
-                notes = %s,
-                medical_history = %s,
-                fever_duration = %s,
-                current_medication = %s,
-                medication_schedule = %s,
-                blood_pressure_systolic = %s,
-                blood_pressure_diastolic = %s,
-                pulse_rate = %s,
-                temperature = %s,
-                respiratory_rate = %s,
-                weight = %s,
-                height = %s
-            WHERE id = %s
-        ''', (
-            data.get('chief_complaint', ''),
-            data.get('symptoms', ''),
-            data.get('treatment', ''),
-            data.get('prescribed_medicine', ''),
-            data.get('notes', ''),
-            data.get('medical_history', ''),
-            data.get('fever_duration', ''),
-            data.get('current_medication', ''),
-            data.get('medication_schedule', ''),
-            data.get('blood_pressure_systolic'),
-            data.get('blood_pressure_diastolic'),
-            data.get('pulse_rate'),
-            data.get('temperature'),
-            data.get('respiratory_rate'),
-            data.get('weight'),
-            data.get('height'),
-            record_id
-        ))
-        
-        conn.commit()
-        cursor.close()
-        conn.close()
-        
-        print(f"President medical record {record_id} updated successfully")
-        
-        return jsonify({
-            'success': True,
-            'message': 'Medical record updated successfully'
-        }), 200
-        
-    except Exception as e:
-        print(f"Error updating president medical record: {e}")
-        return jsonify({'error': f'Database error: {str(e)}'}), 500
-
 @app.route('/api/update-dean-medical-record/<int:record_id>', methods=['PUT'])
 def api_update_dean_medical_record(record_id):
     """API endpoint to update an existing medical record for a dean"""
@@ -9763,11 +9593,12 @@ def api_user_profile():
         ticket_number = generate_unique_ticket_number(conn)
         user_id = session['user_id']
         role = session.get('role', '')
+        role_norm = (role or '').strip().lower()
         
         print(f"ðŸ” Getting profile for user_id: {user_id}, role: {role}")
         
         # Get basic user info from users table
-        cursor.execute('SELECT id, username, first_name, last_name, role, position, created_at FROM users WHERE id = %s', (user_id,))
+        cursor.execute('SELECT id, user_id, username, email, first_name, last_name, role, position, created_at FROM users WHERE id = %s', (user_id,))
         user_info = cursor.fetchone()
         
         if not user_info:
@@ -9775,64 +9606,261 @@ def api_user_profile():
         
         profile = {
             'id': user_info[0],
-            'username': user_info[1],
-            'first_name': user_info[2],
-            'last_name': user_info[3],
-            'role': user_info[4],
-            'position': user_info[5],
-            'created_at': user_info[6].isoformat() if user_info[6] else None
+            'user_id': user_info[1],
+            'username': user_info[2],
+            'email': user_info[3] or session.get('email') or session.get('username'),
+            'first_name': user_info[4] or session.get('first_name'),
+            'last_name': user_info[5] or session.get('last_name'),
+            'role': role_norm,
+            'position': user_info[7] or session.get('position'),
+            'created_at': user_info[8].isoformat() if user_info[8] else None
         }
         
         # Get role-specific information
-        if role == 'student':
+        if role_norm == 'student':
             # Get student-specific data
-            cursor.execute('SELECT * FROM students WHERE std_EmailAdd = %s OR std_Firstname = %s LIMIT 1', 
-                         (user_info[1], user_info[2]))
-            student_data = cursor.fetchone()
+            # 1) Prefer strict match by student_number = users.user_id
+            # 2) Fallback to email/first_name (supports newer schema + legacy columns)
+            student_identifier = user_info[1] or session.get('identifier_id')
+            if student_identifier:
+                # Attempt strict match by student_number
+                cursor.execute('SELECT * FROM students WHERE student_number = %s LIMIT 1', (student_identifier,))
+                student_data = cursor.fetchone()
+
+                # If not found, attempt legacy identifiers (e.g. std_ID) and prefix-stripped variants
+                if not student_data:
+                    cleaned_identifier = str(student_identifier).strip()
+                    # Common formats: "S2022-0001", "ST-2022-0001" -> "2022-0001"
+                    for prefix in ['ST-', 'S-', 'ST', 'S']:
+                        if cleaned_identifier.upper().startswith(prefix):
+                            cleaned_identifier = cleaned_identifier[len(prefix):].lstrip('-').strip()
+                            break
+
+                    try:
+                        cursor.execute(
+                            'SELECT * FROM students WHERE std_ID = %s OR student_number = %s LIMIT 1',
+                            (cleaned_identifier, cleaned_identifier)
+                        )
+                        student_data = cursor.fetchone()
+                    except Exception:
+                        # Some schemas may not have std_ID
+                        cursor.execute('SELECT * FROM students WHERE student_number = %s LIMIT 1', (cleaned_identifier,))
+                        student_data = cursor.fetchone()
+            else:
+                student_data = None
+
+            if not student_data:
+                email_for_lookup = profile.get('email') or user_info[3]
+                first_for_lookup = profile.get('first_name') or user_info[4]
+                try:
+                    cursor.execute(
+                        'SELECT * FROM students WHERE email = %s OR first_name = %s LIMIT 1',
+                        (email_for_lookup, first_for_lookup)
+                    )
+                    student_data = cursor.fetchone()
+                except Exception:
+                    # Legacy schema fallback (only if those columns exist)
+                    cursor.execute(
+                        'SELECT * FROM students WHERE std_EmailAdd = %s OR std_Firstname = %s LIMIT 1',
+                        (email_for_lookup, first_for_lookup)
+                    )
+                    student_data = cursor.fetchone()
             
             if student_data:
                 cursor.execute("SHOW COLUMNS FROM students")
                 columns = [col[0] for col in cursor.fetchall()]
                 student_dict = dict(zip(columns, student_data))
+
+                emergency_name = student_dict.get('emergency_contact_name')
+                emergency_relationship = student_dict.get('emergency_contact_relationship')
+                emergency_number = student_dict.get('emergency_contact_number')
+
+                if not (emergency_name or emergency_number):
+                    father_name = (student_dict.get('std_FatherName') or '').strip()
+                    father_mobile = (student_dict.get('std_FContactNum') or '').strip()
+                    if (father_name or father_mobile):
+                        emergency_name = father_name or emergency_name
+                        emergency_relationship = emergency_relationship or 'Father'
+                        emergency_number = father_mobile or emergency_number
+
+                if not (emergency_name or emergency_number):
+                    mother_name = (student_dict.get('std_MotherName') or '').strip()
+                    mother_mobile = (student_dict.get('std_MContactNum') or '').strip()
+                    if (mother_name or mother_mobile):
+                        emergency_name = mother_name or emergency_name
+                        emergency_relationship = emergency_relationship or 'Mother'
+                        emergency_number = mother_mobile or emergency_number
                 
                 profile.update({
-                    'student_number': student_dict.get('student_number'),
-                    'course': student_dict.get('std_Course'),
-                    'level': student_dict.get('std_Level'),
-                    'section': student_dict.get('std_Section'),
-                    'contact_number': student_dict.get('std_ContactNum'),
-                    'email': student_dict.get('std_EmailAdd'),
-                    'emergency_contact_name': student_dict.get('emergency_contact_name'),
-                    'emergency_contact_relationship': student_dict.get('emergency_contact_relationship'),
-                    'emergency_contact_number': student_dict.get('emergency_contact_number'),
+                    'student_number': student_dict.get('student_number') or student_identifier,
+                    'course': student_dict.get('course') or student_dict.get('std_Course'),
+                    'level': student_dict.get('level') or student_dict.get('std_Level'),
+                    'section': student_dict.get('section') or student_dict.get('std_Section'),
+                    'contact_number': student_dict.get('std_ContactNum') or student_dict.get('mobile_no') or student_dict.get('contact_number'),
+                    'email': student_dict.get('email') or student_dict.get('std_EmailAdd') or profile.get('email') or user_info[3],
+                    'emergency_contact_name': emergency_name,
+                    'emergency_contact_relationship': emergency_relationship,
+                    'emergency_contact_number': emergency_number,
+                    'emergency_contact_email': student_dict.get('emergency_contact_email'),
                     'blood_type': student_dict.get('blood_type'),
                     'allergies': student_dict.get('allergies'),
                     'medical_conditions': student_dict.get('medical_conditions')
                 })
+
+                # If course is still missing, re-resolve it by the resolved student_number/std_ID.
+                # This matches the clinic Patients page behavior which keys off student_number.
+                if not profile.get('course'):
+                    try:
+                        sn_resolved = (profile.get('student_number') or '').strip()
+                        if sn_resolved:
+                            sn_clean = sn_resolved
+                            for prefix in ['ST-', 'S-', 'ST', 'S']:
+                                if sn_clean.upper().startswith(prefix):
+                                    sn_clean = sn_clean[len(prefix):].lstrip('-').strip()
+                                    break
+
+                            # Build a safe SELECT for whatever schema exists
+                            course_cols = []
+                            if 'std_Course' in columns:
+                                course_cols.append('std_Course')
+                            if 'course' in columns:
+                                course_cols.append('course')
+
+                            where_clauses = ["student_number = %s"]
+                            params = [sn_resolved]
+                            if 'std_ID' in columns:
+                                where_clauses.append("std_ID = %s")
+                                params.append(sn_resolved)
+                            if sn_clean and sn_clean != sn_resolved:
+                                where_clauses.append("student_number = %s")
+                                params.append(sn_clean)
+                                if 'std_ID' in columns:
+                                    where_clauses.append("std_ID = %s")
+                                    params.append(sn_clean)
+
+                            if course_cols:
+                                cursor.execute(
+                                    f"SELECT {', '.join(course_cols)} FROM students WHERE ({' OR '.join(where_clauses)}) LIMIT 1",
+                                    tuple(params)
+                                )
+                                c_row = cursor.fetchone()
+                                if c_row:
+                                    # Pick first non-empty value
+                                    for v in c_row:
+                                        if v and str(v).strip():
+                                            profile['course'] = v
+                                            break
+                    except Exception as e:
+                        print(f"⚠️ Course re-resolve failed: {e}")
+
+                # Fallback/override from patients_unified (often the authoritative data used by Staff Patients UI)
+                try:
+                    cursor.execute("SHOW TABLES LIKE 'patients_unified'")
+                    if cursor.fetchone():
+                        sn = profile.get('student_number')
+                        if sn:
+                            cursor.execute(
+                                '''
+                                SELECT contact_number, emergency_contact_name, emergency_contact_relationship,
+                                       emergency_contact_number, emergency_contact_email,
+                                       course, level, department
+                                FROM patients_unified
+                                WHERE role = 'Student'
+                                  AND (identifier = %s OR source_id = %s)
+                                LIMIT 1
+                                ''',
+                                (sn, sn)
+                            )
+                            urow = cursor.fetchone()
+                            if urow:
+                                u_contact, u_ec_name, u_ec_rel, u_ec_num, u_ec_email, u_course, u_level, u_dept = urow
+                                if u_contact and not profile.get('contact_number'):
+                                    profile['contact_number'] = u_contact
+                                if u_ec_name and not profile.get('emergency_contact_name'):
+                                    profile['emergency_contact_name'] = u_ec_name
+                                if u_ec_rel and not profile.get('emergency_contact_relationship'):
+                                    profile['emergency_contact_relationship'] = u_ec_rel
+                                if u_ec_num and not profile.get('emergency_contact_number'):
+                                    profile['emergency_contact_number'] = u_ec_num
+                                if u_ec_email and not profile.get('emergency_contact_email'):
+                                    profile['emergency_contact_email'] = u_ec_email
+                                if u_course and not profile.get('course'):
+                                    profile['course'] = u_course
+                                if u_level and not profile.get('level'):
+                                    profile['level'] = u_level
+                                if u_dept and not profile.get('department'):
+                                    profile['department'] = u_dept
+                except Exception:
+                    pass
+            else:
+                # Ensure student_number is still exposed even if a student record wasn't found
+                profile.update({
+                    'student_number': student_identifier
+                })
+
+                # Fallback from patients_unified even when students table has no matching row
+                try:
+                    cursor.execute("SHOW TABLES LIKE 'patients_unified'")
+                    if cursor.fetchone() and student_identifier:
+                        cursor.execute(
+                            '''
+                            SELECT contact_number, emergency_contact_name, emergency_contact_relationship,
+                                   emergency_contact_number, emergency_contact_email,
+                                   course, level, department
+                            FROM patients_unified
+                            WHERE role = 'Student'
+                              AND (identifier = %s OR source_id = %s)
+                            LIMIT 1
+                            ''',
+                            (student_identifier, student_identifier)
+                        )
+                        urow = cursor.fetchone()
+                        if urow:
+                            u_contact, u_ec_name, u_ec_rel, u_ec_num, u_ec_email, u_course, u_level, u_dept = urow
+                            if u_contact:
+                                profile['contact_number'] = u_contact
+                            if u_ec_name:
+                                profile['emergency_contact_name'] = u_ec_name
+                            if u_ec_rel:
+                                profile['emergency_contact_relationship'] = u_ec_rel
+                            if u_ec_num:
+                                profile['emergency_contact_number'] = u_ec_num
+                            if u_ec_email:
+                                profile['emergency_contact_email'] = u_ec_email
+                            if u_course and not profile.get('course'):
+                                profile['course'] = u_course
+                            if u_level and not profile.get('level'):
+                                profile['level'] = u_level
+                            if u_dept and not profile.get('department'):
+                                profile['department'] = u_dept
+                except Exception:
+                    pass
         
-        elif role == 'teaching_staff':
+        elif role_norm == 'teaching_staff':
             # Get teaching staff data from teaching table
             cursor.execute('''
-                SELECT faculty_id, rank, specialization, contact_number, age, gender
+                SELECT faculty_id, position, specialization, contact_number, age, gender,
+                       emergency_contact_name, emergency_contact_relationship, emergency_contact_number
                 FROM teaching 
                 WHERE email = %s OR first_name = %s
                 LIMIT 1
-            ''', (user_info[1], user_info[2]))
+            ''', (user_info[3], user_info[4]))
             teaching_data = cursor.fetchone()
             
             if teaching_data:
                 profile.update({
                     'faculty_id': teaching_data[0],
                     'staff_id': teaching_data[0],  # For display compatibility
-                    'rank': teaching_data[1],
+                    'position': teaching_data[1],
                     'specialization': teaching_data[2],
-                    'department': user_info[5] or teaching_data[2],  # position or specialization
+                    'department': teaching_data[1],  # force position, ignore users.position
                     'contact_number': teaching_data[3],
                     'age': teaching_data[4],
                     'gender': teaching_data[5],
-                    'email': user_info[1],
-                    'emergency_contact_name': None,
-                    'emergency_contact_number': None,
+                    'emergency_contact_name': teaching_data[6],
+                    'emergency_contact_relationship': teaching_data[7],
+                    'emergency_contact_number': teaching_data[8],
+                    'email': user_info[3],
                     'blood_type': None,
                     'allergies': None,
                     'medical_conditions': None
@@ -9842,12 +9870,12 @@ def api_user_profile():
                 profile.update({
                     'faculty_id': 'N/A',
                     'staff_id': 'N/A',
-                    'department': user_info[5],
+                    'department': user_info[7],
                     'contact_number': None,
-                    'email': user_info[1]
+                    'email': user_info[3]
                 })
         
-        elif role == 'non_teaching_staff':
+        elif role_norm == 'non_teaching_staff':
             # Get non-teaching staff data from non_teaching_staff table
             cursor.execute('''
                 SELECT staff_id, position, department, contact_number, age, gender,
@@ -9856,18 +9884,18 @@ def api_user_profile():
                 FROM non_teaching_staff 
                 WHERE email = %s OR first_name = %s
                 LIMIT 1
-            ''', (user_info[1], user_info[2]))
+            ''', (user_info[3], user_info[4]))
             staff_data = cursor.fetchone()
             
             if staff_data:
                 profile.update({
                     'staff_id': staff_data[0],
                     'position': staff_data[1],
-                    'department': staff_data[2] or user_info[5],
+                    'department': staff_data[1],  # position, not generic role
                     'contact_number': staff_data[3],
                     'age': staff_data[4],
                     'gender': staff_data[5],
-                    'email': user_info[1],
+                    'email': user_info[3],
                     'blood_type': staff_data[6],
                     'emergency_contact_name': staff_data[7],
                     'emergency_contact_relationship': staff_data[8],
@@ -9879,9 +9907,46 @@ def api_user_profile():
                 # Fallback if not found in non_teaching_staff table
                 profile.update({
                     'staff_id': 'N/A',
-                    'department': user_info[5],
+                    'department': user_info[7],
                     'contact_number': None,
-                    'email': user_info[1]
+                    'email': user_info[3]
+                })
+        
+        elif role_norm == 'dean':
+            # Get dean data from deans table
+            cursor.execute('''
+                SELECT dean_id, college, department, contact_number, age, gender,
+                       blood_type, emergency_contact_name, emergency_contact_relationship,
+                       emergency_contact_number, allergies, medical_conditions
+                FROM deans 
+                WHERE email = %s OR first_name = %s
+                LIMIT 1
+            ''', (user_info[3], user_info[4]))
+            dean_data = cursor.fetchone()
+            
+            if dean_data:
+                profile.update({
+                    'dean_id': dean_data[0],
+                    'position': 'Dean',
+                    'department': dean_data[1],  # college as department
+                    'contact_number': dean_data[3],
+                    'age': dean_data[4],
+                    'gender': dean_data[5],
+                    'email': user_info[3],
+                    'blood_type': dean_data[6],
+                    'emergency_contact_name': dean_data[7],
+                    'emergency_contact_relationship': dean_data[8],
+                    'emergency_contact_number': dean_data[9],
+                    'allergies': dean_data[10],
+                    'medical_conditions': dean_data[11]
+                })
+            else:
+                # Fallback if not found in deans table
+                profile.update({
+                    'dean_id': 'N/A',
+                    'department': user_info[7],
+                    'contact_number': None,
+                    'email': user_info[3]
                 })
         
         cursor.close()
@@ -10335,27 +10400,7 @@ def api_visits():
         except Exception as e:
             print(f"Error fetching dean records: {e}")
         
-        # 5. Get PRESIDENT medical records
-        try:
-            cursor.execute('''
-                SELECT pmr.id, pmr.visit_date, pmr.visit_time, pmr.chief_complaint,
-                       p.first_name, p.last_name
-                FROM president_medical_records pmr
-                INNER JOIN president p ON pmr.president_id = p.id
-            ''')
-            for r in cursor.fetchall():
-                visit_date = r[1].strftime('%Y-%m-%d') if r[1] else None
-                if visit_date:
-                    result.append({
-                        'visit_date': visit_date,
-                        'patient_name': f"{r[4]} {r[5]}" if r[4] and r[5] else 'Unknown',
-                        'patient_type': 'President',
-                        'chief_complaint': r[3] or 'No complaint'
-                    })
-        except Exception as e:
-            print(f"Error fetching president records: {e}")
-        
-        # 6. Get VISITOR medical records
+        # 5. Get VISITOR medical records
         try:
             cursor.execute('''
                 SELECT vmr.id, vmr.visit_date, vmr.visit_time, vmr.chief_complaint,
@@ -10528,7 +10573,7 @@ def api_online_consultations():
             conn.commit()
         
         # Query to show actual patient names from the database
-        # Handle ALL patient types: Students, Teaching Staff, Non-Teaching Staff, Deans, President
+        # Handle ALL patient types: Students, Teaching Staff, Non-Teaching Staff, Deans
         # JOIN with proper tables to get correct IDs
         query = '''
             SELECT 
@@ -10555,7 +10600,7 @@ def api_online_consultations():
             LEFT JOIN non_teaching_staff nts ON oc.patient_name = CONCAT(nts.first_name, ' ', nts.last_name) 
                 AND oc.patient_role = 'Non-Teaching Staff'
             LEFT JOIN users u ON oc.patient_name = CONCAT(u.first_name, ' ', u.last_name) 
-                AND oc.patient_role IN ('Dean', 'President')
+                AND oc.patient_role IN ('Dean')
             WHERE oc.status = 'active'
             ORDER BY oc.started_at DESC
         '''
@@ -10600,7 +10645,7 @@ def api_online_consultations():
                 display_id = c[12]  # faculty_id (e.g., "FAC-CS-008")
             elif patient_role == 'Non-Teaching Staff' and c[13]:
                 display_id = c[13]  # staff_id (e.g., "NTS-2024-001")
-            elif patient_role in ['Dean', 'President'] and c[14]:
+            elif patient_role == 'Dean' and c[14]:
                 display_id = c[14]  # user_id directly (e.g., "DEAN-001", "PRES-001")
             elif c[9]:
                 display_id = str(c[9])  # patient_id as fallback
@@ -10863,15 +10908,7 @@ def api_create_clinic_stay():
                     SET stay_status = 'staying', stay_reason = %s, admission_time = %s
                     WHERE id = %s
                 ''', (data.get('stay_reason'), admission_time, data.get('medical_record_id')))
-                print(f"ðŸ¥ Updated dean medical record {data.get('medical_record_id')}")
-            elif patient_id.startswith('P'):
-                # President
-                cursor.execute('''
-                    UPDATE president_medical_records 
-                    SET stay_status = 'staying', stay_reason = %s, admission_time = %s
-                    WHERE id = %s
-                ''', (data.get('stay_reason'), admission_time, data.get('medical_record_id')))
-                print(f"ðŸ¥ Updated president medical record {data.get('medical_record_id')}")
+                print(f"🏥 Updated dean medical record {data.get('medical_record_id')}")
             elif patient_id.startswith('V'):
                 # Visitor
                 cursor.execute('''
@@ -11210,59 +11247,6 @@ def api_checkout_dean_medical_record(record_id):
     except Exception as e:
         return jsonify({'error': f'Error: {str(e)}'}), 500
 
-@app.route('/api/president-medical-records/<int:record_id>/checkout', methods=['PUT'])
-def api_checkout_president_medical_record(record_id):
-    """Update president medical record with checkout information"""
-    if 'user_id' not in session:
-        return jsonify({'error': 'Unauthorized'}), 401
-    
-    data = request.get_json()
-    if not data:
-        return jsonify({'error': 'No data provided'}), 400
-    
-    conn = DatabaseConfig.get_connection()
-    if not conn:
-        return jsonify({'error': 'Database connection failed'}), 500
-    
-    try:
-        cursor = conn.cursor()
-        ticket_number = generate_unique_ticket_number(conn)
-        
-        from datetime import datetime
-        discharge_time = datetime.now()
-        cursor.execute('''
-            UPDATE president_medical_records 
-            SET actual_checkout_time = %s,
-                discharge_time = %s,
-                stay_status = 'checked_out',
-                checkout_notes = %s
-            WHERE id = %s
-        ''', (
-            discharge_time,
-            discharge_time,
-            data.get('checkout_notes', ''),
-            record_id
-        ))
-        
-        if cursor.rowcount == 0:
-            cursor.close()
-            conn.close()
-            return jsonify({'error': 'President medical record not found'}), 404
-        
-        print(f"ðŸ¥ President discharged from medical record {record_id} at {discharge_time}")
-        
-        conn.commit()
-        cursor.close()
-        conn.close()
-        
-        return jsonify({
-            'success': True,
-            'message': 'President checked out successfully'
-        })
-        
-    except Exception as e:
-        return jsonify({'error': f'Error: {str(e)}'}), 500
-
 @app.route('/api/teaching-medical-record/<int:record_id>', methods=['GET'])
 def api_get_teaching_medical_record(record_id):
     """Get a single teaching medical record by ID"""
@@ -11295,7 +11279,7 @@ def api_get_teaching_medical_record(record_id):
                    tmr.will_stay_in_clinic, tmr.stay_reason,
                    tmr.stay_status, tmr.actual_checkout_time, tmr.checkout_notes,
                    tmr.admission_time, tmr.discharge_time, tmr.discharge_notes,
-                   t.first_name, t.last_name, t.email, t.faculty_id, t.rank, t.specialization,
+                   t.first_name, t.last_name, t.email, t.faculty_id, t.position, t.specialization,
                    u.first_name as doctor_first_name, u.last_name as doctor_last_name
             FROM teaching_medical_records tmr
             LEFT JOIN teaching t ON tmr.teaching_id = t.id
@@ -11665,96 +11649,6 @@ def api_get_dean_medical_record(record_id):
     except Exception as e:
         return jsonify({'error': f'Error: {str(e)}'}), 500
 
-@app.route('/api/president-medical-record/<int:record_id>', methods=['GET'])
-def api_get_president_medical_record(record_id):
-    """Get a single president medical record by ID"""
-    if 'user_id' not in session:
-        return jsonify({'error': 'Unauthorized'}), 401
-    
-    conn = DatabaseConfig.get_connection()
-    if not conn:
-        return jsonify({'error': 'Database connection failed'}), 500
-    
-    try:
-        cursor = conn.cursor()
-        ticket_number = generate_unique_ticket_number(conn)
-        
-        cursor.execute('''
-            SELECT mr.id, mr.president_id, mr.visit_date, mr.visit_time, mr.chief_complaint,
-                   mr.medical_history, mr.food_allergies, mr.medicine_allergies, mr.fever_duration,
-                   mr.current_medication, mr.medication_schedule, mr.blood_pressure_systolic, mr.blood_pressure_diastolic,
-                   mr.pulse_rate, mr.temperature, mr.respiratory_rate, mr.weight, mr.height, mr.bmi,
-                   mr.symptoms, mr.treatment, mr.prescribed_medicine, mr.dental_procedure, mr.procedure_notes,
-                   mr.follow_up_date, mr.special_instructions, mr.notes, mr.staff_name,
-                   mr.will_stay_in_clinic, mr.stay_reason, mr.stay_status, mr.actual_checkout_time, mr.checkout_notes,
-                   mr.admission_time, mr.discharge_time,
-                   mr.illness_classification_suggested, mr.illness_classification_suggested_reason,
-                   mr.illness_classification_final, mr.illness_classification_override_reason,
-                   mr.endorsement_required, mr.endorsement_status, mr.endorsed_at,
-                   p.first_name, p.last_name, p.position
-            FROM president_medical_records mr
-            LEFT JOIN president p ON mr.president_id = p.id
-            WHERE mr.id = %s
-        ''', (record_id,))
-        
-        record = cursor.fetchone()
-        cursor.close()
-        conn.close()
-        
-        if not record:
-            return jsonify({'error': 'President medical record not found'}), 404
-        
-        record_data = {
-            'id': record[0],
-            'president_id': record[1],
-            'visit_date': record[2].strftime('%Y-%m-%d') if record[2] else None,
-            'visit_time': str(record[3]) if record[3] else None,
-            'chief_complaint': record[4] or '',
-            'medical_history': record[5] or '',
-            'food_allergies': record[6] or '',
-            'medicine_allergies': record[7] or '',
-            'fever_duration': record[8] or '',
-            'current_medication': record[9] or '',
-            'medication_schedule': record[10] or '',
-            'blood_pressure_systolic': record[11],
-            'blood_pressure_diastolic': record[12],
-            'pulse_rate': record[13],
-            'temperature': record[14],
-            'respiratory_rate': record[15],
-            'weight': record[16],
-            'height': record[17],
-            'bmi': record[18] or '',
-            'symptoms': record[19] or '',
-            'treatment': record[20] or '',
-            'prescribed_medicine': record[21] or '',
-            'dental_procedure': record[22] or '',
-            'procedure_notes': record[23] or '',
-            'follow_up_date': str(record[24]) if record[24] else (record[24] or ''),
-            'special_instructions': record[25] or '',
-            'notes': record[26] or '',
-            'doctor_name': record[27] or 'Unknown Doctor',
-            'will_stay_in_clinic': record[28] or False,
-            'stay_reason': record[29] or '',
-            'stay_status': record[30] or 'not_staying',
-            'actual_checkout_time': record[31].strftime('%Y-%m-%d %H:%M:%S') if record[31] else None,
-            'checkout_notes': record[32] or '',
-            'admission_time': record[33].strftime('%Y-%m-%d %H:%M:%S') if record[33] else None,
-            'discharge_time': record[34].strftime('%Y-%m-%d %H:%M:%S') if record[34] else None,
-            'illness_classification_suggested': record[35],
-            'illness_classification_suggested_reason': record[36],
-            'illness_classification_final': record[37],
-            'illness_classification_override_reason': record[38],
-            'endorsement_required': bool(record[39]) if record[39] is not None else False,
-            'endorsement_status': record[40],
-            'endorsed_at': record[41].strftime('%Y-%m-%d %H:%M:%S') if record[41] else None,
-            'patient_name': f"{record[42]} {record[43]}" if record[42] and record[43] else 'Unknown'
-        }
-        
-        return jsonify(record_data)
-        
-    except Exception as e:
-        return jsonify({'error': f'Error: {str(e)}'}), 500
-
 @app.route('/api/delete-teaching-medical-record/<int:record_id>', methods=['DELETE'])
 def api_delete_teaching_medical_record(record_id):
     """Delete a teaching medical record"""
@@ -11915,38 +11809,6 @@ def api_delete_dean_medical_record(record_id):
     except Exception as e:
         return jsonify({'error': f'Error: {str(e)}'}), 500
 
-@app.route('/api/delete-president-medical-record/<int:record_id>', methods=['DELETE'])
-def api_delete_president_medical_record(record_id):
-    """Delete a president medical record"""
-    if 'user_id' not in session:
-        return jsonify({'error': 'Unauthorized'}), 401
-    
-    conn = DatabaseConfig.get_connection()
-    if not conn:
-        return jsonify({'error': 'Database connection failed'}), 500
-    
-    try:
-        cursor = conn.cursor()
-        ticket_number = generate_unique_ticket_number(conn)
-        
-        # Check if record exists
-        cursor.execute('SELECT id FROM president_medical_records WHERE id = %s', (record_id,))
-        if not cursor.fetchone():
-            cursor.close()
-            return jsonify({'error': 'President medical record not found'}), 404
-        
-        # Delete the record
-        cursor.execute('DELETE FROM president_medical_records WHERE id = %s', (record_id,))
-        conn.commit()
-        cursor.close()
-        
-        print(f"ðŸ—‘ï¸ Deleted president medical record {record_id}")
-        
-        return jsonify({'success': True, 'message': 'President medical record deleted successfully'})
-        
-    except Exception as e:
-        return jsonify({'error': f'Error: {str(e)}'}), 500
-
 @app.route('/api/current-clinic-stays', methods=['GET'])
 def api_get_current_clinic_stays():
     """Get all patients currently staying in clinic from all medical record tables"""
@@ -11998,7 +11860,7 @@ def api_get_current_clinic_stays():
         cursor.execute('''
             SELECT tmr.id, tmr.teaching_id, tmr.visit_date, tmr.visit_time, 
                    tmr.chief_complaint, tmr.treatment, tmr.admission_time,
-                   t.first_name, t.last_name, t.specialization, t.rank
+                   t.first_name, t.last_name, t.specialization, t.position
             FROM teaching_medical_records tmr
             LEFT JOIN teaching t ON tmr.teaching_id = t.id
             WHERE tmr.stay_status = 'staying'
@@ -12073,34 +11935,6 @@ def api_get_current_clinic_stays():
                 'patient_id': stay[1],
                 'patient_name': patient_name,
                 'patient_type': 'Dean',
-                'department': stay[10],
-                'level': stay[11],
-                'visit_date': stay[2].strftime('%Y-%m-%d') if stay[2] else None,
-                'visit_time': str(stay[3]) if stay[3] else None,
-                'chief_complaint': stay[4],
-                'treatment': stay[5],
-                'stay_reason': stay[6],
-                'check_in_time': stay[7].strftime('%Y-%m-%d %H:%M:%S') if stay[7] else None,
-                'status': 'staying'
-            })
-        
-        # Get president staying in clinic
-        cursor.execute('''
-            SELECT pmr.id, pmr.president_id, pmr.visit_date, pmr.visit_time, 
-                   pmr.chief_complaint, pmr.treatment, pmr.stay_reason, pmr.admission_time,
-                   p.first_name, p.last_name, 'Office of the President', 'President'
-            FROM president_medical_records pmr
-            LEFT JOIN president p ON pmr.president_id = p.id
-            WHERE pmr.stay_status = 'staying'
-            ORDER BY pmr.visit_date DESC, pmr.visit_time DESC
-        ''')
-        for stay in cursor.fetchall():
-            patient_name = f"{stay[8]} {stay[9]}" if stay[8] and stay[9] else 'Unknown Patient'
-            result.append({
-                'id': stay[0],
-                'patient_id': stay[1],
-                'patient_name': patient_name,
-                'patient_type': 'President',
                 'department': stay[10],
                 'level': stay[11],
                 'visit_date': stay[2].strftime('%Y-%m-%d') if stay[2] else None,
@@ -12413,21 +12247,6 @@ def api_start_online_consultation():
                         patient_role = 'Student'
                         print(f"âš ï¸ Using fallback name: {actual_patient_name} (ID: {patient_id})")
             
-            elif user_role == 'president':
-                # For President role
-                cursor.execute('''
-                    SELECT id, CONCAT(first_name, ' ', last_name) as full_name 
-                    FROM users 
-                    WHERE id = %s AND role = 'president'
-                ''', (user_id,))
-                
-                president_result = cursor.fetchone()
-                if president_result:
-                    patient_id = president_result[0]
-                    patient_role = 'President'  # Set role as President
-                    actual_patient_name = president_result[1]
-                    print(f"âœ… Using logged-in President: {actual_patient_name} (ID: {patient_id}, Role: President)")
-            
             elif user_role == 'dean':
                 # For Dean role
                 cursor.execute('''
@@ -12687,7 +12506,7 @@ def api_send_consultation_message(consultation_id):
         # Map all non-staff sender types to 'patient' for database compatibility
         if sender_type == 'staff':
             sender_type = 'doctor'  # Map staff to doctor for database compatibility
-        elif sender_type in ['dean', 'president', 'student', 'teaching_staff', 'non_teaching_staff']:
+        elif sender_type in ['dean', 'student', 'teaching_staff', 'non_teaching_staff']:
             sender_type = 'patient'  # All non-staff users are 'patient' in chat_messages table
             
         cursor.execute('''
@@ -12852,7 +12671,7 @@ def api_supplies():
         ticket_number = generate_unique_ticket_number(conn)
         cursor.execute('''
             SELECT id, item_name, category, quantity, condition_status, location, 
-                   brand_model, last_maintenance, purchase_date, cost, supplier, notes,
+                   brand_model, last_maintenance, purchase_date, arrival_date, expiry_date, cost, supplier, notes,
                    created_at, updated_at
             FROM clinic_supplies 
             ORDER BY item_name
@@ -12871,11 +12690,13 @@ def api_supplies():
             'brand_model': s[6],
             'last_maintenance': str(s[7]) if s[7] else None,
             'purchase_date': str(s[8]) if s[8] else None,
-            'cost': float(s[9]) if s[9] else 0,
-            'supplier': s[10],
-            'notes': s[11],
-            'created_at': str(s[12]) if s[12] else None,
-            'updated_at': str(s[13]) if s[13] else None
+            'arrival_date': str(s[9]) if s[9] else None,
+            'expiry_date': str(s[10]) if s[10] else None,
+            'cost': float(s[11]) if s[11] else 0,
+            'supplier': s[12],
+            'notes': s[13],
+            'created_at': str(s[14]) if s[14] else None,
+            'updated_at': str(s[15]) if s[15] else None
         } for s in supplies])
         
     except Error as e:
@@ -12895,7 +12716,7 @@ def api_add_supply():
         return jsonify({'error': 'No data provided'}), 400
     
     # Validate required fields
-    required_fields = ['item_name', 'category', 'quantity']
+    required_fields = ['item_name', 'category', 'quantity', 'arrival_date', 'expiry_date']
     for field in required_fields:
         if not data.get(field):
             return jsonify({'error': f'Missing required field: {field}'}), 400
@@ -12905,13 +12726,46 @@ def api_add_supply():
         return jsonify({'error': 'Database connection failed'}), 500
     
     try:
+        try:
+            datetime.strptime(str(data.get('arrival_date')), '%Y-%m-%d')
+        except Exception:
+            conn.close()
+            return jsonify({'error': 'Arrival date is invalid. Expected YYYY-MM-DD.'}), 400
+
+        try:
+            datetime.strptime(str(data.get('expiry_date')), '%Y-%m-%d')
+        except Exception:
+            conn.close()
+            return jsonify({'error': 'Expiry date is invalid. Expected YYYY-MM-DD.'}), 400
+
+        def _validate_supply_expiry_date_not_within_30_days(expiry_date_raw, label='Expiry date'):
+            if not expiry_date_raw:
+                return None
+            try:
+                expiry_dt = datetime.strptime(str(expiry_date_raw), '%Y-%m-%d').date()
+            except Exception:
+                return f'{label} is invalid. Expected YYYY-MM-DD.'
+
+            today = datetime.now().date()
+            diff_days = (expiry_dt - today).days
+            if diff_days < 0:
+                return f'Unable to add this item because the expiry date ({expiry_dt.isoformat()}) has already passed. Please select a valid expiry date.'
+            if diff_days <= 30:
+                return f'Unable to add this item because it expires too soon. The expiry date ({expiry_dt.isoformat()}) is {diff_days} day(s) away. Please use an expiry date more than 30 days from today.'
+            return None
+
+        expiry_error = _validate_supply_expiry_date_not_within_30_days(data.get('expiry_date'), label='Supply expiry date')
+        if expiry_error:
+            conn.close()
+            return jsonify({'error': expiry_error}), 400
+
         cursor = conn.cursor()
         ticket_number = generate_unique_ticket_number(conn)
         cursor.execute('''
             INSERT INTO clinic_supplies (item_name, category, quantity, condition_status, 
-                                       location, brand_model, last_maintenance, purchase_date, 
+                                       location, brand_model, last_maintenance, purchase_date, arrival_date, expiry_date,
                                        cost, supplier, notes)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         ''', (
             data['item_name'],
             data['category'],
@@ -12921,6 +12775,8 @@ def api_add_supply():
             data.get('brand_model', ''),
             data.get('last_maintenance'),
             data.get('purchase_date'),
+            data.get('arrival_date'),
+            data.get('expiry_date'),
             float(data.get('cost', 0)),
             data.get('supplier', ''),
             data.get('notes', '')
@@ -12969,7 +12825,7 @@ def api_update_supply(supply_id):
             UPDATE clinic_supplies 
             SET item_name = %s, category = %s, quantity = %s, condition_status = %s,
                 location = %s, brand_model = %s, last_maintenance = %s, purchase_date = %s,
-                cost = %s, supplier = %s, notes = %s
+                arrival_date = %s, expiry_date = %s, cost = %s, supplier = %s, notes = %s
             WHERE id = %s
         ''', (
             data.get('item_name'),
@@ -12980,6 +12836,8 @@ def api_update_supply(supply_id):
             data.get('brand_model', ''),
             data.get('last_maintenance'),
             data.get('purchase_date'),
+            data.get('arrival_date'),
+            data.get('expiry_date'),
             float(data.get('cost', 0)),
             data.get('supplier', ''),
             data.get('notes', ''),
@@ -13403,7 +13261,7 @@ def api_get_appointments():
         user_role = session.get('role', '')
         
         # For students, teaching staff, and non-teaching staff, filter by their name from the session
-        if user_role in ['student', 'teaching_staff', 'non_teaching_staff', 'deans', 'president']:
+        if user_role in ['student', 'teaching_staff', 'non_teaching_staff', 'deans']:
             user_name = f"{session.get('first_name', '')} {session.get('last_name', '')}".strip()
             cursor.execute('''
                 SELECT id, patient, contact, date, time, type, status, notes, created_at
@@ -13503,7 +13361,7 @@ def api_get_appointment_requests():
         user_role = session.get('role', '')
         
         # For students, teaching staff, and non-teaching staff, filter by their name from the session
-        if user_role in ['student', 'teaching_staff', 'non_teaching_staff', 'deans', 'president']:
+        if user_role in ['student', 'teaching_staff', 'non_teaching_staff', 'deans']:
             user_name = f"{session.get('first_name', '')} {session.get('last_name', '')}".strip()
             cursor.execute('''
                 SELECT id, patient_name, patient_contact, appointment_type, reason,
@@ -13735,6 +13593,8 @@ def api_create_appointment_request():
                 created_by INT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                reminder_sent BOOLEAN DEFAULT 0,
+                lock_notification_sent BOOLEAN DEFAULT 0,
                 FOREIGN KEY (created_by) REFERENCES users(id)
             )
         ''')
@@ -13761,71 +13621,75 @@ def api_create_appointment_request():
         
         print(f"âœ… New appointment auto-confirmed: ID {appointment_id} for {data['patient_name']} on {data['preferred_date']} at {data['preferred_time']}")
         
-        # CHECK IF APPOINTMENT IS WITHIN 3 DAYS - SEND EMAIL NOTIFICATION
+        # SEND EMAIL NOTIFICATIONS
         from datetime import datetime, timedelta
         try:
             appointment_date_obj = datetime.strptime(data['preferred_date'], '%Y-%m-%d')
             today = datetime.now()
             days_until_appointment = (appointment_date_obj - today).days
             
-            print(f"ðŸ“… Days until appointment: {days_until_appointment}")
+            print(f"Days until appointment: {days_until_appointment}")
             
-            # ONLY SEND EMAIL IF APPOINTMENT IS LESS THAN 3 DAYS AWAY
-            if days_until_appointment < 3:
-                print(f"âš¡ Appointment is within 3 days! Sending email notification...")
+            # 1. SEND BOOKING CONFIRMATION TO PATIENT (ALWAYS)
+            try:
+                from services.patient_notification_service import send_booking_confirmation, get_patient_email
                 
-                # Get user's email from session or database
-                user_email = session.get('email', None)
-                user_id = session.get('user_id', None)
+                # Get patient email
+                patient_email = get_patient_email(data['patient_name'])
                 
-                print(f"ðŸ” DEBUG - Session email: {user_email}")
-                print(f"ðŸ” DEBUG - Session user_id: {user_id}")
-                
-                if not user_email:
-                    # Try to get email from database using user_id from session
-                    if user_id:
-                        conn_email = DatabaseConfig.get_connection()
-                        if conn_email:
-                            cursor_email = conn_email.cursor(dictionary=True)
-                            
-                            # Get email from users table (works for ALL user types)
-                            cursor_email.execute('SELECT email FROM users WHERE id = %s', (user_id,))
-                            user_data = cursor_email.fetchone()
-                            
-                            print(f"ðŸ” DEBUG - User data from database: {user_data}")
-                            
-                            if user_data and user_data.get('email'):
-                                user_email = user_data.get('email')
-                                print(f"ðŸ” DEBUG - Email found in users table: {user_email}")
-                            else:
-                                # Fallback: Try students table if user is a student
-                                print(f"ðŸ” DEBUG - No email in users table, trying students table...")
-                                cursor_email.execute('SELECT std_EmailAdd FROM students WHERE CONCAT(std_Firstname, " ", std_Surname) = %s', (data['patient_name'],))
-                                student_data = cursor_email.fetchone()
-                                print(f"ðŸ” DEBUG - Student data: {student_data}")
-                                if student_data:
-                                    user_email = student_data.get('std_EmailAdd')
-                                    print(f"ðŸ” DEBUG - Email found in students table: {user_email}")
-                            
-                            cursor_email.close()
-                            conn_email.close()
-                
-                if user_email:
-                    # Send email notification
-                    send_appointment_notification(
-                        patient_email=user_email,
+                if patient_email:
+                    # Send booking confirmation
+                    confirmation_sent = send_booking_confirmation(
+                        patient_email=patient_email,
                         patient_name=data['patient_name'],
                         appointment_date=data['preferred_date'],
                         appointment_time=data['preferred_time'],
-                        appointment_type=data['appointment_type']
+                        appointment_type=data.get('appointment_type', 'General Consultation')
                     )
-                    print(f"âœ… Email notification sent to: {user_email}")
+                    
+                    if confirmation_sent:
+                        print(f"Booking confirmation sent to patient: {patient_email}")
+                    else:
+                        print(f"Failed to send booking confirmation to: {patient_email}")
                 else:
-                    print(f"âš ï¸  No email found for patient: {data['patient_name']}")
+                    print(f"No email found for patient: {data['patient_name']}")
+                    
+            except ImportError as import_error:
+                print(f"Could not import patient notification service: {import_error}")
+            except Exception as notification_error:
+                print(f"Error sending booking confirmation: {notification_error}")
+            
+            # 2. SEND LOCK NOTIFICATION TO CLINIC NURSES IF WITHIN 3 DAYS
+            if days_until_appointment < 3:
+                print(f"Appointment is within 3 days! Sending lock notification to clinic nurses...")
+                
+                try:
+                    from services.appointment_lock_notification_service import send_appointment_lock_notification
+                    
+                    appointment_data = {
+                        'patient_name': data['patient_name'],
+                        'date': data['preferred_date'],
+                        'time': data['preferred_time'],
+                        'type': data.get('appointment_type', 'General Consultation')
+                    }
+                    
+                    # Send lock notification to all clinic nurses
+                    notification_sent = send_appointment_lock_notification(appointment_data)
+                    
+                    if notification_sent:
+                        print(f"Lock notification sent to clinic nurses for {data['patient_name']}'s appointment")
+                    else:
+                        print(f"Failed to send lock notification for {data['patient_name']}")
+                        
+                except ImportError as import_error:
+                    print(f"Could not import lock notification service: {import_error}")
+                except Exception as notification_error:
+                    print(f"Error sending lock notification: {notification_error}")
             else:
-                print(f"ðŸ“† Appointment is {days_until_appointment} days away (â‰¥3 days). No immediate email notification sent.")
+                print(f"Appointment is {days_until_appointment} days away (≥3 days). No lock notification needed.")
+                
         except Exception as email_check_error:
-            print(f"âš ï¸  Email notification check failed: {email_check_error}")
+            print(f"Email notification check failed: {email_check_error}")
             # Don't fail the appointment creation if email fails
         
         return jsonify({
@@ -14014,11 +13878,223 @@ def api_update_appointment(appointment_id):
             'message': f'Appointment status updated to {new_status}',
             'appointment_id': appointment_id,
             'status': new_status
-        }), 200
+        })
         
     except Exception as e:
-        print(f"âŒ Error updating appointment: {str(e)}")
+        if 'cursor' in locals():
+            cursor.close()
+        if 'conn' in locals():
+            conn.close()
+        print(f"Error updating appointment: {str(e)}")
         return jsonify({'error': 'Failed to update appointment'}), 500
+
+@app.route('/api/appointments/<int:appointment_id>/reschedule', methods=['PUT'])
+def api_reschedule_appointment(appointment_id):
+    """Reschedule an appointment to a new date and time"""
+    if 'user_id' not in session:
+        return jsonify({'error': 'Authentication required'}), 401
+    
+    data = request.get_json()
+    if not data:
+        return jsonify({'error': 'No data provided'}), 400
+    
+    new_date = data.get('new_date')
+    new_time = data.get('new_time')
+    reason = data.get('reason')
+    
+    if not new_date or not new_time or not reason:
+        return jsonify({'error': 'New date, time, and reason are required'}), 400
+    
+    conn = DatabaseConfig.get_connection()
+    if not conn:
+        return jsonify({'error': 'Database connection failed'}), 500
+    
+    cursor = conn.cursor()
+    ticket_number = generate_unique_ticket_number(conn)
+    
+    try:
+        # Check if appointment exists and belongs to user
+        cursor.execute('''
+            SELECT id, patient, date, time, type, status 
+            FROM appointments 
+            WHERE id = %s
+        ''', (appointment_id,))
+        
+        appointment = cursor.fetchone()
+        if not appointment:
+            cursor.close()
+            conn.close()
+            return jsonify({'error': 'Appointment not found'}), 404
+        
+        # Check 3-day policy for rescheduling
+        from datetime import datetime, timedelta, date
+        today = datetime.now().date()
+        
+        # Handle appointment date - it might already be a date object
+        if isinstance(appointment[2], date):
+            appointment_date = appointment[2]
+        else:
+            appointment_date = datetime.strptime(appointment[2], '%Y-%m-%d').date()
+        
+        # Parse new date from string
+        new_appointment_date = datetime.strptime(new_date, '%Y-%m-%d').date()
+        
+        days_until_old = (appointment_date - today).days
+        days_until_new = (new_appointment_date - today).days
+        
+        if days_until_new < 3:
+            cursor.close()
+            conn.close()
+            return jsonify({'error': 'Cannot reschedule to less than 3 days from now'}), 400
+
+        # Block weekends (Saturday=5, Sunday=6)
+        if new_appointment_date.weekday() >= 5:
+            cursor.close()
+            conn.close()
+            return jsonify({'error': 'Cannot reschedule to weekends. Clinic is closed on Saturday and Sunday.'}), 400
+
+        # Parse new time for validation (accept HH:MM or HH:MM:SS)
+        try:
+            try:
+                new_time_obj = datetime.strptime(new_time, '%H:%M:%S').time()
+            except ValueError:
+                new_time_obj = datetime.strptime(new_time, '%H:%M').time()
+        except ValueError:
+            cursor.close()
+            conn.close()
+            return jsonify({'error': 'Invalid time format. Use HH:MM or HH:MM:SS.'}), 400
+
+        # Check clinic events that may block this date/time
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS clinic_events (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                title VARCHAR(255) NOT NULL,
+                description TEXT,
+                event_type VARCHAR(100) NOT NULL,
+                start_date DATE NOT NULL,
+                end_date DATE NOT NULL,
+                start_time TIME,
+                end_time TIME,
+                is_all_day BOOLEAN DEFAULT FALSE,
+                created_by INT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                FOREIGN KEY (created_by) REFERENCES users(id)
+            )
+        ''')
+        cursor.execute('''
+            SELECT id, title, event_type, start_time, end_time, is_all_day
+            FROM clinic_events
+            WHERE start_date <= %s AND end_date >= %s
+        ''', (new_date, new_date))
+        clinic_events = cursor.fetchall()
+
+        for event in clinic_events:
+            # tuple order: id, title, event_type, start_time, end_time, is_all_day
+            event_title = event[1]
+            event_type = event[2]
+            event_start = event[3]
+            event_end = event[4]
+            is_all_day = bool(event[5])
+
+            if is_all_day or event_type in ('no_appointments', 'emergency_only', 'holiday'):
+                cursor.close()
+                conn.close()
+                return jsonify({'error': f'Cannot reschedule appointment. Clinic is closed due to: {event_title} ({event_type})'}), 400
+
+            if event_start and event_end:
+                # event_start/event_end may come as timedelta or time depending on connector
+                if hasattr(event_start, 'total_seconds'):
+                    total_seconds = int(event_start.total_seconds())
+                    event_start_time = (datetime.min + timedelta(seconds=total_seconds)).time()
+                else:
+                    event_start_time = event_start
+
+                if hasattr(event_end, 'total_seconds'):
+                    total_seconds = int(event_end.total_seconds())
+                    event_end_time = (datetime.min + timedelta(seconds=total_seconds)).time()
+                else:
+                    event_end_time = event_end
+
+                if event_start_time <= new_time_obj <= event_end_time:
+                    cursor.close()
+                    conn.close()
+                    return jsonify({'error': f'Time slot blocked by: {event_title} ({event_type})'}), 400
+
+        # Check for existing appointments at the same date/time (exclude this appointment)
+        cursor.execute('''
+            SELECT id
+            FROM appointments
+            WHERE date = %s
+              AND time = %s
+              AND id <> %s
+              AND status IN ('Confirmed', 'confirmed', 'Pending', 'pending')
+            LIMIT 1
+        ''', (new_date, new_time, appointment_id))
+        conflict_appt = cursor.fetchone()
+        if conflict_appt:
+            cursor.close()
+            conn.close()
+            return jsonify({'error': f'Time slot {new_time} on {new_date} is already booked. Please choose a different time.'}), 400
+
+        # Check for pending appointment requests at the same date/time
+        cursor.execute('''
+            SELECT id
+            FROM appointment_requests
+            WHERE preferred_date = %s
+              AND preferred_time = %s
+              AND status = 'pending'
+            LIMIT 1
+        ''', (new_date, new_time))
+        conflict_req = cursor.fetchone()
+        if conflict_req:
+            cursor.close()
+            conn.close()
+            return jsonify({'error': f'Time slot {new_time} on {new_date} is currently pending. Please choose a different time.'}), 400
+        
+        # Update appointment with new date and time
+        cursor.execute('''
+            UPDATE appointments 
+            SET date = %s, time = %s, updated_at = NOW()
+            WHERE id = %s
+        ''', (new_date, new_time, appointment_id))
+        
+        # Log the reschedule action
+        # Convert date and time to strings for logging
+        old_date_str = appointment_date.strftime('%Y-%m-%d') if isinstance(appointment_date, date) else str(appointment[2])
+        old_time_str = str(appointment[3]) if appointment[3] else ''
+        
+        cursor.execute('''
+            INSERT INTO appointment_logs (appointment_id, action, old_date, old_time, new_date, new_time, reason, created_by, created_at)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, NOW())
+        ''', (appointment_id, 'rescheduled', old_date_str, old_time_str, new_date, new_time, reason, session.get('user_id')))
+        
+        conn.commit()
+        cursor.close()
+        conn.close()
+        
+        print(f"Appointment {appointment_id} rescheduled from {appointment[2]} {appointment[3]} to {new_date} {new_time}")
+        
+        return jsonify({
+            'success': True,
+            'message': 'Appointment rescheduled successfully',
+            'appointment_id': appointment_id,
+            'old_date': old_date_str,
+            'old_time': old_time_str,
+            'new_date': new_date,
+            'new_time': new_time
+        })
+        
+    except Exception as e:
+        if 'cursor' in locals():
+            cursor.close()
+        if 'conn' in locals():
+            conn.close()
+        print(f"Error rescheduling appointment: {str(e)}")
+        print(f"Error type: {type(e).__name__}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': f'Failed to reschedule appointment: {str(e)}'}), 500
 
 @app.route('/api/clinic-events', methods=['GET'])
 def api_get_clinic_events():
@@ -14339,8 +14415,78 @@ def api_delete_clinic_event(event_id):
         })
         
     except Exception as e:
-        print(f"âŒ Error deleting clinic event: {str(e)}")
+        print(f" Error deleting clinic event: {str(e)}")
         return jsonify({'error': f'Failed to delete clinic event: {str(e)}'}), 500
+
+@app.route('/api/clinic-events/<int:event_id>', methods=['PUT'])
+def api_update_clinic_event(event_id):
+    """Update an existing clinic event"""
+    if 'user_id' not in session:
+        return jsonify({'error': 'Authentication required'}), 401
+
+    try:
+        data = request.get_json() or {}
+
+        # Validate required fields
+        required_fields = ['title', 'start_date', 'end_date', 'event_type']
+        for field in required_fields:
+            if not data.get(field):
+                return jsonify({'error': f'Missing required field: {field}'}), 400
+
+        conn = DatabaseConfig.get_connection()
+        if not conn:
+            return jsonify({'error': 'Database connection failed'}), 500
+
+        cursor = conn.cursor(dictionary=True)
+
+        # Ensure event exists
+        cursor.execute('SELECT id FROM clinic_events WHERE id = %s', (event_id,))
+        existing = cursor.fetchone()
+        if not existing:
+            cursor.close()
+            conn.close()
+            return jsonify({'error': 'Clinic event not found'}), 404
+
+        # Update the event
+        cursor.execute('''
+            UPDATE clinic_events
+            SET title = %s,
+                description = %s,
+                event_type = %s,
+                start_date = %s,
+                end_date = %s,
+                start_time = %s,
+                end_time = %s,
+                is_all_day = %s,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = %s
+        ''', (
+            data.get('title'),
+            data.get('description', ''),
+            data.get('event_type'),
+            data.get('start_date'),
+            data.get('end_date'),
+            data.get('start_time') or None,
+            data.get('end_time') or None,
+            bool(data.get('is_all_day', False)),
+            event_id
+        ))
+
+        conn.commit()
+        cursor.close()
+        conn.close()
+
+        print(f" Clinic event updated successfully (ID: {event_id})")
+        return jsonify({'success': True, 'message': 'Clinic event updated successfully'})
+
+    except Exception as e:
+        try:
+            cursor.close()
+            conn.close()
+        except Exception:
+            pass
+        print(f" Error updating clinic event: {str(e)}")
+        return jsonify({'error': f'Failed to update clinic event: {str(e)}'}), 500
 
 @app.route('/api/check-appointment-availability', methods=['POST'])
 def api_check_appointment_availability():
@@ -15147,7 +15293,7 @@ def api_teaching_medical_records(teaching_id):
                    tmr.endorsement_required, tmr.endorsement_status, tmr.endorsed_at,
                    tmr.will_stay_in_clinic, tmr.stay_reason, tmr.stay_status, tmr.actual_checkout_time, tmr.checkout_notes,
                    tmr.admission_time, tmr.discharge_time, tmr.discharge_notes,
-                   t.first_name, t.last_name, t.email, t.faculty_id, t.rank, t.specialization,
+                   t.first_name, t.last_name, t.email, t.faculty_id, t.position, t.specialization,
                    u.first_name as doctor_first_name, u.last_name as doctor_last_name
             FROM teaching_medical_records tmr
             INNER JOIN teaching t ON tmr.teaching_id = t.id
@@ -15227,7 +15373,7 @@ def api_teaching_medical_records(teaching_id):
                 'patient_name': f"{r[38]} {r[39]}" if r[38] and r[39] else '',
                 'email': r[40] or '',
                 'faculty_id': r[41] or '',
-                'rank': r[42] or '',
+                'position': r[42] or '',
                 'specialization': r[43] or ''
             }
             result.append(record)
@@ -15744,175 +15890,6 @@ def api_add_dean_medical_record():
         print(f"Error adding dean medical record: {str(e)}")
         return jsonify({'error': f'Database error: {str(e)}'}), 500
 
-# ==================== PRESIDENT MEDICAL RECORDS API ====================
-
-@app.route('/api/president-medical-records/<president_id>')
-def api_president_medical_records(president_id):
-    """API endpoint to get medical records for the president"""
-    if 'user_id' not in session:
-        return jsonify({'error': 'Unauthorized'}), 401
-    
-    try:
-        conn = DatabaseConfig.get_connection()
-        if not conn:
-            return jsonify({'error': 'Database connection failed'}), 500
-        
-        cursor = conn.cursor()
-        ticket_number = generate_unique_ticket_number(conn)
-        
-        # Extract numeric ID
-        numeric_id = president_id.replace('P', '') if president_id.startswith('P') else president_id
-        
-        cursor.execute('''
-            SELECT id, visit_date, visit_time, chief_complaint, medical_history, fever_duration,
-                   current_medication, medication_schedule, blood_pressure_systolic, blood_pressure_diastolic,
-                   pulse_rate, temperature, respiratory_rate, weight, height, bmi, symptoms, treatment,
-                   prescribed_medicine, dental_procedure, procedure_notes, follow_up_date,
-                   special_instructions, notes, staff_name, stay_status, created_at,
-                   admission_time, discharge_time, stay_reason,
-                   illness_classification_suggested, illness_classification_suggested_reason,
-                   illness_classification_final, illness_classification_override_reason,
-                   endorsement_required, endorsement_status, endorsed_at
-            FROM president_medical_records
-            WHERE president_id = %s
-            ORDER BY visit_date DESC, visit_time DESC
-        ''', (numeric_id,))
-        
-        records = cursor.fetchall()
-        medical_records = []
-        
-        for record in records:
-            medical_records.append({
-                'id': record[0],
-                'visit_date': str(record[1]) if record[1] else None,
-                'visit_time': str(record[2]) if record[2] else None,
-                'chief_complaint': record[3],
-                'medical_history': record[4],
-                'fever_duration': record[5],
-                'current_medication': record[6],
-                'medication_schedule': record[7],
-                'blood_pressure_systolic': record[8],
-                'blood_pressure_diastolic': record[9],
-                'pulse_rate': record[10],
-                'temperature': float(record[11]) if record[11] else None,
-                'respiratory_rate': record[12],
-                'weight': float(record[13]) if record[13] else None,
-                'height': float(record[14]) if record[14] else None,
-                'bmi': float(record[15]) if record[15] else None,
-                'symptoms': record[16],
-                'treatment': record[17],
-                'prescribed_medicine': record[18],
-                'dental_procedure': record[19],
-                'procedure_notes': record[20],
-                'follow_up_date': str(record[21]) if record[21] else None,
-                'special_instructions': record[22],
-                'notes': record[23],
-                'staff_name': record[24],
-                'stay_status': record[25],
-                'created_at': str(record[26]) if record[26] else None,
-                'admission_time': str(record[27]) if record[27] else None,
-                'discharge_time': str(record[28]) if record[28] else None,
-                'stay_reason': record[29],
-                'illness_classification_suggested': record[30],
-                'illness_classification_suggested_reason': record[31],
-                'illness_classification_final': record[32],
-                'illness_classification_override_reason': record[33],
-                'endorsement_required': bool(record[34]) if record[34] is not None else False,
-                'endorsement_status': record[35],
-                'endorsed_at': str(record[36]) if record[36] else None
-            })
-        
-        cursor.close()
-        conn.close()
-        
-        return jsonify(medical_records)
-        
-    except Exception as e:
-        print(f"Error fetching president medical records: {str(e)}")
-        return jsonify({'error': f'Database error: {str(e)}'}), 500
-
-@app.route('/api/add-president-medical-record', methods=['POST'])
-def api_add_president_medical_record():
-    """API endpoint to add a new medical record for the president"""
-    if 'user_id' not in session:
-        return jsonify({'error': 'Unauthorized'}), 401
-    
-    try:
-        from datetime import datetime
-        data = request.get_json()
-        if not data:
-            return jsonify({'error': 'No data provided'}), 400
-        
-        conn = DatabaseConfig.get_connection()
-        if not conn:
-            return jsonify({'error': 'Database connection failed'}), 500
-
-        prescribed_medicines = data.get('prescribed_medicines')
-        if data.get('prescribed_medicine') and not prescribed_medicines:
-            return jsonify({'error': 'Manual medicine entry is not allowed. Please select medicines from inventory.'}), 400
-        validation_error = _validate_prescribed_medicines(conn, prescribed_medicines)
-        if validation_error:
-            return jsonify({'error': validation_error}), 400
-        
-        cursor = conn.cursor()
-        ticket_number = generate_unique_ticket_number(conn)
-        
-        # Extract numeric ID
-        president_id = data.get('president_id', '').replace('P', '') if data.get('president_id', '').startswith('P') else data.get('president_id', '')
-        
-        # Get staff name from session
-        staff_name = f"{session.get('first_name', '')} {session.get('last_name', '')}".strip()
-
-        illness_suggested = (data.get('illness_classification_suggested') or '').strip().lower() or None
-        illness_suggested_reason = data.get('illness_classification_suggested_reason')
-        illness_final = (data.get('illness_classification_final') or '').strip().lower() or illness_suggested
-        illness_override_reason = data.get('illness_classification_override_reason')
-        endorsement_required = True if illness_final == 'major' else False
-        endorsement_status = 'pending' if endorsement_required else 'not_required'
-        
-        cursor.execute('''
-            INSERT INTO president_medical_records (
-                president_id, visit_date, visit_time, chief_complaint, medical_history, fever_duration,
-                food_allergies, medicine_allergies,
-                current_medication, medication_schedule, blood_pressure_systolic, blood_pressure_diastolic,
-                pulse_rate, temperature, respiratory_rate, weight, height, bmi, symptoms, treatment,
-                prescribed_medicine, dental_procedure, procedure_notes, follow_up_date,
-                special_instructions, notes,
-                illness_classification_suggested, illness_classification_suggested_reason,
-                illness_classification_final, illness_classification_override_reason,
-                endorsement_required, endorsement_status,
-                staff_name, staff_id, will_stay_in_clinic, stay_reason, stay_status
-            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-        ''', (
-            president_id, data.get('visit_date'), data.get('visit_time'), data.get('chief_complaint', ''),
-            data.get('medical_history', ''), data.get('fever_duration', ''), data.get('food_allergies', ''), data.get('medicine_allergies', ''), data.get('current_medication', ''),
-            data.get('medication_schedule', ''), data.get('blood_pressure_systolic'), data.get('blood_pressure_diastolic'),
-            data.get('pulse_rate'), data.get('temperature'), data.get('respiratory_rate'), data.get('weight'),
-            data.get('height'), data.get('bmi'), data.get('symptoms', ''), data.get('treatment', ''),
-            data.get('prescribed_medicine', ''), data.get('dental_procedure', ''), data.get('procedure_notes', ''),
-            data.get('follow_up_date'), data.get('special_instructions', ''), data.get('notes', ''),
-            illness_suggested, illness_suggested_reason, illness_final, illness_override_reason,
-            endorsement_required, endorsement_status,
-            staff_name, session.get('user_id'), data.get('will_stay_in_clinic', False),
-            data.get('stay_reason', ''), 'staying' if data.get('will_stay_in_clinic') else 'not_staying'
-        ))
-        
-        record_id = cursor.lastrowid
-        
-        if data.get('will_stay_in_clinic'):
-            admission_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-            cursor.execute('UPDATE president_medical_records SET admission_time = %s WHERE id = %s', (admission_time, record_id))
-        
-        conn.commit()
-        cursor.close()
-        conn.close()
-        
-        return jsonify({'success': True, 'message': 'Medical record added successfully', 'record_id': record_id})
-    
-    except Exception as e:
-        print(f"Error adding president medical record: {str(e)}")
-        return jsonify({'error': f'Database error: {str(e)}'}), 500
-
 @app.route('/api/announcements/create', methods=['POST'])
 def api_create_announcement():
     """API endpoint to create a new announcement"""
@@ -16277,23 +16254,6 @@ def test_all_medical_records_no_auth():
             UNION ALL
             
             SELECT 
-                pmr.id, pmr.president_id as patient_id, pmr.visit_date, pmr.visit_time, pmr.chief_complaint,
-                pmr.medical_history, pmr.fever_duration, pmr.current_medication, pmr.medication_schedule,
-                pmr.blood_pressure_systolic, pmr.blood_pressure_diastolic, pmr.pulse_rate, 
-                pmr.temperature, pmr.respiratory_rate, pmr.weight, pmr.height, pmr.bmi,
-                pmr.symptoms, pmr.treatment, pmr.prescribed_medicine,
-                pmr.dental_procedure, pmr.procedure_notes, pmr.follow_up_date, 
-                pmr.special_instructions, pmr.notes, pmr.staff_name, pmr.staff_id,
-                pmr.created_at, pmr.updated_at,
-                CONCAT(p.first_name, ' ', p.last_name) as patient_name,
-                'President' as patient_role,
-                'Office of the President' as additional_info
-            FROM president_medical_records pmr
-            LEFT JOIN president p ON pmr.president_id = p.id
-            
-            UNION ALL
-            
-            SELECT 
                 dmr.id, dmr.dean_id as patient_id, dmr.visit_date, dmr.visit_time, dmr.chief_complaint,
                 dmr.medical_history, dmr.fever_duration, dmr.current_medication, dmr.medication_schedule,
                 dmr.blood_pressure_systolic, dmr.blood_pressure_diastolic, dmr.pulse_rate, 
@@ -16645,12 +16605,6 @@ def get_users():
                     result = cursor.fetchone()
                     if result:
                         user_id_display = result['dean_id']
-                elif user['position'] == 'President':
-                    # Get president ID
-                    cursor.execute('SELECT president_id FROM president WHERE email = %s LIMIT 1', (user['email'],))
-                    result = cursor.fetchone()
-                    if result:
-                        user_id_display = result['president_id']
             except Exception as e:
                 print(f"Warning: Could not fetch ID for user {user['email']}: {e}")
             
@@ -16707,7 +16661,6 @@ def update_user(user_id):
         'non_teaching_staff': ('non_teaching_staff', 'Non-Teaching Staff'),
         'dean': ('deans', 'Dean'),
         'deans': ('deans', 'Dean'),
-        'president': ('president', 'President'),
         'admin': ('admin', 'System Admin'),
         'administrator': ('admin', 'System Admin'),
         'it_staff': ('it_staff', 'IT Staff')
@@ -16751,6 +16704,100 @@ def update_user(user_id):
         return jsonify({'success': True, 'message': 'User updated successfully'}), 200
     except Exception as e:
         print(f"Error updating user: {e}")
+        return jsonify({'error': f'Database error: {str(e)}'}), 500
+
+
+@app.route('/api/users/<int:user_id>', methods=['DELETE'])
+def delete_user(user_id):
+    """Delete a user account"""
+    if 'user_id' not in session:
+        return jsonify({'error': 'Authentication required'}), 401
+
+    if session.get('role') not in ['admin', 'it_staff']:
+        return jsonify({'error': 'Admin access required'}), 403
+
+    try:
+        conn = DatabaseConfig.get_connection()
+        if not conn:
+            return jsonify({'error': 'Database connection failed'}), 500
+
+        cursor = conn.cursor()
+
+        deleted_appointments = 0
+        deleted_password_resets = 0
+        deleted_users = 0
+
+        conn.start_transaction()
+
+        try:
+            cursor.execute('SELECT COUNT(*) FROM appointments WHERE created_by = %s', (user_id,))
+            row = cursor.fetchone()
+            appt_count = int(row[0]) if row and row[0] is not None else 0
+
+            if appt_count > 0:
+                cursor.execute('DELETE FROM appointments WHERE created_by = %s', (user_id,))
+                deleted_appointments = cursor.rowcount
+        except Exception as e:
+            print(f"Warning: could not delete appointments for user {user_id}: {e}")
+
+        # Clean up password reset tokens (best-effort)
+        try:
+            cursor.execute('DELETE FROM password_resets WHERE user_id = %s', (user_id,))
+            deleted_password_resets = cursor.rowcount
+        except Exception as e:
+            # Ignore if table doesn't exist
+            print(f"Warning: could not delete password_resets for user {user_id}: {e}")
+
+        cursor.execute('DELETE FROM users WHERE id = %s', (user_id,))
+        deleted_users = cursor.rowcount
+
+        conn.commit()
+
+        if deleted_users == 0:
+            cursor.close()
+            conn.close()
+            return jsonify({'error': 'User not found'}), 404
+
+        cursor.close()
+        conn.close()
+
+        return jsonify({
+            'success': True,
+            'message': 'User deleted successfully',
+            'deleted': {
+                'appointments': deleted_appointments,
+                'password_resets': deleted_password_resets,
+                'users': deleted_users
+            }
+        }), 200
+
+    except mysql.connector.Error as e:
+        try:
+            if conn:
+                conn.rollback()
+        except Exception:
+            pass
+        # MySQL FK constraint violation
+        try:
+            errno = getattr(e, 'errno', None)
+        except Exception:
+            errno = None
+
+        if errno == 1451:
+            return jsonify({
+                'error': 'Cannot delete this user because they are referenced by other records (e.g., appointments).',
+                'code': 'USER_HAS_DEPENDENCIES'
+            }), 409
+
+        print(f"Error deleting user (mysql): {e}")
+        return jsonify({'error': f'Database error: {str(e)}'}), 500
+    except Exception as e:
+        try:
+            if conn:
+                conn.rollback()
+        except Exception:
+            pass
+        print(f"Error deleting user: {e}")
         return jsonify({'error': f'Database error: {str(e)}'}), 500
 
 @app.route('/api/users/<int:user_id>/reset-password', methods=['POST'])
@@ -16821,6 +16868,190 @@ def reset_user_password(user_id):
         import traceback
         traceback.print_exc()
         return jsonify({'error': f'Database error: {str(e)}'}), 500
+
+@app.route('/api/users/<int:user_id>/forgot-password', methods=['POST'])
+def forgot_user_password(user_id):
+    """Send password reset link to user's email"""
+    if 'user_id' not in session:
+        return jsonify({'error': 'Authentication required'}), 401
+    
+    # Check if user is admin
+    if session.get('role') not in ['admin', 'it_staff']:
+        return jsonify({'error': 'Admin access required'}), 403
+    
+    try:
+        print(f"🔑 Attempting to send password reset for user ID: {user_id}")
+        
+        conn = DatabaseConfig.get_connection()
+        if not conn:
+            print("❌ Database connection failed")
+            return jsonify({'success': False, 'message': 'Database connection error. Please try again.'}), 500
+        
+        cursor = conn.cursor()
+        ticket_number = generate_unique_ticket_number(conn)
+        
+        # Get user information
+        cursor.execute('SELECT email, first_name, last_name FROM users WHERE id = %s', (user_id,))
+        user = cursor.fetchone()
+        
+        if not user:
+            cursor.close()
+            conn.close()
+            print(f"⚠️ User ID {user_id} not found")
+            return jsonify({'success': False, 'message': 'User not found'}), 404
+        
+        user_email = user[0]
+        user_name = f"{user[1]} {user[2]}"
+        
+        if not user_email:
+            cursor.close()
+            conn.close()
+            print(f"⚠️ User ID {user_id} has no email address")
+            return jsonify({'success': False, 'message': 'User has no email address on record'}), 400
+        
+        print(f"📧 Sending password reset to: {user_email}")
+        
+        # Generate reset token
+        import secrets
+        reset_token = secrets.token_urlsafe(32)
+        
+        # Store reset token in database
+        try:
+            # First, try to insert - this will tell us if the table exists and has correct columns
+            cursor.execute('''
+                INSERT INTO password_resets (user_id, email, reset_token, created_at, expires_at)
+                VALUES (%s, %s, %s, NOW(), DATE_ADD(NOW(), INTERVAL 1 HOUR))
+            ''', (user_id, user_email, reset_token))
+                
+        except Exception as e:
+            print(f"⚠️ password_resets table issue: {e}")
+            print("Dropping and recreating password_resets table...")
+            
+            # Drop the table if it exists and recreate it
+            cursor.execute('DROP TABLE IF EXISTS password_resets')
+            cursor.execute('''
+                CREATE TABLE password_resets (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    user_id INT NOT NULL,
+                    email VARCHAR(255) NOT NULL,
+                    reset_token VARCHAR(255) NOT NULL,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    expires_at DATETIME NOT NULL,
+                    INDEX idx_reset_token (reset_token),
+                    INDEX idx_user_id (user_id),
+                    INDEX idx_email (email)
+                )
+            ''')
+            
+            # Now insert the record
+            cursor.execute('''
+                INSERT INTO password_resets (user_id, email, reset_token, created_at, expires_at)
+                VALUES (%s, %s, %s, NOW(), DATE_ADD(NOW(), INTERVAL 1 HOUR))
+            ''', (user_id, user_email, reset_token))
+        
+        conn.commit()
+        
+        # Create reset link
+        reset_link = f"http://127.0.0.1:5000/reset-password?token={reset_token}"
+        
+        # Send email (HTML template)
+        try:
+            safe_user_name = (user_name or 'User').strip() or 'User'
+            brand_name = 'iClinic System'
+            title = 'Password Reset Request'
+
+            html_content = f"""<!doctype html>
+<html lang=\"en\">
+  <head>
+    <meta charset=\"utf-8\" />
+    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\" />
+    <title>{brand_name} - {title}</title>
+  </head>
+  <body style=\"margin:0;padding:0;background:#f3f4f6;font-family:Arial,Helvetica,sans-serif;\">
+    <div style=\"display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;\">Reset your iClinic password. Link expires in 1 hour.</div>
+    <table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"background:#f3f4f6;padding:24px 12px;\">
+      <tr>
+        <td align=\"center\">
+          <table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"max-width:620px;background:#ffffff;border-radius:18px;overflow:hidden;box-shadow:0 12px 30px rgba(0,0,0,.08);\">
+            <tr>
+              <td style=\"background:linear-gradient(135deg,#0056b3 0%,#003d82 100%);padding:22px 22px;\">
+                <div style=\"color:#ffffff;font-size:18px;font-weight:700;letter-spacing:.2px;\">{brand_name}</div>
+                <div style=\"color:#dbeafe;font-size:13px;margin-top:4px;\">Norzagaray College Clinic</div>
+              </td>
+            </tr>
+            <tr>
+              <td style=\"padding:22px 22px 6px 22px;\">
+                <h1 style=\"margin:0 0 10px 0;font-size:20px;line-height:1.3;color:#111827;\">Reset your password</h1>
+                <p style=\"margin:0 0 12px 0;font-size:14px;line-height:1.6;color:#374151;\">Hi <strong>{safe_user_name}</strong>,</p>
+                <p style=\"margin:0 0 16px 0;font-size:14px;line-height:1.6;color:#374151;\">We received a request to reset your iClinic account password. Click the button below to set a new password.</p>
+              </td>
+            </tr>
+            <tr>
+              <td align=\"center\" style=\"padding:10px 22px 6px 22px;\">
+                <a href=\"{reset_link}\" style=\"display:inline-block;background:#f59e0b;color:#111827;text-decoration:none;font-weight:700;font-size:14px;padding:12px 18px;border-radius:12px;\">Reset Password</a>
+              </td>
+            </tr>
+            <tr>
+              <td style=\"padding:10px 22px 18px 22px;\">
+                <p style=\"margin:0;font-size:12px;line-height:1.6;color:#6b7280;\">This link will expire in <strong>1 hour</strong> for security purposes.</p>
+                <div style=\"height:12px\"></div>
+                <p style=\"margin:0;font-size:12px;line-height:1.6;color:#6b7280;\">If the button doesn’t work, copy and paste this link into your browser:</p>
+                <p style=\"margin:6px 0 0 0;font-size:12px;line-height:1.6;word-break:break-all;\"><a href=\"{reset_link}\" style=\"color:#2563eb;\">{reset_link}</a></p>
+              </td>
+            </tr>
+            <tr>
+              <td style=\"padding:0 22px 22px 22px;\">
+                <div style=\"background:#eff6ff;border:1px solid #bfdbfe;border-radius:14px;padding:12px 12px;\">
+                  <div style=\"font-size:12px;color:#1e40af;font-weight:700;margin-bottom:6px;\">Didn’t request this?</div>
+                  <div style=\"font-size:12px;color:#1e3a8a;line-height:1.6;\">You can safely ignore this email. Your password will not change unless you create a new one using the link above.</div>
+                </div>
+              </td>
+            </tr>
+            <tr>
+              <td style=\"background:#f9fafb;border-top:1px solid #e5e7eb;padding:14px 22px;\">
+                <div style=\"font-size:11px;color:#6b7280;line-height:1.6;\">
+                  <div style=\"font-weight:700;color:#374151;\">{brand_name}</div>
+                  <div>Norzagaray College</div>
+                </div>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>"""
+
+            sent = _send_email_html(user_email, 'iClinic Password Reset Request', html_content)
+            if not sent:
+                cursor.close()
+                conn.close()
+                return jsonify({'success': False, 'message': 'Failed to send reset email. Please try again.'}), 500
+
+            print(f"✅ Password reset email sent successfully to {user_email}")
+        except Exception as email_error:
+            print(f"❌ Error sending email: {email_error}")
+            cursor.close()
+            conn.close()
+            return jsonify({'success': False, 'message': 'Failed to send reset email. Please try again.'}), 500
+        
+        cursor.close()
+        conn.close()
+        
+        print(f"✅ Password reset process completed for user ID: {user_id}")
+        return jsonify({
+            'success': True,
+            'message': 'Password reset link has been sent to your email',
+            'email': user_email,
+            'reset_link': reset_link
+        }), 200
+        
+    except Exception as e:
+        print(f"❌ Error in forgot password: {e}")
+        print(f"❌ Error type: {type(e).__name__}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'message': 'An error occurred. Please try again.'}), 500
 
 @app.route('/api/patients', methods=['GET'])
 def get_all_patients():
@@ -16901,7 +17132,7 @@ def get_all_patients():
 
 @app.route('/api/all-patients-legacy', methods=['GET'])
 def get_all_patients_combined():
-    """Get ALL patients from all sources: students, visitors, teaching staff, non-teaching staff, president, deans"""
+    """Get ALL patients from all sources: students, visitors, teaching staff, non-teaching staff, deans"""
     if 'user_id' not in session:
         return jsonify({'error': 'Authentication required'}), 401
     
@@ -16973,7 +17204,8 @@ def get_all_patients_combined():
                     'age': row.get('age', 0),
                     'course': 'N/A',
                     'email': row.get('email', ''),
-                    'contact': row.get('contact_number', '')
+                    'contact': row.get('contact_number', ''),
+                    'position': row.get('position', '')
                 })
         except Exception as e:
             print(f"âš ï¸ Error fetching teaching staff: {e}")
@@ -16996,33 +17228,13 @@ def get_all_patients_combined():
                     'contact': row.get('contact_number', '')
                 })
         except Exception as e:
-            print(f"âš ï¸ Error fetching non-teaching staff: {e}")
+            print(f"Error fetching non-teaching staff: {e}")
         
-        # 5. Get PRESIDENT (from president table)
-        try:
-            cursor.execute("SELECT * FROM president WHERE is_archived = FALSE")
-            presidents = cursor.fetchall()
-            print(f"âœ… Found {len(presidents)} president(s)")
-            for row in presidents:
-                all_patients.append({
-                    'id': row.get('id'),
-                    'name': f"{row.get('first_name', '')} {row.get('last_name', '')}".strip(),
-                    'type': 'President',
-                    'role': 'President',
-                    'gender': row.get('gender', ''),
-                    'age': row.get('age', 0),
-                    'course': 'N/A',
-                    'email': row.get('email', ''),
-                    'contact': row.get('contact_number', '')
-                })
-        except Exception as e:
-            print(f"âš ï¸ Error fetching president: {e}")
-        
-        # 6. Get DEANS (from deans table)
+        # 5. Get DEANS (from deans table)
         try:
             cursor.execute("SELECT * FROM deans WHERE is_archived = FALSE")
             deans = cursor.fetchall()
-            print(f"âœ… Found {len(deans)} dean(s)")
+            print(f"Found {len(deans)} dean(s)")
             for row in deans:
                 all_patients.append({
                     'id': row.get('id'),
@@ -17038,7 +17250,7 @@ def get_all_patients_combined():
         except Exception as e:
             print(f"âš ï¸ Error fetching deans: {e}")
         
-        print(f"âœ… TOTAL PATIENTS: {len(all_patients)} (Students + Visitors + Teaching Staff + Non-Teaching Staff + President + Deans)")
+        print(f"âœ… TOTAL PATIENTS: {len(all_patients)} (Students + Visitors + Teaching Staff + Non-Teaching Staff + Deans)")
         return jsonify({'patients': all_patients}), 200
         
     except Exception as e:
@@ -17137,7 +17349,7 @@ def get_admin_patients():
                     'email': row.get('email', ''),
                     'contact': row.get('contact_number', ''),
                     'department': row.get('department', ''),
-                    'position': row.get('rank', ''),
+                    'position': row.get('position', ''),
                     'status': 'Inactive' if row.get('is_archived') else 'Active',
                     'archived_at': row.get('archived_at').isoformat() if row.get('archived_at') else None,
                     'updated_at': row.get('updated_at').isoformat() if row.get('updated_at') else None
@@ -17198,34 +17410,10 @@ def get_admin_patients():
         except Exception as e:
             print(f"âš ï¸ [ADMIN] Error fetching deans: {e}")
         
-        # 5. Get PRESIDENT
-        try:
-            cursor.execute('SELECT * FROM president')
-            presidents = cursor.fetchall()
-            print(f"âœ… [ADMIN] Found {len(presidents)} president(s)")
-            for row in presidents:
-                pres_name = f"{row.get('first_name', '')} {row.get('last_name', '')}".strip()
-                all_patients.append({
-                    'id': row.get('president_id', ''),
-                    'name': pres_name,
-                    'type': 'President',
-                    'role': 'President',
-                    'gender': row.get('gender', ''),
-                    'age': row.get('age', 0),
-                    'course': 'N/A',
-                    'email': row.get('email', ''),
-                    'contact': row.get('contact_number', ''),
-                    'status': 'Inactive' if row.get('is_archived') else 'Active',
-                    'archived_at': row.get('archived_at').isoformat() if row.get('archived_at') else None,
-                    'updated_at': row.get('updated_at').isoformat() if row.get('updated_at') else None
-                })
-        except Exception as e:
-            print(f"âš ï¸ [ADMIN] Error fetching president: {e}")
-        
         # NOTE: Visitors are excluded from admin patient management
-        # Only school-related patients are shown (Students, Staff, Deans, President)
+        # Only school-related patients are shown (Students, Staff, Deans)
         
-        print(f"âœ… [ADMIN] TOTAL PATIENTS: {len(all_patients)} (Students + Teaching Staff + Non-Teaching Staff + Deans + President)")
+        print(f"âœ… [ADMIN] TOTAL PATIENTS: {len(all_patients)} (Students + Teaching Staff + Non-Teaching Staff + Deans)")
         return jsonify({
             'success': True,
             'patients': all_patients,
@@ -17376,35 +17564,9 @@ def update_patient_status(patient_id):
                 if cursor.rowcount > 0:
                     conn.commit()
                     updated = True
-                    print(f"âœ… [ADMIN] Updated dean {patient_id} status to {new_status}")
+                    print(f"✅ [ADMIN] Updated dean {patient_id} status to {new_status}")
             except Exception as e:
-                print(f"âš ï¸ [ADMIN] Not dean or error: {e}")
-        
-        # Try to update in president table
-        if not updated:
-            try:
-                is_archived = 1 if new_status.lower() == 'inactive' else 0
-                if new_status.lower() == 'inactive':
-                    # Set archived_at when archiving
-                    cursor.execute('''
-                        UPDATE president 
-                        SET is_archived = %s, archived_at = NOW()
-                        WHERE president_id = %s
-                    ''', (is_archived, patient_id))
-                else:
-                    # Clear archived_at when restoring
-                    cursor.execute('''
-                        UPDATE president 
-                        SET is_archived = %s, archived_at = NULL
-                        WHERE president_id = %s
-                    ''', (is_archived, patient_id))
-                
-                if cursor.rowcount > 0:
-                    conn.commit()
-                    updated = True
-                    print(f"âœ… [ADMIN] Updated president {patient_id} status to {new_status}")
-            except Exception as e:
-                print(f"âš ï¸ [ADMIN] Not dean/president or error: {e}")
+                print(f"⚠️ [ADMIN] Not dean or error: {e}")
         
         cursor.close()
         conn.close()
@@ -17475,16 +17637,16 @@ def delete_patient(patient_id):
             except Exception as e:
                 print(f"âš ï¸ [ADMIN] Not non-teaching staff or error: {e}")
         
-        # Try to delete from deans_president table
+        # Try to delete from deans table
         if not deleted:
             try:
-                cursor.execute('DELETE FROM deans_president WHERE id = %s', (patient_id,))
+                cursor.execute('DELETE FROM deans WHERE dean_id = %s', (patient_id,))
                 if cursor.rowcount > 0:
                     conn.commit()
                     deleted = True
-                    print(f"âœ… [ADMIN] Deleted dean/president {patient_id}")
+                    print(f"✅ [ADMIN] Deleted dean {patient_id}")
             except Exception as e:
-                print(f"âš ï¸ [ADMIN] Not dean/president or error: {e}")
+                print(f"⚠️ [ADMIN] Not dean or error: {e}")
         
         cursor.close()
         conn.close()

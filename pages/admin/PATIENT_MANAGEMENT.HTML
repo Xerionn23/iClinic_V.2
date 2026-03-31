@@ -339,6 +339,18 @@
             this.loading = false;
         }
     },
+    async loadPatientsSilently() {
+        try {
+            const response = await fetch('/api/admin/patients');
+            if (!response.ok) return;
+            const data = await response.json();
+            this.patients = data.patients || [];
+            this.archivedPatients = data.archivedPatients || [];
+        } catch (error) {
+            // Silent refresh: do not interrupt UI
+            console.debug('Silent patients refresh failed:', error);
+        }
+    },
     async refreshPatients() {
         this.loading = true;
         await this.loadPatients();
@@ -629,6 +641,11 @@
         
         // Load patients from database
         this.loadPatients();
+
+        // Auto-refresh patients in the background (no manual refresh needed)
+        setInterval(() => {
+            this.loadPatientsSilently();
+        }, 30000);
         
         // Handle responsive sidebar
         this.handleResize();
@@ -811,12 +828,6 @@
                                         <i data-feather="archive" class="w-3.5 h-3.5"></i>
                                     </div>
                                     <span class="hidden sm:inline">Archive</span>
-                                </button>
-                                <button @click="refreshPatients()" class="group bg-white/15 hover:bg-white/25 backdrop-blur-sm text-white px-4 py-2 rounded-xl font-medium border border-white/30 hover:border-white/50 transition-all duration-200 flex items-center gap-2 shadow-lg hover:scale-105">
-                                    <div class="w-6 h-6 bg-blue-500/30 rounded-lg flex items-center justify-center group-hover:bg-blue-500/50 transition-colors">
-                                        <i data-feather="refresh-cw" class="w-3.5 h-3.5" :class="{ 'animate-spin': loading }"></i>
-                                    </div>
-                                    <span class="hidden sm:inline">Refresh</span>
                                 </button>
                             </div>
                         </div>

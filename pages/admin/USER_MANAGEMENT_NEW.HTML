@@ -222,6 +222,14 @@
     showCreateModal: false,
     showEditModal: false,
     showDeleteModal: false,
+    deleteLoading: false,
+    deleteError: null,
+    showSaveIndicator: false,
+    showForgotPasswordModal: false,
+    resetPasswordLoading: false,
+    resetPasswordSuccess: false,
+    resetPasswordError: null,
+    resetPasswordEmail: null,
     selectedUser: null,
     editForm: {
         name: '',
@@ -270,6 +278,17 @@
             alert('Failed to load users from database');
         } finally {
             this.loading = false;
+        }
+    },
+    async loadUsersSilently() {
+        try {
+            const response = await fetch('/api/users');
+            if (!response.ok) return;
+            const data = await response.json();
+            this.users = data.users || [];
+        } catch (error) {
+            // Silent refresh: do not interrupt UI
+            if (this.debug) console.debug('Silent users refresh failed:', error);
         }
     },
     async refreshUsers() {
@@ -322,6 +341,132 @@
             alert('Failed to update user information');
         }
     },
+    async handleForgotPassword(user) {
+        this.selectedUser = user;
+        this.showForgotPasswordModal = true;
+    },
+    openDeleteModal(user) {
+        this.selectedUser = user;
+        this.deleteError = null;
+        this.deleteLoading = false;
+        this.showDeleteModal = true;
+    },
+    async sendPasswordReset() {
+        if (!this.selectedUser) return;
+        
+        try {
+            // Show loading state
+            this.resetPasswordLoading = true;
+            
+            const response = await fetch(`/api/users/${this.selectedUser.id}/forgot-password`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
+            
+            if (!response.ok) {
+                throw new Error('Failed to send password reset');
+            }
+            
+            const data = await response.json();
+            if (this.debug) console.log('✅ Password reset sent successfully');
+            
+            // Show success state
+            this.resetPasswordSuccess = true;
+            this.resetPasswordEmail = this.selectedUser.email;
+            
+            // Auto close after 3 seconds
+            setTimeout(() => {
+                this.closeForgotPasswordModal();
+            }, 3000);
+            
+        } catch (error) {
+            console.error('❌ Error sending password reset:', error);
+            this.resetPasswordError = 'Failed to send password reset link. Please try again.';
+        } finally {
+            this.resetPasswordLoading = false;
+        }
+    },
+    closeForgotPasswordModal() {
+        this.showForgotPasswordModal = false;
+        this.resetPasswordSuccess = false;
+        this.resetPasswordError = null;
+        this.resetPasswordLoading = false;
+        this.resetPasswordEmail = null;
+    },
+    async deleteUser() {
+        if (!this.selectedUser) return;
+
+        try {
+            this.deleteError = null;
+            this.deleteLoading = true;
+            const response = await fetch(`/api/users/${this.selectedUser.id}`, {
+                method: 'DELETE',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok) {
+                throw new Error(data.error || data.message || 'Failed to delete user');
+            }
+
+            this.showDeleteModal = false;
+            this.selectedUser = null;
+            await this.loadUsers();
+        } catch (error) {
+            console.error('❌ Error deleting user:', error);
+            this.deleteError = error.message || 'Failed to delete user';
+        } finally {
+            this.deleteLoading = false;
+        }
+    },
+    async updateUserEmail() {
+        if (!this.selectedUser || !this.editForm.email) return;
+        
+        // Validate email format
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(this.editForm.email)) {
+            return;
+        }
+        
+        try {
+            const response = await fetch(`/api/users/${this.selectedUser.id}/email`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ 
+                    email: this.editForm.email 
+                })
+            });
+            
+            if (!response.ok) {
+                throw new Error('Failed to update email');
+            }
+            
+            const data = await response.json();
+            if (this.debug) console.log('✅ Email updated successfully');
+            
+            // Update the user in the local array
+            const userIndex = this.users.findIndex(u => u.id === this.selectedUser.id);
+            if (userIndex !== -1) {
+                this.users[userIndex].email = this.editForm.email;
+            }
+            
+            // Show success indicator briefly
+            this.showSaveIndicator = true;
+            setTimeout(() => {
+                this.showSaveIndicator = false;
+            }, 2000);
+            
+        } catch (error) {
+            console.error('❌ Error updating email:', error);
+            // Optionally show error feedback to user
+        }
+    },
     safeInitFeatherIcons() {
         if (typeof feather === 'undefined') return;
         
@@ -368,6 +513,11 @@
 
         // Load users first (this changes stats/table and can trigger reflow)
         await this.loadUsers();
+
+        // Auto-refresh users in the background (no manual refresh needed)
+        setInterval(() => {
+            this.loadUsersSilently();
+        }, 30000);
 
         // Initialize icons after DOM updates
         await new Promise(resolve => {
@@ -563,14 +713,7 @@
                             </div>
                             
                             <!-- Action Buttons -->
-                            <div class="flex items-center gap-2">
-                                <button @click="refreshUsers()" class="group bg-white/15 hover:bg-white/25 backdrop-blur-sm text-white px-3 sm:px-4 py-2 rounded-xl text-sm font-medium border border-white/30 hover:border-white/50 transition-all duration-200 flex items-center gap-2 shadow-lg hover:scale-105">
-                                    <div class="w-6 h-6 bg-blue-500/30 rounded-lg flex items-center justify-center group-hover:bg-blue-500/50 transition-colors">
-                                        <i data-feather="refresh-cw" class="w-3.5 h-3.5" :class="{ 'animate-spin': loading }"></i>
-                                    </div>
-                                    <span class="hidden sm:inline">Refresh</span>
-                                </button>
-                            </div>
+                            <div class="flex items-center gap-2"></div>
                         </div>
                     </div>
                 </div>
@@ -748,6 +891,10 @@
                                     <div class="flex-1 min-w-0">
                                         <div class="text-xs font-semibold text-gray-900 uppercase truncate" x-text="user.name"></div>
                                         <div class="text-[11px] text-gray-500 truncate" x-text="user.userId"></div>
+                                        <div class="flex items-center gap-1.5 mt-1">
+                                            <i data-feather="mail" class="w-3 h-3 text-gray-400 flex-shrink-0"></i>
+                                            <div class="text-[11px] text-gray-600 truncate" x-text="user.email || 'N/A'"></div>
+                                        </div>
                                         <div class="mt-2 flex flex-wrap items-center gap-2">
                                             <span class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg shadow-sm"
                                                   :class="{
@@ -778,7 +925,20 @@
                                 </div>
 
                                 <div class="mt-3 flex items-center justify-end gap-2">
-                                    <button @click="selectedUser = user; showDeleteModal = true"
+                                    <!-- Edit Button -->
+                                    <button @click="openEditModal(user)"
+                                            class="text-blue-600 hover:text-white bg-blue-50 hover:bg-blue-600 p-2 rounded-xl transition-all duration-200 group shadow-sm hover:shadow-md"
+                                            title="Edit User">
+                                        <i data-feather="edit-2" class="w-4 h-4 group-hover:scale-110 transition-transform"></i>
+                                    </button>
+                                    <!-- Forgot Password Button -->
+                                    <button @click="handleForgotPassword(user)"
+                                            class="text-orange-600 hover:text-white bg-orange-50 hover:bg-orange-600 p-2 rounded-xl transition-all duration-200 group shadow-sm hover:shadow-md"
+                                            title="Reset Password">
+                                        <i data-feather="key" class="w-4 h-4 group-hover:scale-110 transition-transform"></i>
+                                    </button>
+                                    <!-- Delete Button -->
+                                    <button @click="openDeleteModal(user)"
                                             class="text-red-600 hover:text-white bg-red-50 hover:bg-red-600 p-2 rounded-xl transition-all duration-200 group shadow-sm hover:shadow-md"
                                             title="Delete User">
                                         <i data-feather="trash-2" class="w-4 h-4 group-hover:scale-110 transition-transform"></i>
@@ -794,6 +954,7 @@
                                 <thead class="bg-gradient-to-r from-gray-50 to-gray-100 border-b-2 border-gray-200 sticky top-0 z-10">
                                     <tr>
                                         <th class="px-3 sm:px-6 py-3 sm:py-4 text-left text-[10px] sm:text-xs font-bold text-gray-700 uppercase tracking-wider bg-gradient-to-r from-gray-50 to-gray-100">User</th>
+                                        <th class="px-3 sm:px-6 py-3 sm:py-4 text-left text-[10px] sm:text-xs font-bold text-gray-700 uppercase tracking-wider bg-gradient-to-r from-gray-50 to-gray-100">Gmail</th>
                                         <th class="px-3 sm:px-6 py-3 sm:py-4 text-left text-[10px] sm:text-xs font-bold text-gray-700 uppercase tracking-wider bg-gradient-to-r from-gray-50 to-gray-100">Role</th>
                                         <th class="px-3 sm:px-6 py-3 sm:py-4 text-left text-[10px] sm:text-xs font-bold text-gray-700 uppercase tracking-wider bg-gradient-to-r from-gray-50 to-gray-100">Status</th>
                                         <th class="hidden md:table-cell px-3 sm:px-6 py-3 sm:py-4 text-left text-[10px] sm:text-xs font-bold text-gray-700 uppercase tracking-wider bg-gradient-to-r from-gray-50 to-gray-100">Date Created</th>
@@ -803,7 +964,7 @@
                                 <tbody class="bg-white divide-y divide-gray-100">
                                     <!-- Loading State -->
                                     <tr x-show="loading">
-                                        <td colspan="5" class="px-3 sm:px-6 py-10 sm:py-12 text-center">
+                                        <td colspan="6" class="px-3 sm:px-6 py-10 sm:py-12 text-center">
                                             <div class="flex flex-col items-center justify-center">
                                                 <i data-feather="loader" class="w-8 h-8 text-blue-500 animate-spin mb-2"></i>
                                                 <p class="text-gray-500 text-sm sm:text-base">Loading users...</p>
@@ -813,7 +974,7 @@
                                     
                                     <!-- Empty State -->
                                     <tr x-show="!loading && filteredUsers.length === 0">
-                                        <td colspan="5" class="px-3 sm:px-6 py-10 sm:py-12 text-center">
+                                        <td colspan="6" class="px-3 sm:px-6 py-10 sm:py-12 text-center">
                                             <div class="flex flex-col items-center justify-center">
                                                 <i data-feather="users" class="w-12 h-12 text-gray-400 mb-2"></i>
                                                 <p class="text-gray-500 text-base sm:text-lg font-medium">No users found</p>
@@ -841,6 +1002,12 @@
                                                         <div class="text-xs sm:text-sm font-semibold text-gray-900 uppercase" x-text="user.name"></div>
                                                         <div class="text-[11px] sm:text-xs text-gray-500" x-text="user.userId"></div>
                                                     </div>
+                                                </div>
+                                            </td>
+                                            <td class="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap">
+                                                <div class="flex items-center gap-2">
+                                                    <i data-feather="mail" class="w-3.5 h-3.5 text-gray-400 flex-shrink-0"></i>
+                                                    <span class="text-xs sm:text-sm text-gray-600 truncate max-w-[150px] sm:max-w-[200px]" x-text="user.email || 'N/A'"></span>
                                                 </div>
                                             </td>
                                             <td class="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap">
@@ -879,8 +1046,20 @@
                                             </td>
                                             <td class="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm font-medium">
                                                 <div class="flex items-center gap-2">
+                                                    <!-- Edit Button -->
+                                                    <button @click="openEditModal(user)" 
+                                                            class="text-blue-600 hover:text-white bg-blue-50 hover:bg-blue-600 p-2 sm:p-2.5 rounded-xl transition-all duration-200 group shadow-sm hover:shadow-md"
+                                                            title="Edit User">
+                                                        <i data-feather="edit-2" class="w-4 h-4 group-hover:scale-110 transition-transform"></i>
+                                                    </button>
+                                                    <!-- Forgot Password Button -->
+                                                    <button @click="handleForgotPassword(user)" 
+                                                            class="text-orange-600 hover:text-white bg-orange-50 hover:bg-orange-600 p-2 sm:p-2.5 rounded-xl transition-all duration-200 group shadow-sm hover:shadow-md"
+                                                            title="Reset Password">
+                                                        <i data-feather="key" class="w-4 h-4 group-hover:scale-110 transition-transform"></i>
+                                                    </button>
                                                     <!-- Delete Button -->
-                                                    <button @click="selectedUser = user; showDeleteModal = true" 
+                                                    <button @click="openDeleteModal(user)" 
                                                             class="text-red-600 hover:text-white bg-red-50 hover:bg-red-600 p-2 sm:p-2.5 rounded-xl transition-all duration-200 group shadow-sm hover:shadow-md"
                                                             title="Delete User">
                                                         <i data-feather="trash-2" class="w-4 h-4 group-hover:scale-110 transition-transform"></i>
@@ -1030,47 +1209,227 @@
             <!-- Modal Content -->
             <div class="p-4 sm:p-6 overflow-y-auto max-h-[calc(90vh-120px)]">
                 <form class="space-y-6" @submit.prevent="updateUser()">
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">Full Name</label>
-                            <input type="text" x-model="editForm.name" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500">
+                    <!-- User Info Display (Read-only) -->
+                    <div class="bg-gray-50 rounded-lg p-4">
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-600 mb-1">Full Name</label>
+                                <div class="text-sm font-semibold text-gray-900" x-text="selectedUser?.name || 'N/A'"></div>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-600 mb-1">User ID</label>
+                                <div class="text-sm font-semibold text-gray-900" x-text="selectedUser?.userId || 'N/A'"></div>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-600 mb-1">Role</label>
+                                <div class="text-sm font-semibold text-gray-900" x-text="selectedUser?.role || 'N/A'"></div>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-600 mb-1">Status</label>
+                                <div class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg shadow-sm"
+                                     :class="selectedUser?.status === 'Active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'">
+                                    <div class="w-1.5 h-1.5 rounded-full animate-pulse"
+                                         :class="selectedUser?.status === 'Active' ? 'bg-green-600' : 'bg-gray-600'"></div>
+                                    <span x-text="selectedUser?.status || 'N/A'"></span>
+                                </div>
+                            </div>
                         </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">Email Address</label>
-                            <input type="email" x-model="editForm.email" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500">
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">Role</label>
-                            <select x-model="editForm.role" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500">
-                                <option value="Student">Student</option>
-                                <option value="Teaching Staff">Teaching Staff</option>
-                                <option value="Non-Teaching Staff">Non-Teaching Staff</option>
-                                <option value="Dean">Dean</option>
-                                <option value="IT Staff">IT Staff</option>
-                                <option value="Admin">Admin</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">Status</label>
-                            <select x-model="editForm.status" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500">
-                                <option value="Active">Active</option>
-                                <option value="Inactive">Inactive</option>
-                            </select>
+                    </div>
+                    
+                    <!-- Editable Gmail Field -->
+                    <div class="border-t border-gray-200 pt-6">
+                        <div class="mb-4">
+                            <div class="flex items-center gap-2 mb-2">
+                                <i data-feather="mail" class="w-4 h-4 text-blue-600"></i>
+                                <label class="block text-sm font-medium text-gray-700">Gmail Address</label>
+                            </div>
+                            <input type="email" 
+                                   x-model="editForm.email" 
+                                   @input.debounce.500ms="updateUserEmail()"
+                                   required 
+                                   placeholder="Enter Gmail address"
+                                   class="w-full px-4 py-3 border-2 border-blue-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-base">
+                            <div class="mt-2 flex items-center justify-between">
+                                <div class="flex items-center gap-2 text-xs text-blue-600">
+                                    <i data-feather="info" class="w-3 h-3"></i>
+                                    <span>Changes are saved automatically</span>
+                                </div>
+                                <div x-show="showSaveIndicator" 
+                                     x-transition:enter="transition ease-out duration-300"
+                                     x-transition:enter-start="opacity-0 transform scale-95"
+                                     x-transition:enter-end="opacity-100 transform scale-100"
+                                     x-transition:leave="transition ease-in duration-200"
+                                     x-transition:leave-start="opacity-100 transform scale-100"
+                                     x-transition:leave-end="opacity-0 transform scale-95"
+                                     class="flex items-center gap-1.5 px-3 py-1.5 bg-green-100 text-green-800 rounded-lg text-xs font-medium">
+                                    <i data-feather="check-circle" class="w-3 h-3"></i>
+                                    <span>Saved!</span>
+                                </div>
+                            </div>
                         </div>
                     </div>
                     
                     <div class="flex justify-end gap-3 pt-4 border-t border-gray-200">
                         <button type="button" @click="showEditModal = false" 
                                 class="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors">
-                            Cancel
-                        </button>
-                        <button type="submit" 
-                                class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors flex items-center gap-2">
-                            <i data-feather="save" class="w-4 h-4"></i>
-                            Update User
+                            Close
                         </button>
                     </div>
                 </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Forgot Password Modal -->
+    <div x-show="showForgotPasswordModal" 
+         x-transition:enter="transition ease-out duration-300"
+         x-transition:enter-start="opacity-0"
+         x-transition:enter-end="opacity-100"
+         x-transition:leave="transition ease-in duration-200"
+         x-transition:leave-start="opacity-100"
+         x-transition:leave-end="opacity-0"
+         class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4"
+         @click.outside="closeForgotPasswordModal()">
+        
+        <div x-show="showForgotPasswordModal"
+             x-transition:enter="transition ease-out duration-300 transform"
+             x-transition:enter-start="opacity-0 scale-95"
+             x-transition:enter-end="opacity-100 scale-100"
+             x-transition:leave="transition ease-in duration-200 transform"
+             x-transition:leave-start="opacity-100 scale-100"
+             x-transition:leave-end="opacity-0 scale-95"
+             class="bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-hidden mx-2 sm:mx-4">
+            
+            <!-- Modal Header -->
+            <div class="bg-gradient-to-r from-orange-600 to-orange-700 px-4 sm:px-6 py-3 sm:py-4 text-white">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 bg-white/20 rounded-lg flex items-center justify-center">
+                            <i data-feather="key" class="w-5 h-5 text-white"></i>
+                        </div>
+                        <div>
+                            <h2 class="text-xl font-bold text-base sm:text-lg md:text-xl">Reset Password</h2>
+                            <p class="text-orange-100 text-sm" x-text="selectedUser ? `Send reset link to ${selectedUser.name}` : 'Send password reset'"></p>
+                        </div>
+                    </div>
+                    <button @click="closeForgotPasswordModal()" class="p-2 hover:bg-white/20 rounded-lg transition-colors">
+                        <i data-feather="x" class="w-5 h-5"></i>
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Modal Content -->
+            <div class="p-4 sm:p-6">
+                <!-- Initial State -->
+                <div x-show="!resetPasswordSuccess && !resetPasswordLoading" class="space-y-6">
+                    <!-- User Info -->
+                    <div class="bg-gray-50 rounded-lg p-4">
+                        <div class="grid grid-cols-1 gap-3">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-600 mb-1">User Name</label>
+                                <div class="text-sm font-semibold text-gray-900" x-text="selectedUser?.name || 'N/A'"></div>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-600 mb-1">User ID</label>
+                                <div class="text-sm font-semibold text-gray-900" x-text="selectedUser?.userId || 'N/A'"></div>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-600 mb-1">Gmail Address</label>
+                                <div class="flex items-center gap-2">
+                                    <i data-feather="mail" class="w-4 h-4 text-orange-600"></i>
+                                    <div class="text-sm font-semibold text-orange-600" x-text="selectedUser?.email || 'N/A'"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Instructions -->
+                    <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                        <div class="flex items-start gap-3">
+                            <i data-feather="info" class="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0"></i>
+                            <div class="text-sm text-blue-800">
+                                <p class="font-semibold mb-2">Password Reset Instructions</p>
+                                <ul class="space-y-1 text-xs sm:text-sm">
+                                    <li>• A password reset link will be sent to the user's Gmail address</li>
+                                    <li>• The link will expire in 1 hour for security purposes</li>
+                                    <li>• The user can create a new password using the link</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Error Message -->
+                    <div x-show="resetPasswordError" 
+                         x-transition:enter="transition ease-out duration-300"
+                         x-transition:enter-start="opacity-0"
+                         x-transition:enter-end="opacity-100"
+                         class="bg-red-50 border border-red-200 rounded-lg p-4">
+                        <div class="flex items-start gap-3">
+                            <i data-feather="alert-circle" class="w-5 h-5 text-red-600 mt-0.5 flex-shrink-0"></i>
+                            <div class="text-sm text-red-800">
+                                <p class="font-semibold">Error</p>
+                                <p x-text="resetPasswordError"></p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Action Buttons -->
+                    <div class="flex justify-end gap-3 pt-4 border-t border-gray-200">
+                        <button type="button" @click="closeForgotPasswordModal()" 
+                                class="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors">
+                            Cancel
+                        </button>
+                        <button type="button" @click="sendPasswordReset()" 
+                                class="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg transition-colors flex items-center gap-2">
+                            <i data-feather="send" class="w-4 h-4"></i>
+                            Send Reset Link
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Loading State -->
+                <div x-show="resetPasswordLoading" class="text-center py-12">
+                    <div class="inline-flex items-center justify-center w-16 h-16 bg-orange-100 rounded-full mb-4">
+                        <i data-feather="loader" class="w-8 h-8 text-orange-600 animate-spin"></i>
+                    </div>
+                    <h3 class="text-lg font-semibold text-gray-900 mb-2">Sending Password Reset</h3>
+                    <p class="text-gray-600 text-sm">Please wait while we send the reset link...</p>
+                </div>
+                
+                <!-- Success State -->
+                <div x-show="resetPasswordSuccess" class="text-center py-12">
+                    <div class="inline-flex items-center justify-center w-16 h-16 bg-green-100 rounded-full mb-4">
+                        <i data-feather="mail" class="w-8 h-8 text-green-600"></i>
+                    </div>
+                    <h3 class="text-lg font-semibold text-gray-900 mb-2">Reset Link Sent Successfully!</h3>
+                    <div class="space-y-2 mb-6">
+                        <p class="text-gray-600 text-sm">Password reset link has been sent to:</p>
+                        <div class="inline-flex items-center gap-2 px-4 py-2 bg-orange-50 border border-orange-200 rounded-lg">
+                            <i data-feather="mail" class="w-4 h-4 text-orange-600"></i>
+                            <span class="font-semibold text-orange-600" x-text="resetPasswordEmail"></span>
+                        </div>
+                        <p class="text-gray-500 text-xs">The user can now reset their password using the link sent to their Gmail</p>
+                    </div>
+                    <div class="space-y-3">
+                        <div class="bg-blue-50 border border-blue-200 rounded-lg p-3 text-left">
+                            <div class="flex items-start gap-2">
+                                <i data-feather="info" class="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0"></i>
+                                <div class="text-xs text-blue-800">
+                                    <p class="font-semibold mb-1">What happens next?</p>
+                                    <ul class="space-y-1">
+                                        <li>• User receives password reset email</li>
+                                        <li>• Link expires in 1 hour for security</li>
+                                        <li>• User can create new password</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-2 text-xs text-gray-500">
+                            <i data-feather="clock" class="w-3 h-3"></i>
+                            <span>This window will close automatically in 3 seconds...</span>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -1121,8 +1480,15 @@
                     </div>
                     <h3 class="text-lg font-semibold text-gray-900 mb-2">Are you sure?</h3>
                     <p class="text-gray-600" x-show="selectedUser">
-                        You are about to delete <strong x-text="selectedUser?.name"></strong>. This action cannot be undone and will permanently remove all associated data.
+                        You are about to delete <strong x-text="selectedUser?.name"></strong>. This action cannot be undone and will also permanently delete appointments created by this user.
                     </p>
+                </div>
+
+                <div x-show="deleteError" class="mb-4 bg-red-50 border border-red-200 rounded-lg p-3">
+                    <div class="flex items-start gap-2">
+                        <i data-feather="alert-circle" class="w-4 h-4 text-red-600 mt-0.5 flex-shrink-0"></i>
+                        <p class="text-sm text-red-700" x-text="deleteError"></p>
+                    </div>
                 </div>
                 
                 <div class="flex justify-end gap-3">
@@ -1130,9 +1496,14 @@
                             class="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors">
                         Cancel
                     </button>
-                    <button type="button" 
-                            class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors">
-                        Delete User
+                    <button type="button" @click="deleteUser()" :disabled="deleteLoading"
+                            class="px-4 py-2 text-white rounded-lg transition-colors"
+                            :class="deleteLoading ? 'bg-red-400 cursor-not-allowed' : 'bg-red-600 hover:bg-red-700'">
+                        <span x-show="!deleteLoading">Delete User</span>
+                        <span x-show="deleteLoading" class="inline-flex items-center gap-2">
+                            <i data-feather="loader" class="w-4 h-4 animate-spin"></i>
+                            Deleting...
+                        </span>
                     </button>
                 </div>
             </div>
