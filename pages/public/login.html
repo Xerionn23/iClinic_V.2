@@ -378,9 +378,9 @@
                         <div class="absolute left-3 sm:left-4 top-1/2 transform -translate-y-1/2">
                             <i data-feather="lock" class="w-4 h-4 sm:w-5 sm:h-5 text-gray-400"></i>
                         </div>
-                        <button type="button" id="togglePassword" class="absolute right-3 sm:right-4 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors p-1">
-                            <i data-feather="eye-off" class="w-4 h-4 sm:w-5 sm:h-5"></i>
-                            <i data-feather="eye" class="w-4 h-4 sm:w-5 sm:h-5 hidden"></i>
+                        <button type="button" id="togglePassword" class="password-toggle-button absolute right-3 sm:right-4 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-all duration-200 p-2 rounded-lg hover:bg-gray-100">
+                            <i data-feather="eye-off" class="w-4 h-4 sm:w-5 sm:h-5 transition-all duration-200"></i>
+                            <i data-feather="eye" class="w-4 h-4 sm:w-5 sm:h-5 hidden transition-all duration-200"></i>
                         </button>
                     </div>
                 </div>
@@ -698,30 +698,39 @@
                     'log-in': 'log-in',
                     'eye': 'eye',
                     'eye-off': 'eye-off',
-                    'user': 'user',
-                    'lock': 'lock',
-                    'mail': 'mail',
-                    'phone': 'phone',
-                    'info': 'info',
-                    'server': 'server',
+                    'key': 'key',
+                    'send': 'send',
                     'x': 'x',
-                    'credit-card': 'credit-card'
+                    'alert-circle': 'alert-circle',
+                    'info': 'info',
+                    'credit-card': 'credit-card',
+                    'lock': 'lock',
+                    'shield': 'shield'
                 };
                 
-                // Convert all data-lucide to data-feather for compatibility
-                document.querySelectorAll('[data-lucide]').forEach(function(element) {
-                    let iconName = element.getAttribute('data-lucide');
-                    // Use mapped icon if available, otherwise use original
-                    iconName = iconMap[iconName] || iconName;
-                    element.setAttribute('data-feather', iconName);
-                    element.removeAttribute('data-lucide');
-                });
+                // Replace all icons
+                feather.replace();
+                
+                // IMPORTANT: Force password toggle icons to correct state after Feather initialization
+                setTimeout(() => {
+                    const toggleBtn = document.getElementById('togglePassword');
+                    if (toggleBtn) {
+                        const icons = toggleBtn.querySelectorAll('svg');
+                        if (icons.length >= 2) {
+                            // Ensure only eye-off is visible initially (password hidden)
+                            icons[0].classList.remove('hidden'); // eye-off
+                            icons[1].classList.add('hidden');    // eye
+                        }
+                    }
+                    setupPasswordToggles();
+                }, 100);
                 
                 // Now replace with Feather icons
                 feather.replace();
             }
         } catch (error) {
             // Silent error handling
+            console.log('Feather icons initialization error:', error);
         }
         
         // Password toggle functionality
@@ -731,6 +740,7 @@
             
             // Check if elements exist before setting up
             if (!passwordInput || !toggleButton) {
+                console.log(`Password toggle setup failed: missing elements for ${passwordId}/${toggleId}`);
                 return;
             }
             
@@ -747,24 +757,76 @@
             }
             
             if (!eyeIcon || !eyeOffIcon) {
+                console.log(`Password toggle setup failed: missing icons for ${passwordId}`);
                 return;
             }
             
-            toggleButton.addEventListener('click', function() {
-                const type = passwordInput.getAttribute('type') === 'password' ? 'text' : 'password';
-                passwordInput.setAttribute('type', type);
+            // Remove existing listener to prevent duplicates
+            toggleButton.removeEventListener('click', handlePasswordToggle);
+            
+            // Add click listener with Facebook-style behavior and proper icon management
+            function handlePasswordToggle(e) {
+                e.preventDefault();
+                e.stopPropagation();
                 
-                eyeIcon.classList.toggle('hidden');
-                eyeOffIcon.classList.toggle('hidden');
-            });
+                const currentType = passwordInput.getAttribute('type');
+                const newType = currentType === 'password' ? 'text' : 'password';
+                
+                // Smooth transition effect
+                passwordInput.style.transition = 'all 0.2s ease';
+                passwordInput.style.opacity = '0.8';
+                
+                setTimeout(() => {
+                    passwordInput.setAttribute('type', newType);
+                    passwordInput.style.opacity = '1';
+                }, 100);
+                
+                // Toggle icons with explicit state management
+                if (newType === 'text') {
+                    // Password is now visible - show eye, hide eye-off
+                    eyeOffIcon.classList.add('hidden');
+                    eyeIcon.classList.remove('hidden');
+                    toggleButton.classList.add('text-blue-600');
+                    toggleButton.classList.remove('text-gray-400');
+                } else {
+                    // Password is now hidden - show eye-off, hide eye
+                    eyeIcon.classList.add('hidden');
+                    eyeOffIcon.classList.remove('hidden');
+                    toggleButton.classList.remove('text-blue-600');
+                    toggleButton.classList.add('text-gray-400');
+                }
+                
+                // Add subtle scale animation to button
+                toggleButton.style.transform = 'scale(0.95)';
+                setTimeout(() => {
+                    toggleButton.style.transform = 'scale(1)';
+                }, 150);
+                
+                console.log(`Password toggled for ${passwordId}: ${currentType} -> ${newType}`);
+            }
+            
+            toggleButton.addEventListener('click', handlePasswordToggle);
+            console.log(`Password toggle setup successful for ${passwordId}`);
         }
         
-        // Setup password toggles after a small delay to ensure icons are rendered
-        setTimeout(function() {
+        // Setup password toggles after ensuring icons are rendered
+        function setupPasswordToggles() {
             setupPasswordToggle('password', 'togglePassword');
             setupPasswordToggle('newPassword', 'toggleNewPassword');
             setupPasswordToggle('confirmPassword', 'toggleConfirmPassword');
-        }, 100);
+        }
+        
+        // Try multiple times to ensure icons are loaded
+        setTimeout(setupPasswordToggles, 100);
+        setTimeout(setupPasswordToggles, 500);
+        setTimeout(setupPasswordToggles, 1000);
+        
+        // Also setup on DOM content loaded as backup
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', setupPasswordToggles);
+        } else {
+            setupPasswordToggles();
+        }
         
         // Dynamic ID field function
         function updateIdField() {
@@ -1449,6 +1511,61 @@
         shapes.forEach((shape, index) => {
             shape.style.animationDelay = `${index * 0.5}s`;
         });
+        
+        // Backup password toggle - Facebook-style with proper icon management
+        document.addEventListener('DOMContentLoaded', function() {
+            const toggleBtn = document.getElementById('togglePassword');
+            const passwordInput = document.getElementById('password');
+            
+            if (toggleBtn && passwordInput) {
+                // Ensure correct initial state
+                setTimeout(() => {
+                    const icons = toggleBtn.querySelectorAll('svg, i');
+                    if (icons.length >= 2) {
+                        // Force initial state: eye-off visible, eye hidden
+                        icons[0].classList.remove('hidden'); // eye-off
+                        icons[1].classList.add('hidden');    // eye
+                    }
+                }, 50);
+                
+                toggleBtn.addEventListener('click', function() {
+                    const type = passwordInput.type === 'password' ? 'text' : 'password';
+                    
+                    // Facebook-style smooth transition
+                    passwordInput.style.transition = 'all 0.2s ease';
+                    passwordInput.style.opacity = '0.8';
+                    
+                    setTimeout(() => {
+                        passwordInput.type = type;
+                        passwordInput.style.opacity = '1';
+                    }, 100);
+                    
+                    // Update button color and icons with proper state management
+                    const icons = this.querySelectorAll('svg, i');
+                    if (icons.length >= 2) {
+                        if (type === 'text') {
+                            // Password visible - show blue eye, hide gray eye-off
+                            icons[0].classList.add('hidden');   // hide eye-off
+                            icons[1].classList.remove('hidden'); // show eye
+                            this.classList.add('text-blue-600');
+                            this.classList.remove('text-gray-400');
+                        } else {
+                            // Password hidden - show gray eye-off, hide blue eye
+                            icons[1].classList.add('hidden');   // hide eye
+                            icons[0].classList.remove('hidden'); // show eye-off
+                            this.classList.remove('text-blue-600');
+                            this.classList.add('text-gray-400');
+                        }
+                    }
+                    
+                    // Subtle button animation
+                    this.style.transform = 'scale(0.95)';
+                    setTimeout(() => {
+                        this.style.transform = 'scale(1)';
+                    }, 150);
+                });
+            }
+        });
     </script>
     
     <style>
@@ -1474,6 +1591,19 @@
             0%, 100% { transform: translateX(0); }
             10%, 30%, 50%, 70%, 90% { transform: translateX(-5px); }
             20%, 40%, 60%, 80% { transform: translateX(5px); }
+        }
+        
+        /* Ensure hidden class works properly for password toggle icons */
+        .password-toggle-button svg,
+        .password-toggle-button i {
+            transition: all 0.2s ease;
+        }
+        
+        .password-toggle-button svg.hidden,
+        .password-toggle-button i.hidden {
+            display: none !important;
+            opacity: 0 !important;
+            visibility: hidden !important;
         }
     </style>
 </body>

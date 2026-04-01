@@ -3,7 +3,7 @@
 ## ❌ PROBLEMA: Data ay bumabalik pagkatapos i-delete
 
 ### Root Cause
-Ang iClinic system ay **WALANG automatic sample data insertion** para sa medicines table. Kung bumabalik ang data pagkatapos i-delete, may dalawang possible reasons:
+Ang iClinic Management System ay **WALANG automatic sample data insertion** para sa medicines table. Kung bumabalik ang data pagkatapos i-delete, may dalawang possible reasons:
 
 1. **Hindi na-delete sa tamang table** - Ang system ay gumagamit ng `medicines` table, hindi `medicine_inventory`
 2. **May cached data sa browser** - Ang frontend ay nag-cache ng data

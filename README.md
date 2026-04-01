@@ -1,4 +1,4 @@
-# iClinic - Healthcare Management System
+# iClinic - iClinic Management System
 
 A modern web-based clinic management system designed for educational institutions like Norzagaray College.
 

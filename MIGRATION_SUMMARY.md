@@ -56,7 +56,7 @@ Both users have been successfully created in the users table with their respecti
 Both users can now:
 1. Set their passwords through the email verification system
 2. Log in with their respective roles
-3. Access role-specific features in the iClinic system
+3. Access role-specific features in the iClinic Management System
 
 ## Notes
 

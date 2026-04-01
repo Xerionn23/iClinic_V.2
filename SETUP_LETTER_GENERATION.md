@@ -51,7 +51,7 @@ python generate_letter.py
 The server will run on `http://localhost:5001`
 
 ### 4. Test the Integration
-1. Open your iClinic system
+1. Open your iClinic Management System
 2. Go to Patient Management
 3. Select a patient with medical records
 4. Click the green "Print" button in the Actions column

@@ -1,5 +1,5 @@
 # ✅ COMPLETE ACCOUNT CREATION & FORGOT PASSWORD SYSTEM FIX
-## iClinic Healthcare Management System
+## iClinic Management System
 
 **Date Fixed:** October 26, 2025  
 **Status:** 🟢 **FULLY IMPLEMENTED**

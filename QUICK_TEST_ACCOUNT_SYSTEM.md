@@ -1,5 +1,5 @@
 # 🚀 QUICK TEST GUIDE - ACCOUNT CREATION & FORGOT PASSWORD
-## iClinic Healthcare Management System
+## iClinic Management System
 
 **Para sa mabilis na testing ng lahat ng 7 user types**
 

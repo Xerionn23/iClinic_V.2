@@ -17,7 +17,7 @@ EMAIL_CONFIG = {
     'smtp_port': 587,
     'email': 'norzagaraycollege.clinic@gmail.com',
     'password': 'xtsweijcxsntwhld',
-    'from_name': 'iClinic System'
+    'from_name': 'iClinic Management System'
 }
 
 def send_booking_confirmation(patient_email, patient_name, appointment_date, appointment_time, appointment_type):
@@ -113,7 +113,7 @@ def send_booking_confirmation(patient_email, patient_name, appointment_date, app
             
             <div style="text-align: center; margin-top: 30px;">
                 <p style="color: #6b7280; font-size: 14px; margin: 0;">
-                    This is an automated notification from the iClinic System.<br>
+                    This is an automated notification from the iClinic Management System.<br>
                     Please do not reply to this email. For inquiries, visit the clinic directly.
                 </p>
             </div>
@@ -122,7 +122,7 @@ def send_booking_confirmation(patient_email, patient_name, appointment_date, app
         <!-- Footer -->
         <div style="background-color: #f9fafb; padding: 20px; text-align: center; border-radius: 0 0 8px 8px; border-top: 1px solid #e5e7eb;">
             <p style="margin: 0; color: #6b7280; font-size: 12px;">
-                iClinic System • Norzagaray College<br>
+                iClinic Management System • Norzagaray College<br>
                 Confirmation sent on {datetime.now().strftime('%B %d, %Y at %I:%M %p')}
             </p>
         </div>
@@ -257,7 +257,7 @@ def send_three_day_reminder(patient_email, patient_name, appointment_date, appoi
             
             <div style="text-align: center; margin-top: 30px;">
                 <p style="color: #6b7280; font-size: 14px; margin: 0;">
-                    This is an automated reminder from the iClinic System.<br>
+                    This is an automated reminder from the iClinic Management System.<br>
                     Please do not reply to this email. For urgent matters, contact the clinic directly.
                 </p>
             </div>
@@ -266,7 +266,7 @@ def send_three_day_reminder(patient_email, patient_name, appointment_date, appoi
         <!-- Footer -->
         <div style="background-color: #f9fafb; padding: 20px; text-align: center; border-radius: 0 0 8px 8px; border-top: 1px solid #e5e7eb;">
             <p style="margin: 0; color: #6b7280; font-size: 12px;">
-                iClinic System • Norzagaray College<br>
+                iClinic Management System • Norzagaray College<br>
                 Reminder sent on {datetime.now().strftime('%B %d, %Y at %I:%M %p')}
             </p>
         </div>

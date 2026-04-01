@@ -1,6 +1,6 @@
 # iClinic Offline Setup Guide
 
-Gawin mo itong mga steps para gumana ang iClinic system kahit walang internet:
+Gawin mo itong mga steps para gumana ang iClinic Management System kahit walang internet:
 
 ## Step 1: Run Setup Script
 1. Double-click `setup_offline_assets.bat`

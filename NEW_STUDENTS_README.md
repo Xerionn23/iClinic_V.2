@@ -124,7 +124,7 @@ After inserting students into database, they can create accounts:
 4. Enter their student number (e.g., 2022-0201)
 5. System will send verification email to their Gmail
 6. They click verification link and set their password
-7. They can now login to iClinic system
+7. They can now login to iClinic Management System
 
 ## 📧 Gmail Addresses for Account Creation
 

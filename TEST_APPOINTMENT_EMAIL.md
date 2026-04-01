@@ -31,7 +31,7 @@
 4. **Check Gmail Inbox**
    - Open your Gmail
    - Look for email from: `norzagaraycollege.clinic@gmail.com`
-   - Subject: "Appointment Confirmation - iClinic Healthcare"
+   - Subject: "Appointment Confirmation - iClinic Management System"
    - Verify appointment details are correct
 
 ---
@@ -210,7 +210,7 @@
 
 When email is sent (< 3 days), student receives:
 
-**Subject**: Appointment Confirmation - iClinic Healthcare
+**Subject**: Appointment Confirmation - iClinic Management System
 
 **Content**:
 - ✅ Appointment Confirmed header

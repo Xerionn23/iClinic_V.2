@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>My Health Records - iClinic Healthcare Portal</title>    
+    <title>My Health Records - iClinic Management System</title>    
     <!-- Favicon -->
     <link rel="icon" type="image/png" href="../assets/img/iclinic-logo.png">
     <link rel="apple-touch-icon" href="../assets/img/iclinic-logo.png">
@@ -496,7 +496,7 @@
 
                 <!-- Deans Reports (ONLY for Deans and President) -->
                 {% if user and user.role in ['deans', 'president'] %}
-                <a href="{{ url_for('deans_president_reports') }}"
+                <a href="{{ url_for('deans_reports') }}"
                    class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all group hover:bg-white/10">
                     <div class="flex items-center justify-center" :class="(sidebarCollapsed && !sidebarHovered && !mobileMenuOpen) ? 'w-full' : ''">
                         <i data-feather="bar-chart-2" class="w-5 h-5 group-hover:scale-110 transition-transform"></i>
@@ -628,6 +628,7 @@
                                         <p class="text-gray-600 text-sm" x-show="(studentInfo.role || '').toLowerCase() === 'student'">Student ID: <span class="font-medium" x-text="studentInfo.student_number || 'N/A'"></span></p>
                                         <p class="text-gray-600 text-sm" x-show="(studentInfo.role || '').toLowerCase() === 'teaching_staff'">Faculty ID: <span class="font-medium" x-text="studentInfo.faculty_id || studentInfo.staff_id || 'N/A'"></span></p>
                                         <p class="text-gray-600 text-sm" x-show="(studentInfo.role || '').toLowerCase() === 'non_teaching_staff'">Staff ID: <span class="font-medium" x-text="studentInfo.staff_id || 'N/A'"></span></p>
+                                        <p class="text-gray-600 text-sm" x-show="['dean','deans'].includes((studentInfo.role || '').toLowerCase())">Dean ID: <span class="font-medium" x-text="studentInfo.dean_id || 'N/A'"></span></p>
                                     </div>
                                 </div>
                             </div>
@@ -789,7 +790,7 @@ Respectfully,
 
 _____________________
 Nurse Staff
-iClinic Healthcare Portal
+iClinic Management System
                             `.trim();
                             
                             // Create a blob and download

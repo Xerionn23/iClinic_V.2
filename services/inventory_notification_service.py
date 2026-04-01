@@ -352,13 +352,13 @@ def create_email_html(alerts):
                         <li>Remove expired medicines from inventory immediately</li>
                         <li>Plan usage for medicines expiring soon</li>
                         <li>Reorder low stock items to maintain adequate supply</li>
-                        <li>Update inventory records in the iClinic system</li>
+                        <li>Update inventory records in the iClinic Management System</li>
                     </ul>
                 </div>
             </div>
             
             <div class="footer">
-                <p><strong>iClinic Healthcare Management System</strong></p>
+                <p><strong>iClinic Management System</strong></p>
                 <p>Norzagaray College Clinic</p>
                 <p>This is an automated notification. Please do not reply to this email.</p>
                 <p>For assistance, contact the clinic administrator.</p>

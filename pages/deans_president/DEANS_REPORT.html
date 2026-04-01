@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <!-- 🔥🔥🔥 CHART FIX VERSION 3.0 - OCTOBER ONLY - UPDATED 10:42 AM 🔥🔥🔥 -->
-    <title>Reports - iClinic Healthcare Management System</title>
+    <title>Reports - iClinic Management System</title>
     
     <!-- Tailwind CSS -->
     <script>
@@ -498,7 +498,7 @@
 
                 <!-- Deans Reports (ONLY for Deans) -->
                 {% if user and user.role == 'deans' %}
-                <a href="{{ url_for('deans_president_reports') }}"
+                <a href="{{ url_for('deans_reports') }}"
                    class="sidebar-item-active flex items-center gap-3 px-4 py-3 rounded-lg transition-all group">
                     <div class="flex items-center justify-center" :class="sidebarCollapsed && !sidebarHovered ? 'w-full' : ''">
                         <i data-feather="bar-chart-2" class="w-5 h-5 group-hover:scale-110 transition-transform"></i>
@@ -601,169 +601,6 @@
                     
                     <!-- Main Content -->
                     <div x-show="!loading && !error">
-                    <!-- Enhanced Filter Section -->
-                    <div class="mb-6 bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl shadow-md border border-gray-200 p-6">
-                        <div class="space-y-4">
-                            <!-- First Row: Chart Search -->
-                            <div class="flex flex-col lg:flex-row lg:items-center gap-4">
-                                <div class="flex-1">
-                                    <label class="block text-sm font-semibold text-gray-700 mb-2">
-                                        <i data-feather="search" class="w-4 h-4 inline mr-1"></i>
-                                        Search Chart
-                                    </label>
-                                    <select x-model="selectedChartFilter" @change="scrollToChart()" class="w-full px-4 py-3 border-2 border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-900 font-medium shadow-sm">
-                                        <option value="all">📊 Show All Charts</option>
-                                        <option value="monthlyVisitsChart">📅 Monthly Patient Visits</option>
-                                        <option value="medicalRecordsChart">🏥 Medical Records Trends</option>
-                                    </select>
-                                </div>
-                                
-                                <!-- Quick Action Buttons -->
-                                <div class="flex items-end gap-2">
-                                    <button @click="selectedChartFilter = 'all'; showAllCharts()" class="px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium shadow-md transition-all duration-200 flex items-center gap-2">
-                                        <i data-feather="eye" class="w-4 h-4"></i>
-                                        Show All
-                                    </button>
-                                    <button @click="resetFilters()" class="px-4 py-3 bg-gray-600 hover:bg-gray-700 text-white rounded-lg font-medium shadow-md transition-all duration-200 flex items-center gap-2">
-                                        <i data-feather="refresh-cw" class="w-4 h-4"></i>
-                                        Reset
-                                    </button>
-                                </div>
-                            </div>
-                            
-                            <!-- Second Row: Period & Department Filters -->
-                            <div class="flex flex-col lg:flex-row lg:items-end gap-4">
-                                <div class="flex-1">
-                                    <label class="block text-sm font-semibold text-gray-700 mb-2">
-                                        <i data-feather="calendar" class="w-4 h-4 inline mr-1"></i>
-                                        Time Period
-                                    </label>
-                                    <select x-model="selectedPeriod" @change="updateCharts()" class="w-full px-4 py-3 border-2 border-purple-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 bg-white text-gray-900 font-medium shadow-sm">
-                                        <option value="today">📅 Today</option>
-                                        <option value="week">📆 This Week</option>
-                                        <option value="month">📊 This Month</option>
-                                        <option value="quarter">📈 This Quarter</option>
-                                        <option value="year">📉 This Year</option>
-                                        <option value="custom">🗓️ Custom Range</option>
-                                    </select>
-                                </div>
-                                
-                                <div class="flex-1">
-                                    <label class="block text-sm font-semibold text-gray-700 mb-2">
-                                        <i data-feather="users" class="w-4 h-4 inline mr-1"></i>
-                                        Department
-                                    </label>
-                                    <select x-model="selectedDepartment" @change="updateCharts()" class="w-full px-4 py-3 border-2 border-green-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 bg-white text-gray-900 font-medium shadow-sm">
-                                        <option value="all">🏢 All Departments</option>
-                                        <option value="students">🎓 All Students</option>
-                                        <option value="teaching_staff">👨‍🏫 Teaching Staff</option>
-                                        <option value="non_teaching_staff">👔 Non-Teaching Staff</option>
-                                        <option value="visitors">👥 Visitors</option>
-                                        <option value="beed">📚 BEED Students</option>
-                                        <option value="bsed">📖 BSED Students</option>
-                                        <option value="computer_science">💻 Computer Science Students</option>
-                                        <option value="hm">🏨 HM Students</option>
-                                    </select>
-                                </div>
-                                
-                                <div x-show="selectedPeriod === 'custom'" class="flex-1">
-                                    <label class="block text-sm font-semibold text-gray-700 mb-2">Date Range</label>
-                                    <div class="flex gap-2">
-                                        <input type="date" x-model="startDate" @change="updateCharts()" class="flex-1 px-4 py-3 border-2 border-orange-300 rounded-lg focus:ring-2 focus:ring-orange-500 bg-white text-gray-900 shadow-sm">
-                                        <input type="date" x-model="endDate" @change="updateCharts()" class="flex-1 px-4 py-3 border-2 border-orange-300 rounded-lg focus:ring-2 focus:ring-orange-500 bg-white text-gray-900 shadow-sm">
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            <!-- Filter Status Bar -->
-                            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pt-4 border-t border-gray-300">
-                                <div class="flex items-center gap-4 text-sm">
-                                    <div class="flex items-center gap-2">
-                                        <div class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                                        <span class="text-gray-700">Last updated: <span class="font-semibold text-gray-900" x-text="lastUpdated"></span></span>
-                                    </div>
-                                </div>
-                                <div class="flex items-center gap-2 text-sm">
-                                    <span class="px-3 py-1 bg-blue-100 text-blue-700 rounded-full font-medium">
-                                        <i data-feather="filter" class="w-3 h-3 inline mr-1"></i>
-                                        <span x-text="getDepartmentName(selectedDepartment)"></span>
-                                    </span>
-                                    <span class="px-3 py-1 bg-purple-100 text-purple-700 rounded-full font-medium" x-show="selectedChartFilter !== 'all'">
-                                        <i data-feather="bar-chart-2" class="w-3 h-3 inline mr-1"></i>
-                                        Filtered Chart
-                                    </span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <!-- Quick Stats Overview -->
-                    <div class="mb-16">
-                        <div class="max-w-6xl mx-auto">
-                            
-                            <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                                <!-- Total Patients -->
-                                <div class="bg-gradient-to-br from-blue-50 via-blue-50 to-blue-100 rounded-3xl p-8 border border-blue-200 shadow-lg hover:shadow-xl transition-all duration-300">
-                                    <div class="flex items-center justify-between mb-6">
-                                        <div class="w-14 h-14 bg-blue-500 rounded-2xl flex items-center justify-center shadow-md">
-                                            <i data-feather="users" class="w-7 h-7 text-white"></i>
-                                        </div>
-                                        <div class="text-right">
-                                            <div class="text-3xl font-bold text-blue-900" x-text="stats.totalPatients">0</div>
-                                            <div class="text-sm text-blue-600 font-medium">Total Patients</div>
-                                        </div>
-                                    </div>
-                                    <div class="flex items-center justify-between">
-                                        <span class="text-sm text-blue-700">Growth Rate</span>
-                                        <div class="flex items-center text-sm font-semibold text-green-600">
-                                            <i data-feather="trending-up" class="w-4 h-4 mr-1"></i>
-                                            <span x-text="stats.patientsGrowth">+12%</span>
-                                        </div>
-                                    </div>
-                                </div>
-                            
-                                <!-- Medicine Stock -->
-                                <div class="bg-gradient-to-br from-purple-50 via-purple-50 to-purple-100 rounded-3xl p-8 border border-purple-200 shadow-lg hover:shadow-xl transition-all duration-300">
-                                    <div class="flex items-center justify-between mb-6">
-                                        <div class="w-14 h-14 bg-purple-500 rounded-2xl flex items-center justify-center shadow-md">
-                                            <i data-feather="package" class="w-7 h-7 text-white"></i>
-                                        </div>
-                                        <div class="text-right">
-                                            <div class="text-3xl font-bold text-purple-900" x-text="stats.totalMedicines || 0">0</div>
-                                            <div class="text-sm text-purple-600 font-medium">Medicine Items</div>
-                                        </div>
-                                    </div>
-                                    <div class="flex items-center justify-between">
-                                        <span class="text-sm text-purple-700">Stock Status</span>
-                                        <div class="flex items-center text-sm font-semibold text-purple-600">
-                                            <i data-feather="check-circle" class="w-4 h-4 mr-1"></i>
-                                            <span>Available</span>
-                                        </div>
-                                    </div>
-                                </div>
-                            
-                                <!-- Consultations -->
-                                <div class="bg-gradient-to-br from-green-50 via-green-50 to-green-100 rounded-3xl p-8 border border-green-200 shadow-lg hover:shadow-xl transition-all duration-300">
-                                    <div class="flex items-center justify-between mb-6">
-                                        <div class="w-14 h-14 bg-green-500 rounded-2xl flex items-center justify-center shadow-md">
-                                            <i data-feather="message-circle" class="w-7 h-7 text-white"></i>
-                                        </div>
-                                        <div class="text-right">
-                                            <div class="text-3xl font-bold text-green-900" x-text="stats.totalConsultations">0</div>
-                                            <div class="text-sm text-green-600 font-medium">Consultations</div>
-                                        </div>
-                                    </div>
-                                    <div class="flex items-center justify-between">
-                                        <span class="text-sm text-green-700">Growth Rate</span>
-                                        <div class="flex items-center text-sm font-semibold text-green-600">
-                                            <i data-feather="trending-up" class="w-4 h-4 mr-1"></i>
-                                            <span x-text="stats.consultationsGrowth">+6%</span>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
                     </div>
                     
                     <!-- Analytics & Charts Section -->
@@ -773,7 +610,8 @@
                             <p class="text-gray-600 mt-2">Visual insights into clinic performance and patient care</p>
                         </div>
 
-                        <div class="max-w-6xl mx-auto space-y-8">
+                        <div class="max-w-6xl mx-auto">
+                            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
                             <!-- Monthly Patient Visits Chart -->
                             <div class="bg-white rounded-2xl shadow-lg border border-gray-100 p-8 hover:shadow-xl transition-shadow duration-300" data-chart-container>
                                 <div class="mb-6">
@@ -859,11 +697,50 @@
                                         </button>
                                     </div>
                                 </div>
+                                
+                                <!-- Chart-specific Filters -->
+                                <div class="flex gap-3 mb-4">
+                                    <!-- Time Period Filter -->
+                                    <div class="flex-1">
+                                        <label class="block text-xs font-semibold text-gray-700 mb-1">
+                                            <i data-feather="calendar" class="w-3 h-3 inline mr-1"></i>
+                                            Time Period
+                                        </label>
+                                        <select x-model="medicalRecordsPeriod" @change="updateMedicalRecordsChart()" class="w-full px-3 py-2 border-2 border-purple-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 bg-white text-gray-900 text-sm">
+                                            <option value="week">📆 This Week</option>
+                                            <option value="month">📊 This Month</option>
+                                            <option value="quarter">📈 This Quarter</option>
+                                            <option value="year">📅 This Year</option>
+                                        </select>
+                                    </div>
+                                    
+                                    <!-- Department Filter -->
+                                    <div class="flex-1">
+                                        <label class="block text-xs font-semibold text-gray-700 mb-1">
+                                            <i data-feather="users" class="w-3 h-3 inline mr-1"></i>
+                                            Department
+                                        </label>
+                                        <select x-model="medicalRecordsDepartment" @change="updateMedicalRecordsChart()" class="w-full px-3 py-2 border-2 border-green-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 bg-white text-gray-900 text-sm">
+                                            <option value="all">🏢 All Departments</option>
+                                            <option value="students">🎓 All Students</option>
+                                            <option value="teaching_staff">👨‍🏫 Teaching Staff</option>
+                                            <option value="non_teaching_staff">👔 Non-Teaching Staff</option>
+                                            <option value="visitors">👥 Visitors</option>
+                                            <optgroup label="📚 Student Departments">
+                                                <option value="beed">📖 BEED Students</option>
+                                                <option value="bsed">🎓 BSED Students</option>
+                                                <option value="computer_science">💻 Computer Science Students</option>
+                                                <option value="hm">🏨 HM Students</option>
+                                            </optgroup>
+                                        </select>
+                                    </div>
+                                </div>
                                 <div class="bg-gray-50 rounded-xl p-4 flex flex-col space-y-3 min-h-[18rem]">
                                     <div class="w-full" style="height: 280px;">
                                         <canvas id="medicalRecordsChart" width="800" height="280" style="width: 100%; height: 280px;"></canvas>
                                     </div>
                                 </div>
+                            </div>
                             </div>
                         </div>
                     </div>
@@ -933,6 +810,8 @@
                 monthlyVisitsPeriod: 'month',
                 monthlyVisitsDepartment: 'all',
                 medicalRecordsChartType: 'bar',
+                medicalRecordsPeriod: 'month',
+                medicalRecordsDepartment: 'all',
                 
                 // Chart filter
                 selectedChartFilter: 'all',
@@ -1566,7 +1445,7 @@
 
                             // Update Medical Records chart with filtered data
                             if (this.medicalRecordsChart) {
-                                this.updateMedicalRecordsChart(filteredData);
+                                this.updateMedicalRecordsChartWithData(filteredData);
                             }
                             
                             // Show visual feedback that filter was applied
@@ -1716,7 +1595,9 @@
                             filteredPatients = data.patients.filter(patient => {
                                 if (!patient.course || typeof patient.course !== 'string') return false;
                                 const course = patient.course.toUpperCase();
-                                return course === 'BSED' || course.includes('SECONDARY EDUCATION');
+                                return course === 'BSED' ||
+                                    course.includes('SECONDARY EDUCATION') ||
+                                    (course.includes('SCIENCE IN EDUCATION') && !course.includes('ELEMENTARY'));
                             });
                             break;
                         case 'computer_science':
@@ -1781,10 +1662,12 @@
                             
                             switch(this.selectedDepartment) {
                                 case 'beed':
-                                    courseMatch = visitCourse === 'BEED';
+                                    courseMatch = visitCourse === 'BEED' || visitCourse.includes('ELEMENTARY EDUCATION');
                                     break;
                                 case 'bsed':
-                                    courseMatch = visitCourse === 'BSED';
+                                    courseMatch = visitCourse === 'BSED' ||
+                                        visitCourse.includes('SECONDARY EDUCATION') ||
+                                        (visitCourse.includes('SCIENCE IN EDUCATION') && !visitCourse.includes('ELEMENTARY'));
                                     break;
                                 case 'computer_science':
                                     courseMatch = visitCourse === 'COMPUTER SCIENCE' || 
@@ -2090,8 +1973,22 @@
                             datasets: [{
                                 label: 'Number of Cases',
                                 data: topComplaints.map(([,count]) => count),
-                                backgroundColor: 'rgba(16, 185, 129, 0.8)',
-                                borderColor: '#10B981',
+                                backgroundColor: [
+                                    'rgba(59, 130, 246, 0.8)',   // Blue
+                                    'rgba(16, 185, 129, 0.8)',   // Green
+                                    'rgba(251, 146, 60, 0.8)',   // Orange
+                                    'rgba(147, 51, 234, 0.8)',   // Purple
+                                    'rgba(236, 72, 153, 0.8)',   // Pink
+                                    'rgba(250, 204, 21, 0.8)'    // Yellow
+                                ],
+                                borderColor: [
+                                    '#3B82F6',
+                                    '#10B981',
+                                    '#FB923C',
+                                    '#9333EA',
+                                    '#EC4899',
+                                    '#FACC21'
+                                ],
                                 borderWidth: 2
                             }]
                         },
@@ -2191,14 +2088,20 @@
                     }
                     
                     try {
-                        // Filter by department only (period filtering is done by aggregation functions)
-                        let filteredData = { ...this.rawData };
-                        
-                        // Filter by department (reuse existing function)
-                        const tempDept = this.selectedDepartment;
-                        this.selectedDepartment = this.monthlyVisitsDepartment;
-                        filteredData = this.filterDataByDepartment(filteredData);
-                        this.selectedDepartment = tempDept;
+                        // Filter by department using existing logic (without permanently mutating global state)
+                        const originalDepartment = this.selectedDepartment;
+                        let filteredData = this.rawData;
+                        try {
+                            this.selectedDepartment = this.monthlyVisitsDepartment;
+                            filteredData = this.filterDataByDepartment({
+                                patients: this.rawData.patients || [],
+                                visits: this.rawData.visits || [],
+                                consultations: this.rawData.consultations || [],
+                                medicines: this.rawData.medicines || []
+                            });
+                        } finally {
+                            this.selectedDepartment = originalDepartment;
+                        }
                         
                         console.log('📊 Filtered visits:', filteredData.visits ? filteredData.visits.length : 0);
                         
@@ -2289,6 +2192,157 @@
                     }
                 },
 
+                async updateMedicalRecordsChart() {
+                    console.log('🔄 Updating Medical Records Chart with filters...');
+                    console.log('📅 Period:', this.medicalRecordsPeriod);
+                    console.log('🏢 Department:', this.medicalRecordsDepartment);
+                    
+                    if (!this.rawData) {
+                        console.warn('⚠️ No raw data available');
+                        return;
+                    }
+                    const canvas = document.getElementById('medicalRecordsChart');
+                    if (!canvas) {
+                        console.warn('❌ Canvas not found for medicalRecordsChart');
+                        return;
+                    }
+                    
+                    const safeRaw = {
+                        patients: this.rawData.patients || [],
+                        visits: this.rawData.visits || [],
+                        consultations: this.rawData.consultations || [],
+                        medicines: this.rawData.medicines || []
+                    };
+                    
+                    const originalPeriod = this.selectedPeriod;
+                    const originalDepartment = this.selectedDepartment;
+
+                    try {
+                        // Apply chart-specific filters by temporarily mapping to existing global filters
+                        this.selectedDepartment = this.medicalRecordsDepartment;
+
+                        let filteredData = this.filterDataByDepartment(safeRaw);
+
+                        // Rolling window period filter specific to Medical Records (more likely to match historical DB data)
+                        const now = new Date();
+                        const dayMs = 24 * 60 * 60 * 1000;
+                        let startDate = null;
+                        switch (this.medicalRecordsPeriod) {
+                            case 'week':
+                                startDate = new Date(now.getTime() - 7 * dayMs);
+                                break;
+                            case 'month':
+                                startDate = new Date(now.getTime() - 30 * dayMs);
+                                break;
+                            case 'quarter':
+                                startDate = new Date(now.getTime() - 90 * dayMs);
+                                break;
+                            case 'year':
+                                startDate = new Date(now.getTime() - 365 * dayMs);
+                                break;
+                            default:
+                                startDate = null;
+                        }
+
+                        if (startDate) {
+                            filteredData = {
+                                ...filteredData,
+                                visits: (filteredData.visits || []).filter(v => {
+                                    const d = v.visit_date ? new Date(v.visit_date) : null;
+                                    return d && d >= startDate && d <= now;
+                                }),
+                                consultations: (filteredData.consultations || []).filter(c => {
+                                    const d = c.visit_date ? new Date(c.visit_date) : (c.created_at ? new Date(c.created_at) : null);
+                                    return d && d >= startDate && d <= now;
+                                })
+                            };
+                        }
+
+                        const complaintCount = {};
+
+                        // Visits (primary source)
+                        (filteredData.visits || []).forEach(record => {
+                            const complaint = record.chief_complaint || record.initial_complaint || record.symptoms || record.diagnosis || record.reason || 'General Checkup';
+                            complaintCount[complaint] = (complaintCount[complaint] || 0) + 1;
+                        });
+
+                        // Consultations (secondary source)
+                        (filteredData.consultations || []).forEach(record => {
+                            const complaint = record.initial_complaint || record.chief_complaint || record.symptoms || record.diagnosis || 'Consultation';
+                            complaintCount[complaint] = (complaintCount[complaint] || 0) + 1;
+                        });
+
+                        const topComplaints = Object.entries(complaintCount)
+                            .sort(([,a], [,b]) => b - a)
+                            .slice(0, 6);
+
+                        const labels = topComplaints.length
+                            ? topComplaints.map(([name]) => name.length > 15 ? name.substring(0, 15) + '...' : name)
+                            : ['No data'];
+                        const values = topComplaints.length ? topComplaints.map(([,count]) => count) : [0];
+
+                        const colors = [
+                            'rgba(59, 130, 246, 0.8)',
+                            'rgba(16, 185, 129, 0.8)',
+                            'rgba(251, 146, 60, 0.8)',
+                            'rgba(147, 51, 234, 0.8)',
+                            'rgba(236, 72, 153, 0.8)',
+                            'rgba(250, 204, 21, 0.8)'
+                        ];
+                        const borderColors = [
+                            '#3B82F6',
+                            '#10B981',
+                            '#FB923C',
+                            '#9333EA',
+                            '#EC4899',
+                            '#FACC21'
+                        ];
+                        const datasetColors = colors.slice(0, labels.length);
+                        const datasetBorderColors = borderColors.slice(0, labels.length);
+
+                        if (this.medicalRecordsChart) {
+                            this.medicalRecordsChart.destroy();
+                        }
+
+                        this.medicalRecordsChart = this.createChartSafely(canvas, {
+                            type: this.medicalRecordsChartType || 'bar',
+                            data: {
+                                labels: labels,
+                                datasets: [{
+                                    label: 'Number of Cases',
+                                    data: values,
+                                    backgroundColor: datasetColors,
+                                    borderColor: datasetBorderColors,
+                                    borderWidth: 2
+                                }]
+                            },
+                            options: {
+                                responsive: true,
+                                maintainAspectRatio: false,
+                                plugins: {
+                                    legend: { display: false }
+                                },
+                                scales: {
+                                    y: {
+                                        beginAtZero: true,
+                                        grid: { color: 'rgba(0, 0, 0, 0.05)' }
+                                    },
+                                    x: {
+                                        grid: { display: false }
+                                    }
+                                }
+                            }
+                        });
+
+                        console.log('✅ Medical Records Chart updated:', values.length, 'bars');
+                    } catch (error) {
+                        console.error('❌ Error updating Medical Records Chart:', error);
+                    } finally {
+                        this.selectedPeriod = originalPeriod;
+                        this.selectedDepartment = originalDepartment;
+                    }
+                },
+
                 async initMedicalRecordsChart() {
                     console.log('🏥 Initializing Medical Records Chart...');
                     const canvas = this.validateCanvas('medicalRecordsChart');
@@ -2356,8 +2410,22 @@
                             datasets: [{
                                 label: 'Number of Cases',
                                 data: topComplaints.map(([,count]) => count),
-                                backgroundColor: 'rgba(16, 185, 129, 0.8)',
-                                borderColor: '#10B981',
+                                backgroundColor: [
+                                    'rgba(59, 130, 246, 0.8)',   // Blue
+                                    'rgba(16, 185, 129, 0.8)',   // Green
+                                    'rgba(251, 146, 60, 0.8)',   // Orange
+                                    'rgba(147, 51, 234, 0.8)',   // Purple
+                                    'rgba(236, 72, 153, 0.8)',   // Pink
+                                    'rgba(250, 204, 21, 0.8)'    // Yellow
+                                ],
+                                borderColor: [
+                                    '#3B82F6',
+                                    '#10B981',
+                                    '#FB923C',
+                                    '#9333EA',
+                                    '#EC4899',
+                                    '#FACC21'
+                                ],
                                 borderWidth: 2
                             }]
                         },
@@ -2632,15 +2700,17 @@
                     }
                 },
 
-                updateMedicalRecordsChart(filteredData) {
+                updateMedicalRecordsChartWithData(filteredData) {
                     if (!this.medicalRecordsChart) return;
                     
                     console.log('🏥 Updating Medical Records Chart...');
                     // Analyze diagnoses from filtered data
                     const diagnosisCount = {};
-                    [...filteredData.visits, ...filteredData.consultations].forEach(record => {
-                        const diagnosis = record.diagnosis || record.symptoms || 'General Checkup';
-                        diagnosisCount[diagnosis] = (diagnosisCount[diagnosis] || 0) + 1;
+                    const safeVisits = (filteredData && Array.isArray(filteredData.visits)) ? filteredData.visits : [];
+                    const safeConsultations = (filteredData && Array.isArray(filteredData.consultations)) ? filteredData.consultations : [];
+                    [...safeVisits, ...safeConsultations].forEach(record => {
+                        const complaint = record.chief_complaint || record.initial_complaint || record.symptoms || record.diagnosis || record.reason || 'General Checkup';
+                        diagnosisCount[complaint] = (diagnosisCount[complaint] || 0) + 1;
                     });
                     
                     const topDiagnoses = Object.entries(diagnosisCount)
@@ -2648,9 +2718,67 @@
                         .slice(0, 6);
                     
                     console.log('🏥 Top diagnoses for filtered data:', topDiagnoses);
-                    this.medicalRecordsChart.data.labels = topDiagnoses.map(([name]) => name.length > 15 ? name.substring(0, 15) + '...' : name);
-                    this.medicalRecordsChart.data.datasets[0].data = topDiagnoses.map(([,count]) => count);
-                    this.medicalRecordsChart.update('active');
+                    const canvas = document.getElementById('medicalRecordsChart');
+                    if (!canvas) return;
+
+                    const labels = topDiagnoses.length
+                        ? topDiagnoses.map(([name]) => name.length > 15 ? name.substring(0, 15) + '...' : name)
+                        : ['No data'];
+                    const values = topDiagnoses.length ? topDiagnoses.map(([,count]) => count) : [0];
+
+                    const colors = [
+                        'rgba(59, 130, 246, 0.8)',
+                        'rgba(16, 185, 129, 0.8)',
+                        'rgba(251, 146, 60, 0.8)',
+                        'rgba(147, 51, 234, 0.8)',
+                        'rgba(236, 72, 153, 0.8)',
+                        'rgba(250, 204, 21, 0.8)'
+                    ];
+                    const borderColors = [
+                        '#3B82F6',
+                        '#10B981',
+                        '#FB923C',
+                        '#9333EA',
+                        '#EC4899',
+                        '#FACC21'
+                    ];
+
+                    const datasetColors = colors.slice(0, labels.length);
+                    const datasetBorderColors = borderColors.slice(0, labels.length);
+
+                    if (this.medicalRecordsChart) {
+                        this.medicalRecordsChart.destroy();
+                    }
+
+                    this.medicalRecordsChart = this.createChartSafely(canvas, {
+                        type: this.medicalRecordsChartType || 'bar',
+                        data: {
+                            labels: labels,
+                            datasets: [{
+                                label: 'Number of Cases',
+                                data: values,
+                                backgroundColor: datasetColors,
+                                borderColor: datasetBorderColors,
+                                borderWidth: 2
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: { display: false }
+                            },
+                            scales: {
+                                y: {
+                                    beginAtZero: true,
+                                    grid: { color: 'rgba(0, 0, 0, 0.05)' }
+                                },
+                                x: {
+                                    grid: { display: false }
+                                }
+                            }
+                        }
+                    });
                 },
                 
                 generateChartDataFromFiltered(filteredData) {
@@ -3727,9 +3855,9 @@ this would contain the actual report data and formatting.
         <!-- Official Footer (fixed to page bottom) -->
         <div class="print-footer" style="position: absolute; left: 15mm; right: 15mm; bottom: 12mm; font-family: Arial, Helvetica, sans-serif; font-size: 10px; color: #374151; page-break-inside: avoid;">
             <div style="border-top: 1px solid #111827; padding-top: 8px;">
-                <div>This report is generated electronically by the Norzagaray College iClinic System.</div>
+                <div>This report is generated electronically by the Norzagaray College iClinic Management System.</div>
                 <div style="margin-top: 4px; display: flex; justify-content: space-between;">
-                    <div><i>iClinic System</i></div>
+                    <div><i>iClinic Management System</i></div>
                     <div><strong>Date:</strong> <span x-text="new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })"></span></div>
                 </div>
             </div>

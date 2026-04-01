@@ -1,5 +1,5 @@
 # 🔐 ACCOUNT CREATION & FORGOT PASSWORD TESTING GUIDE
-## iClinic Healthcare Management System
+## iClinic Management System
 
 **Date Created:** October 26, 2025  
 **Purpose:** Comprehensive testing guide for all 7 user types
@@ -8,7 +8,7 @@
 
 ## 📋 SYSTEM OVERVIEW
 
-The iClinic system supports **7 different user roles** with proper account creation and password reset functionality:
+The iClinic Management System supports **7 different user roles** with proper account creation and password reset functionality:
 
 1. ✅ **STUDENT** - Must exist in students database
 2. ✅ **TEACHING STAFF** - Must exist in teaching database  

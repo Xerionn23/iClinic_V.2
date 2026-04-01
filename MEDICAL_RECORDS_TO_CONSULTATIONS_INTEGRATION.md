@@ -7,7 +7,7 @@
 ## SYSTEM ARCHITECTURE
 
 ### Database Tables
-Ang iClinic system ay may **4 separate medical records tables** para sa iba't ibang patient types:
+Ang iClinic Management System ay may **4 separate medical records tables** para sa iba't ibang patient types:
 
 1. **`medical_records`** - Para sa Students
 2. **`visitor_medical_records`** - Para sa Visitors

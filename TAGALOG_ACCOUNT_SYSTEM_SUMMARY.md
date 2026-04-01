@@ -1,5 +1,5 @@
 # 🎉 KUMPLETO NA ANG ACCOUNT SYSTEM!
-## iClinic Healthcare Management System
+## iClinic Management System
 
 **Petsa:** October 26, 2025, 6:30 PM  
 **Status:** ✅ **TAPOS NA LAHAT!**

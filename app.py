@@ -54,9 +54,9 @@ GEMINI_API_KEY = "AIzaSyDAFfYTV80Vjsf0pG6p8683W7SnKCqZ3Kc"
 EMAIL_CONFIG = {
     'smtp_server': 'smtp.gmail.com',
     'smtp_port': 587,
-    'email': 'norzagaraycollege.clinic@gmail.com',  # iClinic system email
+    'email': 'norzagaraycollege.clinic@gmail.com',  # iClinic Management System email
     'password': 'xtsweijcxsntwhld',   # Gmail App Password (same as account creation)
-    'from_name': 'iClinic System'
+    'from_name': 'iClinic Management System'
 }
 
 
@@ -70,7 +70,7 @@ def _get_email_config():
 
     sender_email = (os.environ.get('ICLINIC_EMAIL') or EMAIL_CONFIG.get('email') or '').strip()
     sender_password = (os.environ.get('ICLINIC_EMAIL_PASSWORD') or EMAIL_CONFIG.get('password') or '').strip()
-    from_name = (os.environ.get('ICLINIC_EMAIL_FROM_NAME') or EMAIL_CONFIG.get('from_name') or '').strip() or 'iClinic System'
+    from_name = (os.environ.get('ICLINIC_EMAIL_FROM_NAME') or EMAIL_CONFIG.get('from_name') or '').strip() or 'iClinic Management System'
 
     return {
         'smtp_server': smtp_server,
@@ -298,7 +298,7 @@ def _send_clinic_event_notifications_background(event_payload: dict):
                   <tr>
                     <td style=\"padding:22px 24px; background:linear-gradient(135deg,#1E40AF 0%,#3B82F6 100%);\">
                       <div style=\"font-family:Arial,Helvetica,sans-serif;\">
-                        <div style=\"font-size:14px; color:rgba(255,255,255,0.92); letter-spacing:0.3px;\">iClinic Healthcare System</div>
+                        <div style=\"font-size:14px; color:rgba(255,255,255,0.92); letter-spacing:0.3px;\">iClinic Management System</div>
                         <div style=\"font-size:22px; font-weight:700; color:#ffffff; margin-top:6px;\">Clinic Schedule Update</div>
                       </div>
                     </td>
@@ -840,12 +840,12 @@ def send_verification_email(to_email, verification_token, user_name):
         <body>
             <div class="container">
                 <div class="header">
-                    <h1>ðŸ¥ iClinic Healthcare System</h1>
+                    <h1>ðŸ¥ iClinic Management System</h1>
                     <p>Email Verification Required</p>
                 </div>
                 <div class="content">
                     <h2>Hello {user_name}!</h2>
-                    <p>Thank you for registering with iClinic Healthcare Management System.</p>
+                    <p>Thank you for registering with iClinic Management System.</p>
                     <p>To complete your registration and set up your password, please click the verification link below:</p>
                     
                     <div style="text-align: center;">
@@ -862,7 +862,7 @@ def send_verification_email(to_email, verification_token, user_name):
                     <p>If you didn't request this registration, please ignore this email.</p>
                 </div>
                 <div class="footer">
-                    <p>Â© 2024 iClinic Healthcare Management System<br>
+                    <p>Â© 2024 iClinic Management System<br>
                     Norzagaray College</p>
                 </div>
             </div>
@@ -1223,7 +1223,7 @@ def send_password_reset_email(to_email, reset_token, user_name):
         </head>
         <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
             <div style="background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
-                <h1 style="color: white; margin: 0; font-size: 28px;">iClinic Healthcare System</h1>
+                <h1 style="color: white; margin: 0; font-size: 28px;">iClinic Management System</h1>
                 <p style="color: rgba(255,255,255,0.9); margin: 10px 0 0 0;">Norzagaray College</p>
             </div>
             
@@ -1232,7 +1232,7 @@ def send_password_reset_email(to_email, reset_token, user_name):
                 
                 <p>Hello{', ' + user_name if user_name else ''},</p>
                 
-                <p>We received a request to reset your password for your iClinic Healthcare Management System account.</p>
+                <p>We received a request to reset your password for your iClinic Management System account.</p>
                 
                 <p>To reset your password and regain access to your account, please click the button below:</p>
                 
@@ -1267,7 +1267,7 @@ def send_password_reset_email(to_email, reset_token, user_name):
                 <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0;">
                 
                 <p style="color: #6b7280; font-size: 12px; text-align: center;">
-                    This email was sent by the iClinic Healthcare Management System<br>
+                    This email was sent by the iClinic Management System<br>
                     Norzagaray College<br>
                     If you need assistance, please contact IT support.
                 </p>
@@ -4669,7 +4669,7 @@ def send_verification_email(email, verification_link, role, id_number):
         # 2. Security > 2-Step Verification (must be enabled)
         # 3. App passwords > Generate new app password
         # 4. Copy the 16-character password (no spaces)
-        sender_email = "norzagaraycollege.clinic@gmail.com"  # iClinic system email (corrected spelling)
+        sender_email = "norzagaraycollege.clinic@gmail.com"  # iClinic Management System email (corrected spelling)
         sender_password = "xtsweijcxsntwhld"  # Gmail App Password (16 characters, no spaces)
         
         # Create message
@@ -4689,7 +4689,7 @@ def send_verification_email(email, verification_link, role, id_number):
         </head>
         <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
             <div style="background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
-                <h1 style="color: white; margin: 0; font-size: 28px;">iClinic Healthcare System</h1>
+                <h1 style="color: white; margin: 0; font-size: 28px;">iClinic Management System</h1>
                 <p style="color: rgba(255,255,255,0.9); margin: 10px 0 0 0;">Norzagaray College</p>
             </div>
             
@@ -4698,7 +4698,7 @@ def send_verification_email(email, verification_link, role, id_number):
                 
                 <p>Hello,</p>
                 
-                <p>You have requested to create an account for the iClinic Healthcare Management System with the following details:</p>
+                <p>You have requested to create an account for the iClinic Management System with the following details:</p>
                 
                 <div style="background: #f8fafc; padding: 20px; border-radius: 8px; margin: 20px 0;">
                     <p style="margin: 5px 0;"><strong>Role:</strong> {role}</p>
@@ -4735,7 +4735,7 @@ def send_verification_email(email, verification_link, role, id_number):
                 <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0;">
                 
                 <p style="color: #6b7280; font-size: 12px; text-align: center;">
-                    This email was sent by the iClinic Healthcare Management System<br>
+                    This email was sent by the iClinic Management System<br>
                     Norzagaray College<br>
                     If you need assistance, please contact IT support.
                 </p>
@@ -4805,7 +4805,7 @@ def send_appointment_notification(patient_email, patient_name, appointment_date,
         
         # Create message
         msg = MIMEMultipart('alternative')
-        msg['Subject'] = "Appointment Confirmation - iClinic Healthcare"
+        msg['Subject'] = "Appointment Confirmation - iClinic Management System"
         msg['From'] = sender_email
         msg['To'] = patient_email
         
@@ -4821,7 +4821,7 @@ def send_appointment_notification(patient_email, patient_name, appointment_date,
         <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
             <div style="background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
                 <h1 style="color: white; margin: 0; font-size: 28px;">âœ… Appointment Confirmed</h1>
-                <p style="color: rgba(255,255,255,0.9); margin: 10px 0 0 0;">iClinic Healthcare System</p>
+                <p style="color: rgba(255,255,255,0.9); margin: 10px 0 0 0;">iClinic Management System</p>
             </div>
             
             <div style="background: white; padding: 30px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 10px 10px;">
@@ -4829,7 +4829,7 @@ def send_appointment_notification(patient_email, patient_name, appointment_date,
                 
                 <p>Dear {patient_name},</p>
                 
-                <p>Your appointment has been successfully scheduled with the iClinic Healthcare System.</p>
+                <p>Your appointment has been successfully scheduled with the iClinic Management System.</p>
                 
                 <div style="background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%); padding: 25px; border-radius: 12px; margin: 25px 0; border-left: 4px solid #3b82f6;">
                     <h3 style="color: #1e40af; margin-top: 0; margin-bottom: 15px;">ðŸ“… Appointment Details</h3>
@@ -4855,7 +4855,7 @@ def send_appointment_notification(patient_email, patient_name, appointment_date,
                 <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0;">
                 
                 <p style="color: #6b7280; font-size: 12px; text-align: center;">
-                    This is an automated confirmation email from iClinic Healthcare Management System<br>
+                    This is an automated confirmation email from iClinic Management System<br>
                     Norzagaray College<br>
                     Please do not reply to this email. For assistance, visit the clinic or contact IT support.
                 </p>
@@ -6145,7 +6145,7 @@ def deans_reports():
         'role': session.get('role'),
         'position': session.get('position')
     }
-    return render_template('pages/deans/DEANS_REPORT.html', user=user_info)
+    return render_template('pages/deans_president/DEANS_REPORT.html', user=user_info)
 
 @app.route('/patients')
 def staff_patients():
@@ -9912,42 +9912,155 @@ def api_user_profile():
                     'email': user_info[3]
                 })
         
-        elif role_norm == 'dean':
+        elif role_norm in ('dean', 'deans'):
             # Get dean data from deans table
-            cursor.execute('''
-                SELECT dean_id, college, department, contact_number, age, gender,
-                       blood_type, emergency_contact_name, emergency_contact_relationship,
-                       emergency_contact_number, allergies, medical_conditions
-                FROM deans 
-                WHERE email = %s OR first_name = %s
-                LIMIT 1
-            ''', (user_info[3], user_info[4]))
-            dean_data = cursor.fetchone()
-            
-            if dean_data:
+            dean_identifier = user_info[1] or session.get('identifier_id')
+            dean_data = None
+            dean_dict = None
+            dean_columns = None
+
+            try:
+                cursor.execute("SHOW COLUMNS FROM deans")
+                dean_columns = [col[0] for col in cursor.fetchall()]
+            except Exception:
+                dean_columns = None
+
+            if dean_columns:
+                # Prefer dean_id match when available
+                where_clauses = []
+                params = []
+
+                if dean_identifier and 'dean_id' in dean_columns:
+                    where_clauses.append("dean_id = %s")
+                    params.append(dean_identifier)
+
+                if user_info[3] and 'email' in dean_columns:
+                    where_clauses.append("email = %s")
+                    params.append(user_info[3])
+
+                # Name fallback (only if columns exist)
+                if user_info[4] and 'first_name' in dean_columns:
+                    where_clauses.append("first_name = %s")
+                    params.append(user_info[4])
+                if user_info[5] and 'last_name' in dean_columns:
+                    where_clauses.append("last_name = %s")
+                    params.append(user_info[5])
+
+                if where_clauses:
+                    cursor.execute(
+                        f"SELECT * FROM deans WHERE ({' OR '.join(where_clauses)}) LIMIT 1",
+                        tuple(params)
+                    )
+                    dean_data = cursor.fetchone()
+
+                if dean_data:
+                    dean_dict = dict(zip(dean_columns, dean_data))
+
+            # If still not found and we couldn't read columns, fallback to legacy positional query
+            if not dean_dict:
+                cursor.execute('''
+                    SELECT dean_id, college, department, contact_number, age, gender,
+                           blood_type, emergency_contact_name, emergency_contact_relationship,
+                           emergency_contact_number, allergies, medical_conditions
+                    FROM deans
+                    WHERE (dean_id = %s OR email = %s OR first_name = %s)
+                    LIMIT 1
+                ''', (dean_identifier, user_info[3], user_info[4]))
+                dean_data = cursor.fetchone()
+                if dean_data:
+                    dean_dict = {
+                        'dean_id': dean_data[0],
+                        'college': dean_data[1],
+                        'department': dean_data[2],
+                        'contact_number': dean_data[3],
+                        'age': dean_data[4],
+                        'gender': dean_data[5],
+                        'blood_type': dean_data[6],
+                        'emergency_contact_name': dean_data[7],
+                        'emergency_contact_relationship': dean_data[8],
+                        'emergency_contact_number': dean_data[9],
+                        'allergies': dean_data[10],
+                        'medical_conditions': dean_data[11]
+                    }
+
+            if dean_dict:
+                # Override user name if the deans table has proper names (prevents "DEAN-001" showing as a name)
+                resolved_first = (dean_dict.get('first_name') or profile.get('first_name') or '').strip() or profile.get('first_name')
+                resolved_last = (dean_dict.get('last_name') or profile.get('last_name') or '').strip() or profile.get('last_name')
+
+                resolved_department = dean_dict.get('department')
+                if resolved_department is not None:
+                    resolved_department = str(resolved_department).strip() or None
+
+                dean_department_map = {
+                    'COMSCIE': 'Dean of Computing Studies'
+                }
+
+                if resolved_department:
+                    resolved_department = dean_department_map.get(resolved_department.upper(), resolved_department)
+
                 profile.update({
-                    'dean_id': dean_data[0],
+                    'dean_id': dean_dict.get('dean_id') or dean_identifier or 'N/A',
                     'position': 'Dean',
-                    'department': dean_data[1],  # college as department
-                    'contact_number': dean_data[3],
-                    'age': dean_data[4],
-                    'gender': dean_data[5],
-                    'email': user_info[3],
-                    'blood_type': dean_data[6],
-                    'emergency_contact_name': dean_data[7],
-                    'emergency_contact_relationship': dean_data[8],
-                    'emergency_contact_number': dean_data[9],
-                    'allergies': dean_data[10],
-                    'medical_conditions': dean_data[11]
+                    # Requested behavior: for Deans, the UI "Department" must come from the `deans.department` column (treated as course).
+                    'department': (resolved_department or profile.get('department') or user_info[7]),
+                    'contact_number': dean_dict.get('contact_number'),
+                    'age': dean_dict.get('age'),
+                    'gender': dean_dict.get('gender'),
+                    'email': dean_dict.get('email') or user_info[3] or profile.get('email'),
+                    'blood_type': dean_dict.get('blood_type'),
+                    'emergency_contact_name': dean_dict.get('emergency_contact_name'),
+                    'emergency_contact_relationship': dean_dict.get('emergency_contact_relationship'),
+                    'emergency_contact_number': dean_dict.get('emergency_contact_number'),
+                    'allergies': dean_dict.get('allergies'),
+                    'medical_conditions': dean_dict.get('medical_conditions'),
+                    'first_name': resolved_first,
+                    'last_name': resolved_last
                 })
             else:
                 # Fallback if not found in deans table
                 profile.update({
-                    'dean_id': 'N/A',
+                    'dean_id': dean_identifier or 'N/A',
                     'department': user_info[7],
                     'contact_number': None,
                     'email': user_info[3]
                 })
+
+            # Fallback/override from patients_unified (if schema stores dean contact/emergency contact there)
+            try:
+                cursor.execute("SHOW TABLES LIKE 'patients_unified'")
+                if cursor.fetchone():
+                    dean_id_value = profile.get('dean_id') or dean_identifier
+                    if dean_id_value:
+                        cursor.execute(
+                            '''
+                            SELECT contact_number, emergency_contact_name, emergency_contact_relationship,
+                                   emergency_contact_number, emergency_contact_email,
+                                   department, course
+                            FROM patients_unified
+                            WHERE role IN ('Deans', 'Dean')
+                              AND (identifier = %s OR source_id = %s)
+                            LIMIT 1
+                            ''',
+                            (dean_id_value, dean_id_value)
+                        )
+                        urow = cursor.fetchone()
+                        if urow:
+                            u_contact, u_ec_name, u_ec_rel, u_ec_num, u_ec_email, u_dept, u_course = urow
+                            if u_contact and not profile.get('contact_number'):
+                                profile['contact_number'] = u_contact
+                            if u_ec_name and not profile.get('emergency_contact_name'):
+                                profile['emergency_contact_name'] = u_ec_name
+                            if u_ec_rel and not profile.get('emergency_contact_relationship'):
+                                profile['emergency_contact_relationship'] = u_ec_rel
+                            if u_ec_num and not profile.get('emergency_contact_number'):
+                                profile['emergency_contact_number'] = u_ec_num
+                            if u_ec_email and not profile.get('emergency_contact_email'):
+                                profile['emergency_contact_email'] = u_ec_email
+                            # Do not override dean "department" display from patients_unified.
+                            # Keep patients_unified only for contact/emergency fields for dean roles.
+            except Exception:
+                pass
         
         cursor.close()
         conn.close()
@@ -16957,7 +17070,7 @@ def forgot_user_password(user_id):
         # Send email (HTML template)
         try:
             safe_user_name = (user_name or 'User').strip() or 'User'
-            brand_name = 'iClinic System'
+            brand_name = 'iClinic Management System'
             title = 'Password Reset Request'
 
             html_content = f"""<!doctype html>

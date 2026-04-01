@@ -215,4 +215,4 @@ To verify the fix:
 6. Check "All Consultations" table shows all patient roles
 7. Verify role badges display correctly for each type
 
-The consultation system now properly displays and manages consultations for ALL patient types in the iClinic system, not just students and visitors.
+The consultation system now properly displays and manages consultations for ALL patient types in the iClinic Management System, not just students and visitors.

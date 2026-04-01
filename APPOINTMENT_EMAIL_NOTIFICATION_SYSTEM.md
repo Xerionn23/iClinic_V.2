@@ -100,7 +100,7 @@ def send_appointment_notification(patient_email, patient_name, appointment_date,
 
 ### Subject Line
 ```
-Appointment Confirmation - iClinic Healthcare
+Appointment Confirmation - iClinic Management System
 ```
 
 ### Email Includes
