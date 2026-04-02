@@ -3495,7 +3495,74 @@ def init_db():
 @app.route('/')
 def index():
     """Main entry point - serves the landing page"""
-    return render_template('pages/public/landing-page.html')
+    active_patient_count = 0
+    conn = None
+    cursor = None
+    try:
+        conn = DatabaseConfig.get_connection()
+        if conn:
+            cursor = conn.cursor()
+            try:
+                cursor.execute('SELECT COUNT(*) FROM patients_unified WHERE is_active = 1')
+                active_patient_count = cursor.fetchone()[0] or 0
+            except Exception:
+                try:
+                    cursor.execute('SELECT COUNT(*) FROM students WHERE is_active = TRUE')
+                    student_count = cursor.fetchone()[0] or 0
+                    cursor.execute('SELECT COUNT(*) FROM visitors WHERE is_active = TRUE')
+                    visitor_count = cursor.fetchone()[0] or 0
+                    active_patient_count = student_count + visitor_count
+                except Exception:
+                    active_patient_count = 0
+    except Exception:
+        active_patient_count = 0
+    finally:
+        try:
+            if cursor:
+                cursor.close()
+            if conn:
+                conn.close()
+        except Exception:
+            pass
+
+    return render_template('pages/public/landing-page.html', active_patient_count=active_patient_count)
+
+
+@app.route('/api/public/patient-count')
+def public_patient_count():
+    conn = None
+    cursor = None
+    count = 0
+    try:
+        conn = DatabaseConfig.get_connection()
+        if not conn:
+            return jsonify({'count': 0}), 200
+
+        cursor = conn.cursor()
+        try:
+            cursor.execute('SELECT COUNT(*) FROM patients_unified WHERE is_active = 1')
+            count = cursor.fetchone()[0] or 0
+        except Exception:
+            try:
+                cursor.execute('SELECT COUNT(*) FROM students WHERE is_active = TRUE')
+                student_count = cursor.fetchone()[0] or 0
+                cursor.execute('SELECT COUNT(*) FROM visitors WHERE is_active = TRUE')
+                visitor_count = cursor.fetchone()[0] or 0
+                count = student_count + visitor_count
+            except Exception:
+                count = 0
+
+        return jsonify({'count': count}), 200
+    except Exception:
+        return jsonify({'count': 0}), 200
+    finally:
+        try:
+            if cursor:
+                cursor.close()
+            if conn:
+                conn.close()
+        except Exception:
+            pass
 
 
 @app.route('/login')

@@ -213,7 +213,7 @@
                     <div class="grid grid-cols-3 gap-3 sm:gap-4 md:gap-6 px-2 sm:px-0">
                         <div class="text-center lg:text-left">
                             <div id="patientCount" class="text-xl sm:text-2xl md:text-3xl font-bold text-primary-blue">
-                                <span class="inline-block animate-pulse">...</span>
+                                {{ active_patient_count or 0 }}
                             </div>
                             <div class="text-[10px] sm:text-xs md:text-sm text-gray-600">Total Patients</div>
                         </div>
@@ -1031,21 +1031,14 @@
                     const totalCount = data.count;
                     const patientCountElement = document.getElementById('patientCount');
                     
-                    if (patientCountElement && totalCount > 0) {
-                        // Animate the count
+                    if (patientCountElement && Number.isFinite(Number(totalCount)) && Number(totalCount) >= 0) {
                         patientCountElement.innerHTML = totalCount;
-                    } else {
-                        console.warn('⚠️ No patients found or invalid response');
-                        document.getElementById('patientCount').innerHTML = '0';
                     }
                 } else {
                     console.warn('⚠️ Could not load patient count, using fallback');
-                    document.getElementById('patientCount').innerHTML = '500+';
                 }
             } catch (error) {
                 console.error('❌ Error loading patient count:', error);
-                // Fallback to default if API fails
-                document.getElementById('patientCount').innerHTML = '500+';
             }
         }
         
