@@ -64,7 +64,7 @@
     profileDropdown: false,
     showLogoutConfirm: false,
 
-    soundEnabled: false,
+    soundEnabled: true,
     alarmPlaying: false,
     alarmAudioCtx: null,
     alarmOsc: null,
@@ -100,6 +100,9 @@
         this.loadUserProfile();
         this.loadQueueStatus();
         setInterval(() => this.loadQueueStatus(false), 8000);
+        
+        // Auto-enable sound on page load
+        this.enableSound();
 
         this.handleResize();
         window.addEventListener('resize', () => this.handleResize());
@@ -357,6 +360,12 @@
             if (!response.ok || payload.error || payload.success === false) {
                 if (payload && payload.bypass_queue) {
                     this.ticketError = payload.error || 'Please proceed directly to the clinic.';
+                } else if (payload && payload.rate_limited) {
+                    // Rate limit - user already has a ticket today
+                    this.ticketError = payload.error || 'You can only generate one ticket per day. Please wait for your current ticket to be called or try again tomorrow.';
+                } else if (payload && payload.daily_limit_reached) {
+                    // Daily limit reached (100 tickets)
+                    this.ticketError = payload.error || 'Daily ticket limit reached (100 tickets). All tickets for today have been issued. Please try again tomorrow.';
                 } else {
                     this.ticketError = payload.error || payload.message || 'Unable to create ticket. Please try again.';
                 }
@@ -522,9 +531,7 @@
                             </div>
                         </div>
                         <div class="flex items-center gap-2">
-                            <button type="button" x-show="!soundEnabled" @click="enableSound()" class="px-3 py-1.5 rounded-lg bg-yellow-400/90 hover:bg-yellow-400 text-xs font-semibold text-blue-900 border border-yellow-200/30">Enable Sound</button>
                             <button type="button" @click="openOnsiteTicketModal()" :disabled="queueStatus && queueStatus.my && queueStatus.my.has_ticket" class="px-3 py-1.5 rounded-lg text-xs font-semibold border" :class="(queueStatus && queueStatus.my && queueStatus.my.has_ticket) ? 'bg-white/20 text-white/70 border-white/20 cursor-not-allowed' : 'rounded-lg bg-white/15 hover:bg-white/20 text-white border-white/20'">Generate Ticket</button>
-                            <button type="button" @click="loadQueueStatus()" class="px-3 py-1.5 rounded-lg bg-white/15 hover:bg-white/20 text-xs font-semibold border border-white/20">Refresh</button>
                         </div>
                     </div>
                 </div>
@@ -714,8 +721,8 @@
                 <button type="button" class="px-6 py-3 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-800 font-semibold" @click="stopAlarm()">Stop Sound</button>
                 <button type="button" class="px-6 py-3 rounded-xl bg-yellow-400 hover:bg-yellow-500 text-blue-900 font-semibold" @click="dismissCalledAlert()">OK</button>
             </div>
-            <div class="mt-4 text-center text-xs text-gray-500" x-show="!soundEnabled">
-                Sound is disabled. Click Enable Sound so alerts can play.
+            <div class="mt-4 text-center text-xs text-gray-500" x-show="soundEnabled">
+                Sound alerts are enabled. You will hear a notification when your ticket is called.
             </div>
         </div>
     </div>

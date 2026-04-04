@@ -337,16 +337,6 @@
                     </div>
                     <span x-show="!sidebarCollapsed || sidebarHovered || mobileMenuOpen" x-transition class="font-medium">Patient Management</span>
                 </a>
-                
-                <!-- Inventory -->
-                <a href="{{ url_for('it_inventory') }}"
-                   @click="mobileMenuOpen = false"
-                   class="sidebar-item-active flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all group">
-                    <div class="flex items-center justify-center" :class="(sidebarCollapsed && !sidebarHovered && !mobileMenuOpen) ? 'w-full' : ''">
-                        <i data-feather="package" class="w-5 h-5 group-hover:scale-110 transition-transform"></i>
-                    </div>
-                    <span x-show="!sidebarCollapsed || sidebarHovered || mobileMenuOpen" x-transition class="font-medium">Inventory</span>
-                </a>
             </nav>
         
         <!-- User Profile -->
@@ -770,7 +760,7 @@
                                             <div class="mt-2 flex flex-wrap items-center gap-2">
                                                 <span class="px-2 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-800" x-text="medicine.category || 'N/A'"></span>
                                                 <span class="px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800" x-text="(medicine.quantity || 0) + ' units'"></span>
-                                                <span class="px-2 py-1 text-xs font-semibold rounded-full bg-amber-100 text-amber-800" x-text="medicine.expiry_date || 'No Expiry'"></span>
+                                                <span class="px-2 py-1 text-xs font-semibold rounded-full bg-amber-100 text-amber-800" x-text="medicine.earliest_batch_expiry_date || medicine.expiry_date || 'No Expiry'"></span>
                                                 <span class="px-2 py-1 text-xs font-semibold rounded-full bg-emerald-100 text-emerald-800" x-text="medicine.status || 'Unknown'"></span>
                                             </div>
                                         </div>
@@ -844,11 +834,11 @@
                                             </td>
                                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900" x-text="medicine.strength || 'N/A'"></td>
                                             <td class="px-6 py-4 whitespace-nowrap">
-                                                <div class="text-sm text-gray-900" x-text="formatDateTime(medicine.acquired)"></div>
+                                                <div class="text-sm text-gray-900" x-text="formatDateTime(medicine.latest_batch_arrival_date || medicine.acquired)"></div>
                                                 <div class="text-xs text-gray-500">Added to inventory</div>
                                             </td>
                                             <td class="px-6 py-4 whitespace-nowrap">
-                                                <div class="text-sm text-gray-900" x-text="medicine.expiry_date || 'No Date'"></div>
+                                                <div class="text-sm text-gray-900" x-text="medicine.earliest_batch_expiry_date || medicine.expiry_date || 'No Date'"></div>
                                             </td>
                                             <td class="px-6 py-4 whitespace-nowrap">
                                                 <span class="px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800" 
@@ -1200,8 +1190,8 @@
                                                 <div class="mt-2 flex flex-wrap items-center gap-2">
                                                     <span class="px-2 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-800" x-text="medicine.category || 'N/A'"></span>
                                                     <span class="px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800" x-text="(medicine.quantity || 0) + ' units'"></span>
-                                                    <span class="px-2 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-800" x-text="medicine.expiry_date || 'No Date'"></span>
-                                                    <span class="px-2 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-800" x-text="getDaysExpired(medicine.expiry_date)"></span>
+                                                    <span class="px-2 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-800" x-text="medicine.earliest_batch_expiry_date || medicine.expiry_date || 'No Date'"></span>
+                                                    <span class="px-2 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-800" x-text="getDaysExpired(medicine.earliest_batch_expiry_date || medicine.expiry_date)"></span>
                                                 </div>
                                             </div>
                                         </div>
@@ -1260,11 +1250,11 @@
                                             </td>
                                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900" x-text="medicine.strength || 'N/A'"></td>
                                             <td class="px-6 py-4 whitespace-nowrap">
-                                                <div class="text-sm text-red-600 font-semibold" x-text="medicine.expiry_date || 'No Date'"></div>
+                                                <div class="text-sm text-red-600 font-semibold" x-text="medicine.earliest_batch_expiry_date || medicine.expiry_date || 'No Date'"></div>
                                             </td>
                                             <td class="px-6 py-4 whitespace-nowrap">
                                                 <span class="px-2 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-800" 
-                                                      x-text="getDaysExpired(medicine.expiry_date)"></span>
+                                                      x-text="getDaysExpired(medicine.earliest_batch_expiry_date || medicine.expiry_date)"></span>
                                             </td>
                                             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
                                                 <div class="flex items-center space-x-2">
@@ -2187,19 +2177,32 @@
                     console.log('📦 Total medicines:', this.medicines.length);
                     
                     const expiring = this.medicines.filter(m => {
-                        if (!m.expiry_date) {
-                            return false;
+                        const parseDateOnly = (dateStr) => {
+                            if (!dateStr) return null;
+                            const d = new Date(dateStr + 'T00:00:00');
+                            return isNaN(d.getTime()) ? null : d;
+                        };
+
+                        // Expiring soon if ANY batch is within [today, 30 days]
+                        if (m.batches && m.batches.length > 0) {
+                            const isExpiringByBatch = m.batches.some(b => {
+                                const expiryDate = parseDateOnly(b && b.expiry_date);
+                                return expiryDate && expiryDate >= today && expiryDate <= thirtyDaysFromNow;
+                            });
+                            if (isExpiringByBatch) {
+                                console.log(`  ⚠️ ${m.name} has batch(es) expiring soon`);
+                            }
+                            return isExpiringByBatch;
                         }
-                        
-                        // Parse expiry date
-                        const expiryDate = new Date(m.expiry_date + 'T00:00:00');
-                        
+
+                        // Fallback: use medicine-level expiry_date when no batches
+                        const expiryDate = parseDateOnly(m.expiry_date);
+                        if (!expiryDate) return false;
+
                         const isExpiring = expiryDate >= today && expiryDate <= thirtyDaysFromNow;
-                        
                         if (isExpiring) {
                             console.log(`  ⚠️ ${m.name} expires on ${m.expiry_date}`);
                         }
-                        
                         return isExpiring;
                     });
                     
@@ -2375,6 +2378,8 @@
                                     min_stock_level: 10,
                                     acquired: medicine.acquired || medicine.date_added || new Date().toISOString(),
                                     expiry_date: medicine.expiry_date || '',
+                                    latest_batch_arrival_date: medicine.latest_batch_arrival_date || null,
+                                    earliest_batch_expiry_date: medicine.earliest_batch_expiry_date || null,
                                     strength: medicine.strength || '',
                                     status: medicine.status || 'Available',
                                     batches: medicine.batches || []
@@ -2440,9 +2445,24 @@
                     thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
                     
                     return this.medicines.filter(m => {
-                        if (!m.expiry_date) return false;
-                        const expiryDate = new Date(m.expiry_date);
-                        return expiryDate <= thirtyDaysFromNow && expiryDate > new Date();
+                        const today = new Date();
+                        today.setHours(0, 0, 0, 0);
+
+                        const parseDateOnly = (dateStr) => {
+                            if (!dateStr) return null;
+                            const d = new Date(dateStr + 'T00:00:00');
+                            return isNaN(d.getTime()) ? null : d;
+                        };
+
+                        if (m.batches && m.batches.length > 0) {
+                            return m.batches.some(b => {
+                                const expiryDate = parseDateOnly(b && b.expiry_date);
+                                return expiryDate && expiryDate <= thirtyDaysFromNow && expiryDate >= today;
+                            });
+                        }
+
+                        const expiryDate = parseDateOnly(m.expiry_date);
+                        return expiryDate && expiryDate <= thirtyDaysFromNow && expiryDate >= today;
                     });
                 },
                 
@@ -2453,12 +2473,26 @@
                 
                 getMedicineStatus(medicine) {
                     const today = new Date();
-                    
-                    if (medicine.expiry_date) {
-                        const expiryDate = new Date(medicine.expiry_date);
-                        if (expiryDate < today) {
-                            return 'Expired';
+
+                    const getMinDaysUntilExpiry = () => {
+                        const candidates = [];
+                        if (medicine.batches && medicine.batches.length > 0) {
+                            medicine.batches.forEach(b => {
+                                if (b && b.expiry_date) {
+                                    candidates.push(this.getDaysUntilExpiry(b.expiry_date));
+                                }
+                            });
                         }
+                        if (candidates.length === 0 && medicine.expiry_date) {
+                            candidates.push(this.getDaysUntilExpiry(medicine.expiry_date));
+                        }
+                        if (candidates.length === 0) return null;
+                        return Math.min(...candidates);
+                    };
+
+                    const minDaysUntilExpiry = getMinDaysUntilExpiry();
+                    if (minDaysUntilExpiry !== null && minDaysUntilExpiry < 0) {
+                        return 'Expired';
                     }
                     
                     if (medicine.quantity === 0) {
@@ -2553,8 +2587,8 @@
                         quantity: medicine.quantity || 0,
                         unit: unit,
                         minStock: medicine.min_stock_level || 10,
-                        acquired: medicine.acquired,
-                        expiry: medicine.expiry_date,
+                        acquired: medicine.latest_batch_arrival_date || medicine.acquired,
+                        expiry: medicine.earliest_batch_expiry_date || medicine.expiry_date,
                         strength: medicine.strength || '',
                         existingBatches: medicine.batches || [],
                         newBatches: []
@@ -2643,10 +2677,21 @@
                                 medicine.quantity = medicine.batches.reduce((total, batch) => total + batch.quantity, 0);
                                 
                                 // Update earliest expiry date
-                                const expiryDates = medicine.batches
-                                    .map(batch => batch.expiry_date)
-                                    .filter(date => date);
-                                medicine.expiry_date = expiryDates.length > 0 ? Math.min(...expiryDates.map(d => new Date(d))) : null;
+                                const expiryDates = (medicine.batches || [])
+                                    .map(batch => batch && batch.expiry_date)
+                                    .filter(Boolean)
+                                    .map(d => ({ raw: d, date: new Date(d + 'T00:00:00') }))
+                                    .filter(x => !isNaN(x.date.getTime()));
+
+                                if (expiryDates.length > 0) {
+                                    expiryDates.sort((a, b) => a.date - b.date);
+                                    const earliest = expiryDates[0].raw;
+                                    medicine.earliest_batch_expiry_date = earliest;
+                                    medicine.expiry_date = earliest;
+                                } else {
+                                    medicine.earliest_batch_expiry_date = null;
+                                    medicine.expiry_date = null;
+                                }
                             }
                             
                             this.showNotification('Success', 'Batch deleted successfully!', 'success');
@@ -2929,7 +2974,7 @@
                     
                     this.medicines.forEach(medicine => {
                         const status = this.getMedicineStatus(medicine);
-                        const daysLeft = this.getDaysUntilExpiry(medicine.expiry);
+                        const daysLeft = this.getDaysUntilExpiry(medicine.earliest_batch_expiry_date || medicine.expiry_date);
                         
                         report += `Medicine: ${medicine.name}\n`;
                         report += `Category: ${medicine.category}\n`;
@@ -2937,8 +2982,8 @@
                         report += `Quantity: ${medicine.quantity} ${medicine.unit}\n`;
                         report += `Min Stock: ${medicine.minStock} ${medicine.unit}\n`;
                         report += `Status: ${status}\n`;
-                        report += `Acquired: ${medicine.acquired}\n`;
-                        report += `Expires: ${medicine.expiry} (${daysLeft} days)\n`;
+                        report += `Acquired: ${medicine.latest_batch_arrival_date || medicine.acquired}\n`;
+                        report += `Expires: ${medicine.earliest_batch_expiry_date || medicine.expiry_date} (${daysLeft} days)\n`;
                         report += '-'.repeat(30) + '\n';
                     });
                     

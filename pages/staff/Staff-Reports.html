@@ -583,22 +583,27 @@
         }
     </style>
 </head>
-<body class="bg-white transition-colors duration-200" x-data="reportsModule()" x-init="init()"
+<body class="bg-white transition-colors duration-200 overflow-x-hidden" x-data="reportsModule()" x-init="init()">
     
-    <div class="flex h-screen overflow-hidden">
+    <div class="flex min-h-[100dvh] md:h-screen md:overflow-hidden">
         <!-- Sidebar -->
-        <aside :class="sidebarCollapsed ? 'w-20' : 'w-64'" 
-               class="fixed left-0 top-0 h-screen gradient-bg-sidebar text-white transition-all duration-300 shadow-2xl z-40"
+        <aside
+               :class="[
+                   sidebarCollapsed ? 'md:w-20' : 'md:w-64',
+                   mobileMenuOpen ? 'translate-x-0' : '-translate-x-full',
+                   'md:translate-x-0'
+               ]"
+               class="fixed left-0 top-0 h-[100dvh] md:h-screen w-64 gradient-bg-sidebar text-white transition-all duration-300 shadow-2xl z-40 flex flex-col overflow-y-auto"
                @mouseenter="sidebarHovered = true"
                @mouseleave="sidebarHovered = false">
         
             <!-- Logo -->
             <div class="relative p-6">
-                <div class="flex items-center gap-3" :class="sidebarCollapsed && !sidebarHovered ? 'justify-center' : ''">
+                <div class="flex items-center gap-3" :class="(sidebarCollapsed && !sidebarHovered && !mobileMenuOpen) ? 'justify-center' : ''">
                     <div class="flex items-center justify-center">
                         <img src="../assets/img/iclinic-logo.png" alt="Norzagaray College" class="w-14 h-14 object-contain">
                     </div>
-                    <div x-show="!sidebarCollapsed || sidebarHovered" x-transition>
+                    <div x-show="!sidebarCollapsed || sidebarHovered || mobileMenuOpen" x-transition>
                         <h1 class="text-xl font-bold text-white">iClinic</h1>
                         <p class="text-xs text-yellow-300">Norzagaray College</p>
                     </div>
@@ -609,83 +614,90 @@
             <nav class="relative mt-8 px-4 space-y-3">
                 <!-- Dashboard -->
                 <a href="{{ url_for('staff_dashboard') }}"
+                   @click="mobileMenuOpen = false"
                    class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all group hover:bg-white/10">
-                    <div class="flex items-center justify-center" :class="sidebarCollapsed && !sidebarHovered ? 'w-full' : ''">
+                    <div class="flex items-center justify-center" :class="(sidebarCollapsed && !sidebarHovered && !mobileMenuOpen) ? 'w-full' : ''">
                         <i data-lucide="home" class="w-5 h-5 group-hover:scale-110 transition-transform"></i>
                     </div>
-                    <span x-show="!sidebarCollapsed || sidebarHovered" x-transition class="font-medium">Dashboard</span>
+                    <span x-show="!sidebarCollapsed || sidebarHovered || mobileMenuOpen" x-transition class="font-medium">Dashboard</span>
                 </a>
                 
                 <!-- Patients -->
                 <a href="{{ url_for('staff_patients') }}"
+                   @click="mobileMenuOpen = false"
                    class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all group hover:bg-white/10">
-                    <div class="flex items-center justify-center" :class="sidebarCollapsed && !sidebarHovered ? 'w-full' : ''">
+                    <div class="flex items-center justify-center" :class="(sidebarCollapsed && !sidebarHovered && !mobileMenuOpen) ? 'w-full' : ''">
                         <i data-lucide="users" class="w-5 h-5 group-hover:scale-110 transition-transform"></i>
                     </div>
-                    <span x-show="!sidebarCollapsed || sidebarHovered" x-transition class="font-medium">Patients</span>
+                    <span x-show="!sidebarCollapsed || sidebarHovered || mobileMenuOpen" x-transition class="font-medium">Patients</span>
                 </a>
                 
                 <!-- Appointments -->
                 <a href="{{ url_for('staff_appointments') }}"
+                   @click="mobileMenuOpen = false"
                    class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all group hover:bg-white/10">
-                    <div class="flex items-center justify-center" :class="sidebarCollapsed && !sidebarHovered ? 'w-full' : ''">
+                    <div class="flex items-center justify-center" :class="(sidebarCollapsed && !sidebarHovered && !mobileMenuOpen) ? 'w-full' : ''">
                         <i data-lucide="calendar" class="w-5 h-5 group-hover:scale-110 transition-transform"></i>
                     </div>
-                    <span x-show="!sidebarCollapsed || sidebarHovered" x-transition class="font-medium">Appointments</span>
+                    <span x-show="!sidebarCollapsed || sidebarHovered || mobileMenuOpen" x-transition class="font-medium">Appointments</span>
                 </a>
                 
                 <!-- Announcements -->
                 <a href="{{ url_for('staff_announcements') }}"
+                   @click="mobileMenuOpen = false"
                    class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all group hover:bg-white/10">
-                    <div class="flex items-center justify-center" :class="sidebarCollapsed && !sidebarHovered ? 'w-full' : ''">
+                    <div class="flex items-center justify-center" :class="(sidebarCollapsed && !sidebarHovered && !mobileMenuOpen) ? 'w-full' : ''">
                         <i data-lucide="volume-2" class="w-5 h-5 group-hover:scale-110 transition-transform"></i>
                     </div>
-                    <span x-show="!sidebarCollapsed || sidebarHovered" x-transition class="font-medium">Announcements</span>
+                    <span x-show="!sidebarCollapsed || sidebarHovered || mobileMenuOpen" x-transition class="font-medium">Announcements</span>
                 </a>
                 
                 <!-- Consultations -->
                 <a href="{{ url_for('staff_consultations') }}"
+                   @click="mobileMenuOpen = false"
                    class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all group hover:bg-white/10">
-                    <div class="flex items-center justify-center" :class="sidebarCollapsed && !sidebarHovered ? 'w-full' : ''">
+                    <div class="flex items-center justify-center" :class="(sidebarCollapsed && !sidebarHovered && !mobileMenuOpen) ? 'w-full' : ''">
                         <i data-lucide="message-circle" class="w-5 h-5 group-hover:scale-110 transition-transform"></i>
                     </div>
-                    <span x-show="!sidebarCollapsed || sidebarHovered" x-transition class="font-medium">Consultations</span>
+                    <span x-show="!sidebarCollapsed || sidebarHovered || mobileMenuOpen" x-transition class="font-medium">Consultations</span>
                 </a>
                 
                 <!-- Inventory -->
                 <a href="{{ url_for('staff_inventory') }}"
+                   @click="mobileMenuOpen = false"
                    class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all group hover:bg-white/10">
-                    <div class="flex items-center justify-center" :class="sidebarCollapsed && !sidebarHovered ? 'w-full' : ''">
+                    <div class="flex items-center justify-center" :class="(sidebarCollapsed && !sidebarHovered && !mobileMenuOpen) ? 'w-full' : ''">
                         <i data-lucide="package" class="w-5 h-5 group-hover:scale-110 transition-transform"></i>
                     </div>
-                    <span x-show="!sidebarCollapsed || sidebarHovered" x-transition class="font-medium">Inventory</span>
+                    <span x-show="!sidebarCollapsed || sidebarHovered || mobileMenuOpen" x-transition class="font-medium">Inventory</span>
                 </a>
                 
                 <!-- Reports -->
                 <a href="{{ url_for('staff_reports') }}"
+                   @click="mobileMenuOpen = false"
                    class="sidebar-item-active flex items-center gap-3 px-4 py-3 rounded-lg transition-all group">
-                    <div class="flex items-center justify-center" :class="sidebarCollapsed && !sidebarHovered ? 'w-full' : ''">
+                    <div class="flex items-center justify-center" :class="(sidebarCollapsed && !sidebarHovered && !mobileMenuOpen) ? 'w-full' : ''">
                         <i data-lucide="bar-chart-2" class="w-5 h-5 group-hover:scale-110 transition-transform"></i>
                     </div>
-                    <span x-show="!sidebarCollapsed || sidebarHovered" x-transition class="font-medium">Reports</span>
+                    <span x-show="!sidebarCollapsed || sidebarHovered || mobileMenuOpen" x-transition class="font-medium">Reports</span>
                 </a>
             
             </nav>
         
         <!-- User Profile -->
-        <div class="absolute bottom-0 w-full p-4 bg-gradient-to-t from-black/20 to-transparent">
+        <div class="mt-auto w-full p-4 bg-gradient-to-t from-black/20 to-transparent">
             <div class="relative" @click.outside="userDropdown = false">
                 <button @click="userDropdown = !userDropdown" 
                         class="w-full flex items-center gap-3 p-2 rounded-lg hover:bg-white/10 transition-colors" 
-                        :class="sidebarCollapsed && !sidebarHovered ? 'justify-center' : ''">
+                        :class="(sidebarCollapsed && !sidebarHovered && !mobileMenuOpen) ? 'justify-center' : ''">
                     <div class="w-10 h-10 bg-gradient-to-br from-yellow-400 to-yellow-500 rounded-full flex items-center justify-center shadow-lg">
                         <span class="text-blue-900 font-bold">{{ user.first_name[0] }}{{ user.last_name[0] }}</span>
                     </div>
-                    <div x-show="!sidebarCollapsed || sidebarHovered" x-transition class="flex-1 text-left">
+                    <div x-show="!sidebarCollapsed || sidebarHovered || mobileMenuOpen" x-transition class="flex-1 text-left">
                         <p class="text-sm font-medium text-white">{{ user.first_name }} {{ user.last_name }}</p>
                         <p class="text-xs text-yellow-300">{{ user.position }}</p>
                     </div>
-                    <i x-show="!sidebarCollapsed || sidebarHovered" data-lucide="chevron-up" class="w-4 h-4 text-white/70"></i>
+                    <i x-show="!sidebarCollapsed || sidebarHovered || mobileMenuOpen" data-lucide="chevron-up" class="w-4 h-4 text-white/70"></i>
                 </button>
                 
                 <!-- User Dropdown -->
@@ -700,10 +712,27 @@
             </div>
         </div>
         </aside>
+
+        <!-- Mobile overlay (closes sidebar when tapped) -->
+        <div x-show="mobileMenuOpen" x-cloak class="fixed inset-0 bg-black/50 z-30 md:hidden" @click="mobileMenuOpen = false"></div>
     
         
         <!-- Main Content Area -->
-        <div :class="sidebarCollapsed ? 'md:ml-20' : 'md:ml-64'" class="flex-1 flex flex-col transition-all duration-300">
+        <div :class="sidebarCollapsed ? 'md:ml-20' : 'md:ml-64'" class="flex-1 flex flex-col transition-all duration-300 pt-14 md:pt-0">
+
+            <!-- Top Header Bar -->
+            <header class="absolute inset-x-0 top-0 bg-transparent border-0 shadow-none z-20 pointer-events-none">
+                <div class="flex items-center px-4 sm:px-6 py-3 pointer-events-auto">
+                    <div class="flex items-center gap-3">
+                        <button type="button" class="md:hidden p-2 rounded-lg hover:bg-gray-100 transition-colors bg-white/90 backdrop-blur" @click="mobileMenuOpen = true">
+                            <i data-lucide="menu" class="w-5 h-5 text-gray-700"></i>
+                        </button>
+                        <button type="button" class="hidden md:inline-flex lg:hidden p-2 rounded-lg hover:bg-gray-100 transition-colors bg-white/90 backdrop-blur" @click="sidebarCollapsed = !sidebarCollapsed">
+                            <i data-lucide="sidebar" class="w-5 h-5 text-gray-700"></i>
+                        </button>
+                    </div>
+                </div>
+            </header>
             
             <!-- Mobile Header -->
             
@@ -1350,6 +1379,13 @@
                     const lastMonth = new Date(today.getFullYear(), today.getMonth() - 1, today.getDate());
                     this.endDate = today.toISOString().split('T')[0];
                     this.startDate = lastMonth.toISOString().split('T')[0];
+                },
+                
+                showMessage(title, text, type = 'info') {
+                    this.messageTitle = title;
+                    this.messageText = text;
+                    this.messageType = type;
+                    this.showMessageModal = true;
                 },
                 
                 updateLastRefreshTime() {
@@ -3785,19 +3821,6 @@
                         }
                     }
                     
-                    // If still no data, create sample medical records based on common clinic conditions
-                    if (medicalData.length === 0) {
-                        console.log('📊 Creating sample medical records data for demonstration');
-                        medicalData = [
-                            { diagnosis: 'Headache', symptoms: 'Headache', count: 15 },
-                            { diagnosis: 'Common Cold', symptoms: 'Cough, Runny nose', count: 12 },
-                            { diagnosis: 'Fever', symptoms: 'High temperature', count: 10 },
-                            { diagnosis: 'Stomach Ache', symptoms: 'Abdominal pain', count: 8 },
-                            { diagnosis: 'Allergies', symptoms: 'Skin rash, Itching', count: 6 },
-                            { diagnosis: 'Hypertension', symptoms: 'High blood pressure', count: 4 }
-                        ];
-                    }
-
                     console.log('🏥 Processing', medicalData.length, 'medical records from database');
                     
                     // Analyze common chief complaints from database
@@ -6173,13 +6196,13 @@ this would contain the actual report data and formatting.
                 },
                 
                 viewReport(report) {
-                    alert(`Viewing ${report.type} report for ${report.period}. In a real implementation, this would open a detailed report view.`);
+                    this.showMessage('Report View', `Viewing ${report.type} report for ${report.period}. In a real implementation, this would open a detailed report view.`, 'info');
                 },
 
                 // Quick Action Functions
                 generatePatientReport() {
                     if (!this.rawData) {
-                        alert('No data available. Please wait for data to load.');
+                        this.showMessage('No Data', 'No data available. Please wait for data to load.', 'warning');
                         return;
                     }
 
@@ -6202,7 +6225,7 @@ this would contain the actual report data and formatting.
 
                 generateInventoryReport() {
                     if (!this.rawData) {
-                        alert('No data available. Please wait for data to load.');
+                        this.showMessage('No Data', 'No data available. Please wait for data to load.', 'warning');
                         return;
                     }
 
@@ -6223,7 +6246,7 @@ this would contain the actual report data and formatting.
 
                 generateVisitAnalytics() {
                     if (!this.rawData) {
-                        alert('No data available. Please wait for data to load.');
+                        this.showMessage('No Data', 'No data available. Please wait for data to load.', 'warning');
                         return;
                     }
 
@@ -6245,7 +6268,7 @@ this would contain the actual report data and formatting.
 
                 generateHealthTrends() {
                     if (!this.rawData) {
-                        alert('No data available. Please wait for data to load.');
+                        this.showMessage('No Data', 'No data available. Please wait for data to load.', 'warning');
                         return;
                     }
 
@@ -6865,6 +6888,70 @@ this would contain the actual report data and formatting.
                     </button>
                 </div>
             </div>
+    </div>
+
+    <!-- Message Modal (replaces alert) -->
+    <div x-show="showMessageModal" x-cloak 
+         x-transition:enter="transition ease-out duration-300"
+         x-transition:enter-start="opacity-0"
+         x-transition:enter-end="opacity-100"
+         x-transition:leave="transition ease-in duration-200"
+         x-transition:leave-start="opacity-100"
+         x-transition:leave-end="opacity-0"
+         class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60]"
+         @click.self="showMessageModal = false">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-md mx-4 overflow-hidden"
+             @keydown.escape.window="showMessageModal = false">
+            <!-- Modal Header -->
+            <div class="px-6 py-4 border-b border-gray-200"
+                 :class="{
+                     'bg-green-50': messageType === 'success',
+                     'bg-red-50': messageType === 'error',
+                     'bg-yellow-50': messageType === 'warning',
+                     'bg-blue-50': messageType === 'info'
+                 }">
+                <div class="flex items-center gap-3">
+                    <div x-show="messageType === 'success'" class="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
+                        <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                        </svg>
+                    </div>
+                    <div x-show="messageType === 'error'" class="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center">
+                        <svg class="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                        </svg>
+                    </div>
+                    <div x-show="messageType === 'warning'" class="w-10 h-10 bg-yellow-100 rounded-full flex items-center justify-center">
+                        <svg class="w-6 h-6 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                        </svg>
+                    </div>
+                    <div x-show="messageType === 'info'" class="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+                        <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                    </div>
+                    <h3 class="text-lg font-semibold text-gray-900" x-text="messageTitle"></h3>
+                </div>
+            </div>
+            <!-- Modal Body -->
+            <div class="px-6 py-4">
+                <p class="text-gray-700 whitespace-pre-line" x-text="messageText"></p>
+            </div>
+            <!-- Modal Footer -->
+            <div class="px-6 py-4 border-t border-gray-200 flex justify-end">
+                <button @click="showMessageModal = false"
+                        class="px-4 py-2 rounded-lg font-medium transition-colors"
+                        :class="{
+                            'bg-green-600 hover:bg-green-700 text-white': messageType === 'success',
+                            'bg-red-600 hover:bg-red-700 text-white': messageType === 'error',
+                            'bg-yellow-600 hover:bg-yellow-700 text-white': messageType === 'warning',
+                            'bg-blue-600 hover:bg-blue-700 text-white': messageType === 'info'
+                        }">
+                    OK
+                </button>
+            </div>
+        </div>
     </div>
 
     <!-- Final Fallback Icon Initialization -->

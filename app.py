@@ -975,7 +975,6 @@ def api_notify_guardian_major_case():
         visit_date = str(record[3]) if record[3] else ''
         visit_time = str(record[4]) if record[4] else ''
 
-        patient_email = None
         contact_number = None
 
         # Prefer unified emergency contact info (patients_unified) for SMS recipient.
@@ -995,7 +994,7 @@ def api_notify_guardian_major_case():
             if r0:
                 unified_identifier = r0[0]
             cursor.execute('''
-                SELECT s.emergency_contact_email, s.emergency_contact_number, s.std_EmailAdd
+                SELECT s.emergency_contact_number
                 FROM medical_records mr
                 INNER JOIN students s ON mr.student_number = s.student_number
                 WHERE mr.id = %s
@@ -1003,8 +1002,7 @@ def api_notify_guardian_major_case():
             ''', (record_id,))
             row = cursor.fetchone()
             if row:
-                patient_email = row[0] or row[2]
-                contact_number = row[1]
+                contact_number = row[0]
         elif role_normalized in ['visitor', 'visitors']:
             cursor.execute('''
                 SELECT mr.visitor_id
@@ -1036,7 +1034,7 @@ def api_notify_guardian_major_case():
             if r0:
                 unified_source_id = r0[0]
             cursor.execute('''
-                SELECT t.email, t.contact_number
+                SELECT t.contact_number
                 FROM teaching_medical_records mr
                 INNER JOIN teaching t ON mr.teaching_id = t.id
                 WHERE mr.id = %s
@@ -1044,8 +1042,7 @@ def api_notify_guardian_major_case():
             ''', (record_id,))
             row = cursor.fetchone()
             if row:
-                patient_email = row[0]
-                contact_number = row[1]
+                contact_number = row[0]
         elif role_normalized in ['non-teaching staff', 'non teaching staff', 'non_teaching staff', 'non_teaching', 'non_teaching_staff']:
             cursor.execute('''
                 SELECT mr.non_teaching_id
@@ -1057,7 +1054,7 @@ def api_notify_guardian_major_case():
             if r0:
                 unified_source_id = r0[0]
             cursor.execute('''
-                SELECT nt.email, nt.emergency_contact_number
+                SELECT nt.emergency_contact_number
                 FROM non_teaching_medical_records mr
                 INNER JOIN non_teaching_staff nt ON mr.non_teaching_id = nt.id
                 WHERE mr.id = %s
@@ -1065,8 +1062,7 @@ def api_notify_guardian_major_case():
             ''', (record_id,))
             row = cursor.fetchone()
             if row:
-                patient_email = row[0]
-                contact_number = row[1]
+                contact_number = row[0]
         elif role_normalized in ['dean', 'deans']:
             cursor.execute('''
                 SELECT mr.dean_id
@@ -1078,7 +1074,7 @@ def api_notify_guardian_major_case():
             if r0:
                 unified_source_id = r0[0]
             cursor.execute('''
-                SELECT d.email, d.emergency_contact_number
+                SELECT d.emergency_contact_number
                 FROM dean_medical_records mr
                 INNER JOIN deans d ON mr.dean_id = d.id
                 WHERE mr.id = %s
@@ -1086,10 +1082,9 @@ def api_notify_guardian_major_case():
             ''', (record_id,))
             row = cursor.fetchone()
             if row:
-                patient_email = row[0]
-                contact_number = row[1]
+                contact_number = row[0]
 
-        # Override SMS recipient (and optionally email) from patients_unified emergency contact fields when available.
+        # Override SMS recipient from patients_unified emergency contact fields when available.
         # This keeps SMS recipient aligned with the Staff Patients UI (patients_unified.emergency_contact_number).
         try:
             cursor.execute("SHOW TABLES LIKE 'patients_unified'")
@@ -1111,7 +1106,7 @@ def api_notify_guardian_major_case():
                     ucur = conn.cursor(dictionary=True)
                     ucur.execute(
                         '''
-                        SELECT emergency_contact_number, emergency_contact_email
+                        SELECT emergency_contact_number
                         FROM patients_unified
                         WHERE role = %s AND identifier = %s
                         LIMIT 1
@@ -1124,7 +1119,7 @@ def api_notify_guardian_major_case():
                     ucur = conn.cursor(dictionary=True)
                     ucur.execute(
                         '''
-                        SELECT emergency_contact_number, emergency_contact_email
+                        SELECT emergency_contact_number
                         FROM patients_unified
                         WHERE role = %s AND source_id = %s
                         LIMIT 1
@@ -1136,38 +1131,10 @@ def api_notify_guardian_major_case():
 
                 if isinstance(unified_row, dict):
                     unified_emergency_number = (unified_row.get('emergency_contact_number') or '').strip()
-                    unified_emergency_email = (unified_row.get('emergency_contact_email') or '').strip()
                     if unified_emergency_number:
                         contact_number = unified_emergency_number
-                    if not patient_email and unified_emergency_email:
-                        patient_email = unified_emergency_email
         except Exception as e:
             print(f"Note: Could not resolve unified emergency contact for notification: {e}")
-
-        email_sent = False
-        sms_sent = False
-        email_error = None
-        sms_error = None
-
-        if patient_email:
-            subject = 'URGENT: Major Case - Clinic Endorsement Required'
-            html_content = f"""
-                <div style='font-family: Arial, sans-serif;'>
-                    <h2 style='color:#b91c1c;'>Major Case Alert</h2>
-                    <p>A major case was recorded in the clinic.</p>
-                    <p><b>Date/Time:</b> {visit_date} {visit_time}</p>
-                    <p><b>Chief Complaint:</b> {chief_complaint}</p>
-                    <p><b>Symptoms:</b> {symptoms}</p>
-                    <p style='margin-top:16px;'>Please coordinate immediately for hospital endorsement.</p>
-                </div>
-            """
-            try:
-                email_sent = _send_major_case_notification_email(patient_email, subject, html_content)
-                if not email_sent:
-                    email_error = 'Email send failed'
-            except Exception as e:
-                email_error = str(e)
-                email_sent = False
 
         if contact_number:
             sms_message = (
@@ -1182,21 +1149,13 @@ def api_notify_guardian_major_case():
         cursor.close()
         conn.close()
 
-        if not patient_email and not contact_number:
-            return jsonify({'error': 'No contact details available for notification'}), 400
-
-        message_parts = []
-        if patient_email:
-            message_parts.append('Email sent' if email_sent else f"Email not sent{': ' + email_error if email_error else ''}")
-        if contact_number:
-            message_parts.append('SMS sent' if sms_sent else f"SMS not sent{': ' + sms_error if sms_error else ''}")
+        if not contact_number:
+            return jsonify({'error': 'No guardian contact number available for notification'}), 400
 
         return jsonify({
-            'success': True,
-            'message': ' | '.join(message_parts) if message_parts else 'Notification processed',
-            'email_sent': email_sent,
+            'success': sms_sent,
+            'message': 'SMS sent' if sms_sent else f"SMS not sent: {sms_error}",
             'sms_sent': sms_sent,
-            'email_error': email_error,
             'sms_error': sms_error
         }), 200
 
@@ -1557,12 +1516,23 @@ def init_db():
             first_name VARCHAR(50),
             last_name VARCHAR(50),
             position VARCHAR(100),
+            is_active BOOLEAN DEFAULT TRUE,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     ''')
 
     try:
         cursor.execute("ALTER TABLE users ADD COLUMN user_id VARCHAR(50) UNIQUE")
+        conn.commit()
+    except Exception:
+        pass
+
+    # Add is_active column if it doesn't exist (for existing installations)
+    try:
+        cursor.execute("""
+            ALTER TABLE users
+            ADD COLUMN is_active BOOLEAN DEFAULT TRUE
+        """)
         conn.commit()
     except Exception:
         pass
@@ -3713,9 +3683,36 @@ def login():
         print(f"User found: {user is not None}")  # Debug log
         if user:
             print(f"User data: {user[1]}, role: {user[3]}")  # Debug log
-            print(f"Password check: {check_password_hash(user[2], password)}")  # Debug log
-        
-        if user and check_password_hash(user[2], password):
+            if user[2]:
+                print(f"Password check: {check_password_hash(user[2], password)}")  # Debug log
+            else:
+                print("Password check skipped: missing password_hash")  # Debug log
+
+        # Clearer feedback cases
+        if not user:
+            print("❌ Login failed: No account found for provided User ID")
+            flash('No account found for this User ID. Please create an account or contact the administrator.', 'error')
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.accept_mimetypes.accept_json:
+                return jsonify({
+                    'success': False,
+                    'code': 'NO_ACCOUNT',
+                    'message': 'No account found for this User ID. Please create an account or contact the administrator.'
+                }), 404
+            return redirect(url_for('login_page'))
+
+        if user and not user[2]:
+            print("❌ Login failed: Account exists but missing password_hash (likely incomplete registration)")
+            flash('Your account is not yet fully set up. Please complete registration or reset your password.', 'error')
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.accept_mimetypes.accept_json:
+                return jsonify({
+                    'success': False,
+                    'code': 'ACCOUNT_INCOMPLETE',
+                    'message': 'Your account is not yet fully set up. Please complete registration or reset your password.'
+                }), 409
+            return redirect(url_for('login_page'))
+
+        # Guard against NULL/empty password_hash (can throw inside check_password_hash)
+        if user and user[2] and check_password_hash(user[2], password):
             session['user_id'] = user[0]
             session['username'] = user[1]
             session['role'] = user[3]
@@ -3802,15 +3799,25 @@ def login():
             
             return redirect(redirect_url)
         else:
-            print("âŒ Login failed: Invalid credentials")  # Debug log
-            flash('Invalid User ID or password', 'error')
-            
+            print("❌ Login failed: Wrong password")  # Debug log
+            flash('Incorrect password. Please try again.', 'error')
+
             # Return JSON error for AJAX requests
             if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.accept_mimetypes.accept_json:
-                return jsonify({'success': False, 'message': 'Invalid User ID or password. Please check your credentials and try again.'}), 401
-            
+                return jsonify({
+                    'success': False,
+                    'code': 'WRONG_PASSWORD',
+                    'message': 'Incorrect password. Please try again.'
+                }), 401
+
             return redirect(url_for('login_page'))
-    except Exception:
+    except Exception as e:
+        try:
+            import traceback
+            print("Login handler exception:")
+            traceback.print_exc()
+        except Exception:
+            pass
         if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.accept_mimetypes.accept_json:
             return jsonify({'success': False, 'message': 'Server error. Please try again.'}), 500
         raise
@@ -4878,57 +4885,83 @@ def send_appointment_notification(patient_email, patient_name, appointment_date,
         
         # HTML email template
         html_content = f"""
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <meta charset="UTF-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>Appointment Confirmation</title>
-        </head>
-        <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
-            <div style="background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
-                <h1 style="color: white; margin: 0; font-size: 28px;">âœ… Appointment Confirmed</h1>
-                <p style="color: rgba(255,255,255,0.9); margin: 10px 0 0 0;">iClinic Management System</p>
-            </div>
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Appointment Confirmation</title>
+</head>
+<body style="margin: 0; padding: 0; background-color: #f3f4f6; font-family: 'Inter', Arial, sans-serif;">
+    <div style="max-width: 600px; margin: 20px auto; background-color: white; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); overflow: hidden;">
+        <!-- Blue Header -->
+        <div style="background-color: #2563eb; color: white; padding: 30px 20px; text-align: center;">
+            <h1 style="margin: 0; font-size: 24px; font-weight: bold;">iClinic Management System</h1>
+            <p style="margin: 5px 0 0 0; opacity: 0.9; font-size: 14px;">Norzagaray College</p>
+        </div>
+        
+        <!-- Content -->
+        <div style="padding: 40px 30px;">
+            <h2 style="color: #1e40af; margin: 0 0 20px 0; font-size: 22px;">Appointment Confirmed</h2>
             
-            <div style="background: white; padding: 30px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 10px 10px;">
-                <h2 style="color: #1e40af; margin-top: 0;">Your Appointment Has Been Confirmed</h2>
-                
-                <p>Dear {patient_name},</p>
-                
-                <p>Your appointment has been successfully scheduled with the iClinic Management System.</p>
-                
-                <div style="background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%); padding: 25px; border-radius: 12px; margin: 25px 0; border-left: 4px solid #3b82f6;">
-                    <h3 style="color: #1e40af; margin-top: 0; margin-bottom: 15px;">ðŸ“… Appointment Details</h3>
-                    <p style="margin: 8px 0; font-size: 16px;"><strong>Date:</strong> {formatted_date}</p>
-                    <p style="margin: 8px 0; font-size: 16px;"><strong>Time:</strong> {appointment_time}</p>
-                    <p style="margin: 8px 0; font-size: 16px;"><strong>Type:</strong> {appointment_type}</p>
-                </div>
-                
-                <div style="background: #fef3c7; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #f59e0b;">
-                    <p style="margin: 0; color: #92400e;">
-                        <strong>â° Important Reminder:</strong><br>
-                        Please arrive 10 minutes before your scheduled appointment time. Bring a valid ID and any relevant medical documents.
-                    </p>
-                </div>
-                
-                <h3 style="color: #1e40af; margin-top: 30px;">ðŸ“ž Need to Reschedule?</h3>
-                <p>If you need to cancel or reschedule your appointment, please contact the clinic at least 24 hours in advance:</p>
-                <ul style="color: #6b7280;">
-                    <li>Visit the iClinic portal: <a href="http://127.0.0.1:5000" style="color: #3b82f6;">iClinic Dashboard</a></li>
-                    <li>Contact the clinic office during business hours</li>
-                </ul>
-                
-                <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0;">
-                
-                <p style="color: #6b7280; font-size: 12px; text-align: center;">
-                    This is an automated confirmation email from iClinic Management System<br>
-                    Norzagaray College<br>
-                    Please do not reply to this email. For assistance, visit the clinic or contact IT support.
+            <p style="color: #374151; margin: 0 0 20px 0; line-height: 1.6;">
+                Hello {patient_name},
+            </p>
+            
+            <p style="color: #374151; margin: 0 0 25px 0; line-height: 1.6;">
+                Your appointment has been successfully scheduled with the iClinic Management System.
+            </p>
+            
+            <!-- Appointment Details Box -->
+            <div style="background-color: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 20px; margin-bottom: 25px;">
+                <p style="margin: 0 0 12px 0; font-size: 14px; color: #374151;">
+                    <strong>Patient Name:</strong> {patient_name}
+                </p>
+                <p style="margin: 0 0 12px 0; font-size: 14px; color: #374151;">
+                    <strong>Date:</strong> {formatted_date}
+                </p>
+                <p style="margin: 0 0 12px 0; font-size: 14px; color: #374151;">
+                    <strong>Time:</strong> {appointment_time}
+                </p>
+                <p style="margin: 0; font-size: 14px; color: #374151;">
+                    <strong>Type:</strong> {appointment_type}
                 </p>
             </div>
-        </body>
-        </html>
+            
+            <!-- Important Notice -->
+            <div style="background-color: #fef3c7; border-left: 4px solid #f59e0b; padding: 15px; margin-bottom: 25px;">
+                <p style="margin: 0; color: #92400e; font-size: 14px; line-height: 1.5;">
+                    <strong>Important:</strong> Please arrive 10 minutes before your scheduled time. Bring a valid ID and any relevant medical documents.
+                </p>
+            </div>
+            
+            <!-- Button -->
+            <div style="text-align: center; margin-bottom: 25px;">
+                <a href="http://127.0.0.1:5000" 
+                   style="display: inline-block; background-color: #2563eb; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; font-weight: 500;">
+                    View Your Appointment
+                </a>
+            </div>
+            
+            <p style="color: #6b7280; font-size: 13px; margin: 0 0 10px 0;">
+                If the button doesn't work, copy and paste this link into your browser:
+            </p>
+            <p style="margin: 0;">
+                <a href="http://127.0.0.1:5000" style="color: #2563eb; font-size: 13px; word-break: break-all;">http://127.0.0.1:5000</a>
+            </p>
+        </div>
+        
+        <!-- Footer -->
+        <div style="background-color: #f9fafb; padding: 20px; text-align: center; border-top: 1px solid #e5e7eb;">
+            <p style="margin: 0; color: #6b7280; font-size: 12px; line-height: 1.5;">
+                2024 iClinic Management System<br>
+                Norzagaray College<br>
+                If you need assistance, please contact IT support.
+            </p>
+        </div>
+    </div>
+</body>
+</html>
         """
         
         # Attach HTML content
@@ -4936,8 +4969,8 @@ def send_appointment_notification(patient_email, patient_name, appointment_date,
         msg.attach(html_part)
         
         # Send email via Gmail SMTP
-        print(f"ðŸ“§ Sending appointment notification to: {patient_email}")
-        print(f"ðŸ“… Appointment: {formatted_date} at {appointment_time}")
+        print(f" Sending appointment notification to: {patient_email}")
+        print(f" Appointment: {formatted_date} at {appointment_time}")
         
         try:
             server = smtplib.SMTP(smtp_server, smtp_port)
@@ -4945,15 +4978,15 @@ def send_appointment_notification(patient_email, patient_name, appointment_date,
             server.login(sender_email, sender_password)
             server.send_message(msg)
             server.quit()
-            print(f"âœ… Appointment notification sent successfully to: {patient_email}")
+            print(f" Appointment notification sent successfully to: {patient_email}")
             return True
         except smtplib.SMTPAuthenticationError as auth_error:
-            print(f"âŒ Gmail Authentication Failed: {auth_error}")
-            print(f"âš ï¸  Email notification not sent, but appointment is still confirmed")
+            print(f" Gmail Authentication Failed: {auth_error}")
+            print(f"  Email notification not sent, but appointment is still confirmed")
             return False
         except Exception as email_error:
-            print(f"âŒ Failed to send appointment notification: {email_error}")
-            print(f"âš ï¸  Email notification not sent, but appointment is still confirmed")
+            print(f" Failed to send appointment notification: {email_error}")
+            print(f"  Email notification not sent, but appointment is still confirmed")
             return False
         
     except Exception as e:
@@ -5399,10 +5432,10 @@ def get_common_illnesses():
             illnesses = []
             counts = []
         
-        # If no data, provide sample data with actual values
+        # If no data, return empty arrays
         if not illnesses:
-            illnesses = ['Headache', 'Fever', 'Cough', 'Stomachache', 'Cold']
-            counts = [5, 3, 4, 2, 3]  # Sample counts so chart can render
+            illnesses = []
+            counts = []
         
         cursor.close()
         conn.close()
@@ -6041,8 +6074,8 @@ def it_inventory():
     if 'user_id' not in session:
         return redirect(url_for('login_page'))
 
-    if session.get('role') not in ['admin', 'it_staff']:
-        flash('Access denied. IT Staff only.', 'error')
+    if session.get('role') != 'admin':
+        flash('Access denied.', 'error')
         return redirect(url_for('login_page'))
 
     user_info = {
@@ -6393,26 +6426,124 @@ def priority_order_case_expr(alias: str = "priority") -> str:
 
 
 
-def generate_unique_ticket_number(conn, max_attempts: int = 25) -> str:
+def generate_sequential_ticket_number(conn) -> str:
+    """
+    Generate sequential ticket number (1-100) that resets daily.
+    Uses a daily counter stored in the database.
+    """
     cursor = conn.cursor()
     try:
-        for _ in range(max_attempts):
-            candidate = str(random.randint(1000, 9999))
+        today = datetime.now().date()
+        
+        # Get or create daily counter for today
+        cursor.execute(
+            """
+            SELECT current_number, max_number 
+            FROM daily_ticket_counter 
+            WHERE counter_date = %s
+            """,
+            (today,)
+        )
+        result = cursor.fetchone()
+        
+        if result:
+            current_number = result[0]
+            max_number = result[1]
+            
+            # Check if we've reached the limit (100)
+            if current_number >= max_number:
+                return None  # No more tickets available for today
+            
+            # Increment counter
+            new_number = current_number + 1
             cursor.execute(
-                "SELECT COUNT(*) FROM consultation_tickets WHERE ticket_number = %s",
-                (candidate,),
+                """
+                UPDATE daily_ticket_counter 
+                SET current_number = %s, updated_at = NOW()
+                WHERE counter_date = %s
+                """,
+                (new_number, today)
             )
-            row = cursor.fetchone()
-            count = row[0] if row else 0
-            if count == 0:
-                return candidate
+            conn.commit()
+            # Format as 3-digit with leading zeros (001, 002, etc.)
+            return f"{new_number:03d}"
+        else:
+            # First ticket of the day - create counter and return 001
+            cursor.execute(
+                """
+                INSERT INTO daily_ticket_counter (counter_date, current_number, max_number, created_at, updated_at)
+                VALUES (%s, 1, 100, NOW(), NOW())
+                """,
+                (today,)
+            )
+            conn.commit()
+            return "001"
+            
+    except Exception as e:
+        print(f"❌ Error generating sequential ticket number: {e}")
+        conn.rollback()
+        return None
     finally:
         try:
             cursor.close()
         except Exception:
             pass
 
-    return str(random.randint(1000, 9999))
+
+def check_user_ticket_rate_limit(conn, patient_identifier: str) -> tuple[bool, str]:
+    """
+    Check if user has already generated a ticket today.
+    Returns (can_generate: bool, message: str)
+    """
+    cursor = conn.cursor(dictionary=True)
+    try:
+        today = datetime.now().date()
+        tomorrow = today + timedelta(days=1)
+        
+        # Check if user already has a ticket created today
+        cursor.execute(
+            """
+            SELECT id, ticket_number, status, arrival_time
+            FROM consultation_tickets
+            WHERE patient_identifier = %s
+              AND DATE(arrival_time) = %s
+            ORDER BY arrival_time DESC
+            LIMIT 1
+            """,
+            (patient_identifier, today)
+        )
+        today_ticket = cursor.fetchone()
+        
+        if today_ticket:
+            ticket_number = today_ticket['ticket_number']
+            status = today_ticket['status']
+            arrival_time = today_ticket['arrival_time']
+            
+            # Calculate time until they can generate again
+            tomorrow_start = datetime.combine(tomorrow, datetime.min.time())
+            hours_until = int((tomorrow_start - datetime.now()).total_seconds() / 3600)
+            minutes_until = int((tomorrow_start - datetime.now()).total_seconds() / 60) % 60
+            
+            if status in ['waiting', 'called', 'in_consultation']:
+                return False, f"You already have an active ticket (#{ticket_number}) for today. Please wait for it to be called."
+            else:
+                return False, f"You have already used your daily ticket limit. You can generate a new ticket in {hours_until}h {minutes_until}m."
+        
+        return True, ""
+        
+    except Exception as e:
+        print(f"❌ Error checking rate limit: {e}")
+        return True, ""  # Allow on error (fail open)
+    finally:
+        try:
+            cursor.close()
+        except Exception:
+            pass
+
+
+def generate_unique_ticket_number(conn, max_attempts: int = 25) -> str:
+    # DEPRECATED: Use generate_sequential_ticket_number instead
+    return generate_sequential_ticket_number(conn) or str(random.randint(1000, 9999))
 
 @app.route('/api/consultation/tickets', methods=['POST'])
 def create_consultation_ticket():
@@ -6457,41 +6588,46 @@ def create_consultation_ticket():
 
     try:
         cursor = conn.cursor()
-
-        active_statuses = ['waiting', 'called', 'in_consultation']
-        if patient_identifier:
-            placeholders = ','.join(['%s'] * len(active_statuses))
-            cursor.execute(
-                f"""
-                    SELECT id, ticket_number, status
-                    FROM consultation_tickets
-                    WHERE patient_identifier = %s
-                      AND status IN ({placeholders})
-                    ORDER BY arrival_time DESC
-                    LIMIT 1
-                    FOR UPDATE
-                """,
-                (patient_identifier, *active_statuses),
+        
+        # Ensure daily_ticket_counter table exists
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS daily_ticket_counter (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                counter_date DATE NOT NULL UNIQUE,
+                current_number INT NOT NULL DEFAULT 0,
+                max_number INT NOT NULL DEFAULT 100,
+                created_at DATETIME NOT NULL,
+                updated_at DATETIME NOT NULL,
+                INDEX idx_counter_date (counter_date)
             )
-            existing = cursor.fetchone()
-            if existing:
-                conn.rollback()
-                existing_id = existing[0] if isinstance(existing, (list, tuple)) and len(existing) > 0 else None
-                existing_ticket_number = existing[1] if isinstance(existing, (list, tuple)) and len(existing) > 1 else None
-                existing_status = existing[2] if isinstance(existing, (list, tuple)) and len(existing) > 2 else None
-                return jsonify(
-                    {
-                        'success': False,
-                        'error': 'You already have an active ticket. Please wait for it to be called.',
-                        'existing_ticket': {
-                            'id': existing_id,
-                            'ticket_number': existing_ticket_number,
-                            'status': existing_status,
-                        },
-                    }
-                ), 409
-
-        ticket_number = generate_unique_ticket_number(conn)
+            """
+        )
+        conn.commit()
+        
+        # Check rate limit first (one ticket per user per day)
+        can_generate, rate_limit_message = check_user_ticket_rate_limit(conn, patient_identifier)
+        if not can_generate:
+            conn.rollback()
+            return jsonify(
+                {
+                    'success': False,
+                    'error': rate_limit_message,
+                    'rate_limited': True,
+                }
+            ), 429  # Too Many Requests
+        
+        # Generate sequential ticket number
+        ticket_number = generate_sequential_ticket_number(conn)
+        if ticket_number is None:
+            conn.rollback()
+            return jsonify(
+                {
+                    'success': False,
+                    'error': 'Daily ticket limit reached (100 tickets). No more tickets available for today. Please try again tomorrow.',
+                    'daily_limit_reached': True,
+                }
+            ), 503  # Service Unavailable
         cursor.execute(
             '''
             INSERT INTO consultation_tickets (
@@ -8010,10 +8146,22 @@ def api_medicine():
             earliest_expiry = None
             if batches:
                 earliest_expiry = str(batches[0][3])  # Already sorted by expiry_date ASC
-            
+
             if not earliest_expiry:
                 earliest_expiry = str(m[9]) if m[9] else None
-            
+
+            # Get latest arrival date from ALL batches (for Date Added display)
+            latest_arrival = None
+            if batches:
+                arrival_dates = [b[4] for b in batches if b[4]]
+                if arrival_dates:
+                    latest_arrival = max(arrival_dates)
+
+            # Count available batches (basic inventory indicator)
+            available_batch_count = 0
+            if batches:
+                available_batch_count = sum(1 for b in batches if (b[8] == 'available' and (b[2] or 0) > 0))
+
             medicine_list.append({
                 'id': medicine_id, 
                 'medicine_name': m[1],
@@ -8027,8 +8175,11 @@ def api_medicine():
                 'quantity_in_stock': total_quantity,
                 'price': float(m[8]) if m[8] else 0,
                 'expiry_date': earliest_expiry,
+                'earliest_batch_expiry_date': earliest_expiry,
                 'status': m[10],
-                'acquired': str(m[11]) if m[11] else None,
+                'acquired': str(latest_arrival) if latest_arrival else (str(m[11]) if m[11] else None),
+                'latest_batch_arrival_date': str(latest_arrival) if latest_arrival else None,
+                'available_batch_count': available_batch_count,
                 'batches': [{
                     'id': b[0],
                     'batch_number': b[1],
@@ -8857,7 +9008,18 @@ def api_student_medical_records(student_number):
         cursor = conn.cursor()
         ticket_number = generate_unique_ticket_number(conn)
         
-        # Get medical records for specific student - use student_number as identifier
+        # Resolve numeric student identifiers (students.id) to student_number
+        resolved_student_number = student_number
+        try:
+            if isinstance(student_number, str) and student_number.isdigit():
+                cursor.execute('SELECT student_number FROM students WHERE id = %s LIMIT 1', (student_number,))
+                row = cursor.fetchone()
+                if row and row[0]:
+                    resolved_student_number = row[0]
+        except Exception as resolve_error:
+            print(f"Warning: failed resolving student identifier '{student_number}': {resolve_error}")
+
+        # Get medical records for specific student - use resolved student_number
         cursor.execute('''
             SELECT mr.id, mr.student_number, mr.visit_date, mr.visit_time, mr.chief_complaint,
                    mr.treatment, mr.prescribed_medicine, mr.notes, mr.staff_name,
@@ -8871,9 +9033,9 @@ def api_student_medical_records(student_number):
             INNER JOIN students s ON mr.student_number = s.student_number
             WHERE mr.student_number = %s
             ORDER BY mr.visit_date DESC, mr.visit_time DESC
-        ''', (student_number,))
+        ''', (resolved_student_number,))
         
-        print(f"Querying medical records for student_number: {student_number}")
+        print(f"Querying medical records for student_number: {resolved_student_number}")
         
         records = cursor.fetchall()
         print(f"Found {len(records)} records")
@@ -8990,8 +9152,20 @@ def api_add_student_medical_record():
         cursor = conn.cursor()
         ticket_number = generate_unique_ticket_number(conn)
         
+        # Resolve numeric student identifiers (students.id) to student_number
+        raw_student_number = data.get('student_number')
+        resolved_student_number = raw_student_number
+        try:
+            if isinstance(raw_student_number, int) or (isinstance(raw_student_number, str) and str(raw_student_number).isdigit()):
+                cursor.execute('SELECT student_number FROM students WHERE id = %s LIMIT 1', (raw_student_number,))
+                row = cursor.fetchone()
+                if row and row[0]:
+                    resolved_student_number = row[0]
+        except Exception as resolve_error:
+            print(f"Warning: failed resolving student identifier '{raw_student_number}': {resolve_error}")
+
         # Log the data being saved for debugging
-        print(f"Saving medical record for student_number: {data.get('student_number')}")
+        print(f"Saving medical record for student_number: {resolved_student_number}")
         print(f"Chief complaint: '{data.get('chief_complaint', '')}'")
 
         illness_suggested = (data.get('illness_classification_suggested') or '').strip().lower() or None
@@ -9019,7 +9193,7 @@ def api_add_student_medical_record():
                 %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
             )
         ''', (
-            data.get('student_number'),
+            resolved_student_number,
             data.get('visit_date') or datetime.now().strftime('%Y-%m-%d'),
             data.get('visit_time') or datetime.now().strftime('%H:%M:%S'),
             data.get('chief_complaint', ''),
@@ -9072,7 +9246,7 @@ def api_add_student_medical_record():
             'record_id': record_id,
             'message': 'Medical record added successfully',
             'saved_data': {
-                'student_number': data.get('student_number'),
+                'student_number': resolved_student_number,
                 'chief_complaint': data.get('chief_complaint', ''),
                 'treatment': data.get('treatment', ''),
                 'visit_date': data.get('visit_date') or datetime.now().strftime('%Y-%m-%d'),
@@ -16407,11 +16581,11 @@ def test_all_medical_records_no_auth():
                 '' as special_instructions, tmr.doctor_notes as notes, 
                 CONCAT(u2.first_name, ' ', u2.last_name) as staff_name, tmr.created_by as staff_id,
                 tmr.created_at, tmr.updated_at,
-                CONCAT(u.first_name, ' ', u.last_name) as patient_name,
+                CONCAT(ts.first_name, ' ', ts.last_name) as patient_name,
                 'Teaching Staff' as patient_role,
-                u.position as additional_info
+                '' as additional_info
             FROM teaching_medical_records tmr
-            LEFT JOIN users u ON tmr.teaching_id = u.id AND u.position = 'Teaching Staff'
+            LEFT JOIN teaching ts ON tmr.teaching_id = ts.id
             LEFT JOIN users u2 ON tmr.created_by = u2.id
             
             UNION ALL
@@ -16425,11 +16599,11 @@ def test_all_medical_records_no_auth():
                 ntmr.dental_procedure, ntmr.procedure_notes, ntmr.follow_up_date, 
                 ntmr.special_instructions, ntmr.notes, ntmr.staff_name, ntmr.staff_id,
                 ntmr.created_at, ntmr.updated_at,
-                CONCAT(u.first_name, ' ', u.last_name) as patient_name,
+                CONCAT(nts.first_name, ' ', nts.last_name) as patient_name,
                 'Non-Teaching Staff' as patient_role,
-                u.position as additional_info
+                '' as additional_info
             FROM non_teaching_medical_records ntmr
-            LEFT JOIN users u ON ntmr.non_teaching_id = u.id AND u.position = 'Non-Teaching Staff'
+            LEFT JOIN non_teaching_staff nts ON ntmr.non_teaching_id = nts.id
             
             UNION ALL
             
@@ -16479,7 +16653,7 @@ def test_all_medical_records_no_auth():
             # Get patient name and role from UNION query
             # r[29] = patient_name (already concatenated in SQL)
             # r[30] = patient_role (Student or Visitor)
-            patient_name = r[29] if r[29] and str(r[29]).strip() else f"Patient {r[1]}"
+            patient_name = r[29] if r[29] and str(r[29]).strip() else 'Unknown Patient'
             patient_role = r[30] if r[30] else 'Student'
             additional_info = r[31] if r[31] else ''
             
@@ -16740,11 +16914,18 @@ def get_users():
         cursor = conn.cursor(dictionary=True)
         
         # Get all users from the users table
-        cursor.execute('''
-            SELECT id, username, email, first_name, last_name, role, position, created_at
-            FROM users
-            ORDER BY created_at DESC
-        ''')
+        try:
+            cursor.execute('''
+                SELECT id, username, email, first_name, last_name, role, position, created_at, is_active
+                FROM users
+                ORDER BY created_at DESC
+            ''')
+        except Exception:
+            cursor.execute('''
+                SELECT id, username, email, first_name, last_name, role, position, created_at
+                FROM users
+                ORDER BY created_at DESC
+            ''')
         
         users = []
         for user in cursor.fetchall():
@@ -16795,7 +16976,7 @@ def get_users():
                 'name': full_name,
                 'email': user['email'],
                 'role': display_role,
-                'status': 'Active',  # Default to Active since we don't have is_active field
+                'status': 'Active' if user.get('is_active', 1) else 'Inactive',
                 'dateCreated': date_created,
                 'lastLogin': 'N/A'  # Not tracked in current schema
             })
@@ -16823,6 +17004,7 @@ def update_user(user_id):
     name = (data.get('name') or '').strip()
     email = (data.get('email') or '').strip()
     role_in = (data.get('role') or '').strip()
+    status_in = (data.get('status') or '').strip()
     
     if not name:
         return jsonify({'error': 'Name is required'}), 400
@@ -16854,6 +17036,16 @@ def update_user(user_id):
     name_parts = name.split()
     first_name = name_parts[0] if name_parts else name
     last_name = ' '.join(name_parts[1:]) if len(name_parts) > 1 else ''
+
+    is_active = None
+    if status_in:
+        status_key = status_in.strip().lower()
+        if status_key in ('active', '1', 'true', 'yes'):
+            is_active = 1
+        elif status_key in ('inactive', '0', 'false', 'no'):
+            is_active = 0
+        else:
+            return jsonify({'error': f'Invalid status: {status_in}'}), 400
     
     try:
         conn = DatabaseConfig.get_connection()
@@ -16861,16 +17053,45 @@ def update_user(user_id):
             return jsonify({'error': 'Database connection failed'}), 500
         
         cursor = conn.cursor()
-        cursor.execute('''
-            UPDATE users
-            SET email = %s,
-                username = %s,
-                first_name = %s,
-                last_name = %s,
-                role = %s,
-                position = %s
-            WHERE id = %s
-        ''', (email, email, first_name, last_name, db_role, position, user_id))
+        if is_active is None:
+            cursor.execute('''
+                UPDATE users
+                SET email = %s,
+                    username = %s,
+                    first_name = %s,
+                    last_name = %s,
+                    role = %s,
+                    position = %s
+                WHERE id = %s
+            ''', (email, email, first_name, last_name, db_role, position, user_id))
+        else:
+            try:
+                cursor.execute('''
+                    UPDATE users
+                    SET email = %s,
+                        username = %s,
+                        first_name = %s,
+                        last_name = %s,
+                        role = %s,
+                        position = %s,
+                        is_active = %s
+                    WHERE id = %s
+                ''', (email, email, first_name, last_name, db_role, position, is_active, user_id))
+            except mysql.connector.Error as e:
+                # Backward compatibility if is_active doesn't exist yet
+                if getattr(e, 'errno', None) == 1054:
+                    cursor.execute('''
+                        UPDATE users
+                        SET email = %s,
+                            username = %s,
+                            first_name = %s,
+                            last_name = %s,
+                            role = %s,
+                            position = %s
+                        WHERE id = %s
+                    ''', (email, email, first_name, last_name, db_role, position, user_id))
+                else:
+                    raise
         
         conn.commit()
         if cursor.rowcount == 0:
@@ -16964,10 +17185,41 @@ def delete_user(user_id):
             errno = None
 
         if errno == 1451:
-            return jsonify({
-                'error': 'Cannot delete this user because they are referenced by other records (e.g., appointments).',
-                'code': 'USER_HAS_DEPENDENCIES'
-            }), 409
+            try:
+                # Fallback: deactivate user instead of hard delete
+                conn2 = DatabaseConfig.get_connection()
+                if not conn2:
+                    return jsonify({
+                        'error': 'Cannot delete this user because they are referenced by other records, and database connection failed for deactivation.',
+                        'code': 'USER_HAS_DEPENDENCIES'
+                    }), 409
+                cur2 = conn2.cursor()
+                try:
+                    cur2.execute('UPDATE users SET is_active = 0 WHERE id = %s', (user_id,))
+                except mysql.connector.Error as e2:
+                    if getattr(e2, 'errno', None) == 1054:
+                        return jsonify({
+                            'error': 'Cannot delete this user because they are referenced by other records. Deactivation is not available because users.is_active column is missing; please restart the app to run DB migrations.',
+                            'code': 'USER_HAS_DEPENDENCIES'
+                        }), 409
+                    raise
+                conn2.commit()
+                rows = cur2.rowcount
+                cur2.close()
+                conn2.close()
+                if rows == 0:
+                    return jsonify({'error': 'User not found'}), 404
+                return jsonify({
+                    'success': True,
+                    'message': 'User could not be deleted due to dependencies, so the account was deactivated instead.',
+                    'code': 'USER_DEACTIVATED_INSTEAD_OF_DELETED'
+                }), 200
+            except Exception as de:
+                print(f"Error deactivating user after FK constraint: {de}")
+                return jsonify({
+                    'error': 'Cannot delete this user because they are referenced by other records (e.g., appointments).',
+                    'code': 'USER_HAS_DEPENDENCIES'
+                }), 409
 
         print(f"Error deleting user (mysql): {e}")
         return jsonify({'error': f'Database error: {str(e)}'}), 500

@@ -205,25 +205,6 @@
             border-left-color: #0056b3;
             padding-left: 12px;
         }
-
-        body.mobile-menu-open {
-            overflow: hidden;
-        }
-
-        .mobile-overlay {
-            position: fixed;
-            inset: 0;
-            background-color: rgba(0, 0, 0, 0.5);
-            opacity: 0;
-            visibility: hidden;
-            transition: opacity 0.3s ease, visibility 0.3s ease;
-            z-index: 45;
-        }
-
-        .mobile-overlay.active {
-            opacity: 1;
-            visibility: visible;
-        }
         
         /* Mobile responsive adjustments */
         @media (max-width: 768px) {
@@ -241,12 +222,14 @@
         /* Active sidebar item */
         .sidebar-item-active {
             background: linear-gradient(90deg, rgba(253, 184, 19, 0.2) 0%, rgba(253, 184, 19, 0.05) 100%);
-            box-shadow: inset 4px 0 0 var(--accent), 0 0 20px rgba(253, 184, 19, 0.2);
+            border-left: 4px solid var(--accent);
+            box-shadow: 0 0 20px rgba(253, 184, 19, 0.2);
         }
         
         .dark .sidebar-item-active {
             background: linear-gradient(90deg, rgba(253, 184, 19, 0.25) 0%, rgba(253, 184, 19, 0.05) 100%);
-            box-shadow: inset 4px 0 0 var(--accent), 0 0 25px rgba(253, 184, 19, 0.3);
+            border-left: 4px solid var(--accent);
+            box-shadow: 0 0 25px rgba(253, 184, 19, 0.3);
         }
         
         :root {
@@ -274,30 +257,49 @@
                 [x-cloak] {
             display: none !important;
         }
+
+        /* Mobile-first responsive helpers (keep scoped; do not override Tailwind utilities globally) */
+        @media (max-width: 768px) {
+            .responsive-table {
+                display: block;
+                overflow-x: auto;
+                white-space: nowrap;
+                -webkit-overflow-scrolling: touch;
+                min-width: 600px;
+            }
+        }
+
+        @media (max-width: 360px) {
+            .inv-stats-grid,
+            .inv-archive-stats-grid {
+                grid-template-columns: repeat(1, minmax(0, 1fr));
+            }
+        }
     </style>
 </head>
-<body class="bg-white transition-colors duration-200" x-data="inventoryModule()" x-init="init()">
+<body class="bg-white transition-colors duration-200 overflow-x-hidden" x-data="inventoryModule()" x-init="init()">
     
     <div class="flex h-screen overflow-hidden">
-        <div class="mobile-overlay md:hidden" :class="{ 'active': mobileMenuOpen }" @click="mobileMenuOpen = false; document.body.classList.remove('mobile-menu-open');"></div>
+        <!-- Mobile overlay (closes sidebar when tapped) -->
+        <div x-show="mobileMenuOpen" x-cloak class="fixed inset-0 bg-black/50 z-30 md:hidden" @click="mobileMenuOpen = false"></div>
 
         <!-- Sidebar -->
         <aside :class="[
-                   !isMobile ? (sidebarCollapsed ? 'w-20' : 'w-64') : '',
-                   isMobile && mobileMenuOpen ? 'translate-x-0' : '',
-                   isMobile && !mobileMenuOpen ? '-translate-x-full' : ''
+                   sidebarCollapsed ? 'md:w-20' : 'md:w-64',
+                   mobileMenuOpen ? 'translate-x-0' : '-translate-x-full',
+                   'md:translate-x-0'
                ]" 
-               class="fixed left-0 top-0 h-screen w-[18rem] max-w-[85vw] gradient-bg-sidebar text-white transition-all duration-300 shadow-2xl z-50"
+               class="fixed left-0 top-0 h-screen w-64 gradient-bg-sidebar text-white transition-all duration-300 shadow-2xl z-40 flex flex-col overflow-y-auto"
                @mouseenter="sidebarHovered = true"
                @mouseleave="sidebarHovered = false">
         
             <!-- Logo -->
             <div class="relative p-6">
-                <div class="flex items-center gap-3" :class="(sidebarCollapsed && !sidebarHovered && !isMobile) ? 'justify-center' : ''">
+                <div class="flex items-center gap-3" :class="(sidebarCollapsed && !sidebarHovered && !mobileMenuOpen) ? 'justify-center' : ''">
                     <div class="flex items-center justify-center">
                         <img src="../assets/img/iclinic-logo.png" alt="Norzagaray College" class="w-14 h-14 object-contain">
                     </div>
-                    <div x-show="isMobile || !sidebarCollapsed || sidebarHovered" x-transition>
+                    <div x-show="!sidebarCollapsed || sidebarHovered || mobileMenuOpen" x-transition>
                         <h1 class="text-xl font-bold text-white">iClinic</h1>
                         <p class="text-xs text-yellow-300">Norzagaray College</p>
                     </div>
@@ -308,89 +310,89 @@
             <nav class="relative mt-8 px-4 space-y-3">
                 <!-- Dashboard -->
                 <a href="{{ url_for('staff_dashboard') }}"
-                   @click="if (isMobile) { mobileMenuOpen = false; document.body.classList.remove('mobile-menu-open'); }"
+                   @click="mobileMenuOpen = false"
                    class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all group hover:bg-white/10">
-                    <div class="flex items-center justify-center" :class="(sidebarCollapsed && !sidebarHovered && !isMobile) ? 'w-full' : ''">
+                    <div class="flex items-center justify-center" :class="(sidebarCollapsed && !sidebarHovered && !mobileMenuOpen) ? 'w-full' : ''">
                         <i data-feather="home" class="w-5 h-5 group-hover:scale-110 transition-transform"></i>
                     </div>
-                    <span x-show="isMobile || !sidebarCollapsed || sidebarHovered" x-transition class="font-medium">Dashboard</span>
+                    <span x-show="!sidebarCollapsed || sidebarHovered || mobileMenuOpen" x-transition class="font-medium">Dashboard</span>
                 </a>
                 
                 <!-- Patients -->
                 <a href="{{ url_for('staff_patients') }}"
-                   @click="if (isMobile) { mobileMenuOpen = false; document.body.classList.remove('mobile-menu-open'); }"
+                   @click="mobileMenuOpen = false"
                    class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all group hover:bg-white/10">
-                    <div class="flex items-center justify-center" :class="(sidebarCollapsed && !sidebarHovered && !isMobile) ? 'w-full' : ''">
+                    <div class="flex items-center justify-center" :class="(sidebarCollapsed && !sidebarHovered && !mobileMenuOpen) ? 'w-full' : ''">
                         <i data-feather="users" class="w-5 h-5 group-hover:scale-110 transition-transform"></i>
                     </div>
-                    <span x-show="isMobile || !sidebarCollapsed || sidebarHovered" x-transition class="font-medium">Patients</span>
+                    <span x-show="!sidebarCollapsed || sidebarHovered || mobileMenuOpen" x-transition class="font-medium">Patients</span>
                 </a>
                 
                 <!-- Appointments -->
                 <a href="{{ url_for('staff_appointments') }}"
-                   @click="if (isMobile) { mobileMenuOpen = false; document.body.classList.remove('mobile-menu-open'); }"
+                   @click="mobileMenuOpen = false"
                    class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all group hover:bg-white/10">
-                    <div class="flex items-center justify-center" :class="(sidebarCollapsed && !sidebarHovered && !isMobile) ? 'w-full' : ''">
+                    <div class="flex items-center justify-center" :class="(sidebarCollapsed && !sidebarHovered && !mobileMenuOpen) ? 'w-full' : ''">
                         <i data-feather="calendar" class="w-5 h-5 group-hover:scale-110 transition-transform"></i>
                     </div>
-                    <span x-show="isMobile || !sidebarCollapsed || sidebarHovered" x-transition class="font-medium">Appointments</span>
+                    <span x-show="!sidebarCollapsed || sidebarHovered || mobileMenuOpen" x-transition class="font-medium">Appointments</span>
                 </a>
-                
+
                 <!-- Announcements -->
                 <a href="{{ url_for('staff_announcements') }}"
-                   @click="if (isMobile) { mobileMenuOpen = false; document.body.classList.remove('mobile-menu-open'); }"
+                   @click="mobileMenuOpen = false"
                    class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all group hover:bg-white/10">
-                    <div class="flex items-center justify-center" :class="(sidebarCollapsed && !sidebarHovered && !isMobile) ? 'w-full' : ''">
+                    <div class="flex items-center justify-center" :class="(sidebarCollapsed && !sidebarHovered && !mobileMenuOpen) ? 'w-full' : ''">
                         <i data-feather="volume-2" class="w-5 h-5 group-hover:scale-110 transition-transform"></i>
                     </div>
-                    <span x-show="isMobile || !sidebarCollapsed || sidebarHovered" x-transition class="font-medium">Announcements</span>
+                    <span x-show="!sidebarCollapsed || sidebarHovered || mobileMenuOpen" x-transition class="font-medium">Announcements</span>
                 </a>
-                
+
                 <!-- Consultations -->
                 <a href="{{ url_for('staff_consultations') }}"
-                   @click="if (isMobile) { mobileMenuOpen = false; document.body.classList.remove('mobile-menu-open'); }"
+                   @click="mobileMenuOpen = false"
                    class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all group hover:bg-white/10">
-                    <div class="flex items-center justify-center" :class="(sidebarCollapsed && !sidebarHovered && !isMobile) ? 'w-full' : ''">
+                    <div class="flex items-center justify-center" :class="(sidebarCollapsed && !sidebarHovered && !mobileMenuOpen) ? 'w-full' : ''">
                         <i data-feather="message-circle" class="w-5 h-5 group-hover:scale-110 transition-transform"></i>
                     </div>
-                    <span x-show="isMobile || !sidebarCollapsed || sidebarHovered" x-transition class="font-medium">Consultations</span>
+                    <span x-show="!sidebarCollapsed || sidebarHovered || mobileMenuOpen" x-transition class="font-medium">Consultations</span>
                 </a>
                 
                 <!-- Inventory -->
                 <a href="{{ url_for('staff_inventory') }}"
-                   @click="if (isMobile) { mobileMenuOpen = false; document.body.classList.remove('mobile-menu-open'); }"
+                   @click="mobileMenuOpen = false"
                    class="sidebar-item-active flex items-center gap-3 px-4 py-3 rounded-lg transition-all group">
-                    <div class="flex items-center justify-center" :class="(sidebarCollapsed && !sidebarHovered && !isMobile) ? 'w-full' : ''">
+                    <div class="flex items-center justify-center" :class="(sidebarCollapsed && !sidebarHovered && !mobileMenuOpen) ? 'w-full' : ''">
                         <i data-feather="package" class="w-5 h-5 group-hover:scale-110 transition-transform"></i>
                     </div>
-                    <span x-show="isMobile || !sidebarCollapsed || sidebarHovered" x-transition class="font-medium">Inventory</span>
+                    <span x-show="!sidebarCollapsed || sidebarHovered || mobileMenuOpen" x-transition class="font-medium">Inventory</span>
                 </a>
-                
+
                 <!-- Reports -->
                 <a href="{{ url_for('staff_reports') }}"
-                   @click="if (isMobile) { mobileMenuOpen = false; document.body.classList.remove('mobile-menu-open'); }"
+                   @click="mobileMenuOpen = false"
                    class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all group hover:bg-white/10">
-                    <div class="flex items-center justify-center" :class="(sidebarCollapsed && !sidebarHovered && !isMobile) ? 'w-full' : ''">
+                    <div class="flex items-center justify-center" :class="(sidebarCollapsed && !sidebarHovered && !mobileMenuOpen) ? 'w-full' : ''">
                         <i data-feather="bar-chart-2" class="w-5 h-5 group-hover:scale-110 transition-transform"></i>
                     </div>
-                    <span x-show="isMobile || !sidebarCollapsed || sidebarHovered" x-transition class="font-medium">Reports</span>
+                    <span x-show="!sidebarCollapsed || sidebarHovered || mobileMenuOpen" x-transition class="font-medium">Reports</span>
                 </a>
             </nav>
         
         <!-- User Profile -->
-        <div class="absolute bottom-0 w-full p-4 bg-gradient-to-t from-black/20 to-transparent">
+        <div class="mt-auto w-full p-4 bg-gradient-to-t from-black/20 to-transparent">
             <div class="relative" @click.outside="userDropdown = false">
                 <button @click="userDropdown = !userDropdown" 
                         class="w-full flex items-center gap-3 p-2 rounded-lg hover:bg-white/10 transition-colors" 
-                        :class="(sidebarCollapsed && !sidebarHovered && !isMobile) ? 'justify-center' : ''">
+                        :class="(sidebarCollapsed && !sidebarHovered && !mobileMenuOpen) ? 'justify-center' : ''">
                     <div class="w-10 h-10 bg-gradient-to-br from-yellow-400 to-yellow-500 rounded-full flex items-center justify-center shadow-lg">
                         <span class="text-blue-900 font-bold">{{ user.first_name[0] }}{{ user.last_name[0] }}</span>
                     </div>
-                    <div x-show="isMobile || !sidebarCollapsed || sidebarHovered" x-transition class="flex-1 text-left">
+                    <div x-show="!sidebarCollapsed || sidebarHovered || mobileMenuOpen" x-transition class="flex-1 text-left">
                         <p class="text-sm font-medium text-white">{{ user.first_name }} {{ user.last_name }}</p>
                         <p class="text-xs text-yellow-300">{{ user.position }}</p>
                     </div>
-                    <i x-show="isMobile || !sidebarCollapsed || sidebarHovered" data-feather="chevron-up" class="w-4 h-4 text-white/70"></i>
+                    <i x-show="!sidebarCollapsed || sidebarHovered || mobileMenuOpen" data-feather="chevron-up" class="w-4 h-4 text-white/70"></i>
                 </button>
                 
                 <!-- User Dropdown -->
@@ -407,21 +409,23 @@
         </aside>
         
         <!-- Main Content Area -->
-        <div :class="sidebarCollapsed ? 'md:ml-20' : 'md:ml-64'" class="flex-1 flex flex-col transition-all duration-300 md:pl-4 pt-16 md:pt-0">
-            
-            <header class="md:hidden bg-white shadow-sm border-b border-gray-200 px-4 py-3 flex items-center justify-between sticky top-0 z-20">
-                <button @click="toggleMobileMenu()" class="p-2 rounded-lg hover:bg-gray-100 transition-colors">
-                    <i data-feather="menu" class="w-6 h-6 text-gray-600"></i>
-                </button>
-                <div class="flex items-center gap-2">
-                    <img src="../assets/img/iclinic-logo.png" alt="iClinic" class="w-8 h-8">
-                    <h1 class="text-lg font-bold text-gray-900">Inventory</h1>
+        <div :class="sidebarCollapsed ? 'md:ml-20' : 'md:ml-64'" class="flex-1 flex flex-col transition-all duration-300">
+            <!-- Top Header Bar (menu / collapse controls) -->
+            <header class="absolute inset-x-0 top-0 bg-transparent border-0 shadow-none z-20 pointer-events-none">
+                <div class="flex items-center px-4 sm:px-6 py-3 pointer-events-auto">
+                    <div class="flex items-center gap-3">
+                        <button type="button" class="md:hidden p-2 rounded-lg hover:bg-gray-100 transition-colors bg-white/90 backdrop-blur" @click="mobileMenuOpen = true">
+                            <i data-feather="menu" class="w-5 h-5 text-gray-700"></i>
+                        </button>
+                        <button type="button" class="hidden md:inline-flex lg:hidden p-2 rounded-lg hover:bg-gray-100 transition-colors bg-white/90 backdrop-blur" @click="sidebarCollapsed = !sidebarCollapsed">
+                            <i data-feather="sidebar" class="w-5 h-5 text-gray-700"></i>
+                        </button>
+                    </div>
                 </div>
-                <div class="w-10"></div>
             </header>
-
+            
             <!-- Main Inventory Content -->
-            <main class="flex-1 overflow-y-auto bg-gray-50 p-6">
+            <main class="flex-1 overflow-y-auto bg-gray-50 p-3 sm:p-4 md:p-6">
                 <!-- Enhanced Inventory Header -->
                 <div class="gradient-bg-sidebar text-white shadow-2xl relative overflow-hidden rounded-[2rem] ml-1">
                     <!-- Decorative Elements -->
@@ -490,7 +494,7 @@
                 </div>
 
                 <!-- Inventory Content -->
-                <div class="p-6">
+                <div class="p-3 sm:p-4 md:p-6">
                     <!-- Tab Navigation for Mobile -->
                     <div class="md:hidden mb-6">
                         <nav class="flex space-x-4 overflow-x-auto" aria-label="Tabs">
@@ -525,7 +529,7 @@
                         <div class="mt-8"></div>
                         
                         <!-- Medicines Statistics -->
-                        <div x-show="activeTab === 'medicines'" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+                        <div x-show="activeTab === 'medicines'" class="inv-stats-grid grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
                             <!-- Total Medicines Card -->
                             <div class="stat-card bg-white rounded-xl shadow-md border border-gray-100 p-6 hover:shadow-xl" data-aos="fade-up" data-aos-delay="100">
                                 <div class="flex items-center justify-between">
@@ -600,7 +604,7 @@
                         </div>
                         
                         <!-- Supplies Statistics -->
-                        <div x-show="activeTab === 'supplies'" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+                        <div x-show="activeTab === 'supplies'" class="inv-stats-grid grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
                             <!-- Total Supplies Card -->
                             <div class="stat-card bg-white rounded-xl shadow-md border border-gray-100 p-6 hover:shadow-xl" data-aos="fade-up" data-aos-delay="100">
                                 <div class="flex items-center justify-between">
@@ -682,12 +686,22 @@
                             <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between space-y-4 lg:space-y-0">
                                 <div class="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-4">
                                     <!-- Search Bar -->
-                                    <div class="relative">
-                                        <input type="text" 
-                                               x-model="searchTerm" 
-                                               placeholder="Search medicine name..." 
-                                               class="pl-10 pr-4 py-2 w-64 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white text-gray-900">
-                                        <i data-feather="search" class="absolute left-3 top-2.5 w-4 h-4 text-gray-400"></i>
+                                    <div class="flex items-center space-x-2">
+                                        <select x-model="medicineSearchBy" class="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white text-gray-900">
+                                            <option value="name">Medicine Name</option>
+                                            <option value="brand">Brand Name</option>
+                                            <option value="generic">Generic Name</option>
+                                            <option value="category">Category</option>
+                                        </select>
+
+                                        <div class="relative">
+                                            <input type="text" 
+                                                   x-model="searchTerm" 
+                                                   @input="debounceMedicineSearch()"
+                                                   :placeholder="`Search by ${medicineSearchBy}...`"
+                                                   class="pl-10 pr-4 py-2 w-64 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white text-gray-900">
+                                            <i data-feather="search" class="absolute left-3 top-2.5 w-4 h-4 text-gray-400"></i>
+                                        </div>
                                     </div>
 
                                     <div class="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2">
@@ -704,11 +718,6 @@
                                 </div>
                                 
                                 <div class="flex items-center gap-2">
-                                    <button @click="loadMedicines()" class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg hover:shadow-lg transition-all duration-200 flex items-center space-x-2">
-                                        <i data-feather="refresh-cw" class="w-4 h-4"></i>
-                                        <span>Refresh</span>
-                                    </button>
-    
                                     <button @click="showAddModal  = true" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg hover:shadow-lg transition-all duration-200 flex items-center space-x-2">
                                         <i data-feather="plus" class="w-4 h-4"></i>
                                         <span>Add Medicine</span>
@@ -725,12 +734,13 @@
                                     <div class="relative">
                                         <input type="text" 
                                                x-model="supplySearchTerm" 
+                                               @input="currentSupplyPage = 1"
                                                placeholder="Search supplies, equipment..." 
                                                class="pl-10 pr-4 py-2 w-64 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white text-gray-900">
                                         <i data-feather="search" class="absolute left-3 top-2.5 w-4 h-4 text-gray-400"></i>
                                     </div>
                                     
-                                    <select x-model="selectedSupplyCategory" class="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white text-gray-900">
+                                    <select x-model="selectedSupplyCategory" @change="currentSupplyPage = 1" class="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white text-gray-900">
                                         <option value="">All Categories</option>
                                         <option value="Medical Equipment">Medical Equipment</option>
                                         <option value="Furniture">Furniture</option>
@@ -739,7 +749,7 @@
                                         <option value="Cleaning Supplies">Cleaning Supplies</option>
                                     </select>
                                     
-                                    <select x-model="selectedCondition" class="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white text-gray-900">
+                                    <select x-model="selectedCondition" @change="currentSupplyPage = 1" class="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white text-gray-900">
                                         <option value="">All Conditions</option>
                                         <option value="Excellent">Excellent</option>
                                         <option value="Good">Good</option>
@@ -751,6 +761,7 @@
                                     <div class="relative">
                                         <input type="text" 
                                                x-model="selectedLocation" 
+                                               @input="currentSupplyPage = 1"
                                                placeholder="Filter by location..." 
                                                class="pl-10 pr-4 py-2 w-48 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white text-gray-900">
                                         <i data-feather="map-pin" class="absolute left-3 top-2.5 w-4 h-4 text-gray-400"></i>
@@ -758,10 +769,6 @@
                                 </div>
                                 
                                 <div class="flex items-center gap-2">
-                                    <button @click="loadSupplies()" class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg hover:shadow-lg transition-all duration-200 flex items-center space-x-2">
-                                        <i data-feather="refresh-cw" class="w-4 h-4"></i>
-                                        <span>Refresh</span>
-                                    </button>
                                     <button @click="showAddSupplyModal = true" class="bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-lg hover:shadow-lg transition-all duration-200 flex items-center space-x-2">
                                         <i data-feather="plus" class="w-4 h-4"></i>
                                         <span>Add Supply</span>
@@ -779,11 +786,54 @@
                             <span class="ml-3 text-gray-600">Loading medicines from database...</span>
                         </div>
 
+                        <div x-show="!loadingMedicines" class="sm:hidden space-y-3 p-3">
+                            <template x-for="(medicine, index) in paginatedMedicines" :key="medicine.id || index">
+                                <div class="bg-white rounded-2xl shadow-lg border border-gray-200 p-3">
+                                    <div class="flex items-start gap-3 min-w-0">
+                                        <div class="w-10 h-10 rounded-xl bg-blue-500 flex items-center justify-center shadow-md flex-shrink-0">
+                                            <i data-feather="package" class="w-5 h-5 text-white"></i>
+                                        </div>
+                                        <div class="flex-1 min-w-0">
+                                            <div class="text-xs font-semibold text-gray-900 truncate" x-text="(((currentMedicinePage - 1) * medicineRowsPerPage) + index + 1) + '. ' + (medicine.name || 'Unknown Medicine')"></div>
+                                            <div class="text-[11px] text-gray-500 truncate" x-text="medicine.brand_name || 'No brand name'"></div>
+
+                                            <div class="mt-2 flex flex-wrap items-center gap-2">
+                                                <span class="px-2 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-800" x-text="medicine.category || 'N/A'"></span>
+                                                <span class="px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800" x-text="(medicine.quantity || 0) + ' units'"></span>
+                                                <span class="px-2 py-1 text-xs font-semibold rounded-full bg-amber-100 text-amber-800" x-text="medicine.earliest_batch_expiry_date || medicine.expiry_date || 'No Expiry'"></span>
+                                                <span class="px-2 py-1 text-xs font-semibold rounded-full bg-emerald-100 text-emerald-800" x-text="medicine.status || 'Unknown'"></span>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="mt-3 flex items-center justify-end gap-2">
+                                        <button x-show="medicine.batches && medicine.batches.length > 0"
+                                                @click="viewBatches(medicine, 'active')"
+                                                class="text-purple-600 hover:text-purple-800 bg-purple-50 hover:bg-purple-100 p-2 rounded-xl transition-colors"
+                                                title="View Active Batches">
+                                            <i data-feather="package" class="w-4 h-4"></i>
+                                        </button>
+                                        <button @click="editMedicine(medicine)"
+                                                class="text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 p-2 rounded-xl transition-colors"
+                                                title="Edit Medicine">
+                                            <i data-feather="edit-2" class="w-4 h-4"></i>
+                                        </button>
+                                        <button @click="deleteMedicine(medicine.id)"
+                                                class="text-red-600 hover:text-red-800 bg-red-50 hover:bg-red-100 p-2 rounded-xl transition-colors"
+                                                title="Delete Medicine">
+                                            <i data-feather="trash-2" class="w-4 h-4"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+
                         <!-- Medicine Table -->
-                        <div x-show="!loadingMedicines" class="overflow-x-auto">
-                            <table class="min-w-full divide-y divide-gray-200">
+                        <div x-show="!loadingMedicines" class="hidden sm:block overflow-x-auto">
+                            <table class="min-w-full divide-y divide-gray-200 responsive-table">
                                 <thead class="bg-gray-50">
                                     <tr>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">No.</th>
                                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Medicine</th>
                                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category</th>
                                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Quantity</th>
@@ -795,9 +845,10 @@
                                     </tr>
                                 </thead>
                                 <tbody class="bg-white divide-y divide-gray-200">
-                                    <template x-for="(medicine, index) in filteredMedicines" :key="medicine.id || index">
+                                    <template x-for="(medicine, index) in paginatedMedicines" :key="medicine.id || index">
                                         <!-- Medicine without batches - regular row -->
                                         <tr class="hover:bg-gray-50">
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900" x-text="((currentMedicinePage - 1) * medicineRowsPerPage) + index + 1"></td>
                                             <td class="px-6 py-4 whitespace-nowrap">
                                                 <div class="flex items-center">
                                                     <div class="ml-4">
@@ -823,11 +874,11 @@
                                             </td>
                                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900" x-text="medicine.strength || 'N/A'"></td>
                                             <td class="px-6 py-4 whitespace-nowrap">
-                                                <div class="text-sm text-gray-900" x-text="formatDateTime(medicine.acquired)"></div>
+                                                <div class="text-sm text-gray-900" x-text="formatDateTime(medicine.latest_batch_arrival_date || medicine.acquired)"></div>
                                                 <div class="text-xs text-gray-500">Added to inventory</div>
                                             </td>
                                             <td class="px-6 py-4 whitespace-nowrap">
-                                                <div class="text-sm text-gray-900" x-text="medicine.expiry_date || 'No Date'"></div>
+                                                <div class="text-sm text-gray-900" x-text="medicine.earliest_batch_expiry_date || medicine.expiry_date || 'No Date'"></div>
                                             </td>
                                             <td class="px-6 py-4 whitespace-nowrap">
                                                 <span class="px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800" 
@@ -859,6 +910,28 @@
                             </table>
                         </div>
 
+                        <div x-show="!loadingMedicines && filteredMedicines.length > 0" class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 px-6 py-4 border-t border-gray-200">
+                            <div class="flex items-center gap-2">
+                                <span class="text-sm text-gray-600">Rows</span>
+                                <select x-model.number="medicineRowsPerPage" @change="currentMedicinePage = 1" class="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white text-gray-900">
+                                    <option :value="10">10</option>
+                                    <option :value="20">20</option>
+                                    <option :value="50">50</option>
+                                </select>
+                                <span class="text-sm text-gray-600" x-text="`of ${filteredMedicines.length}`"></span>
+                            </div>
+
+                            <div class="flex items-center gap-2">
+                                <button @click="currentMedicinePage = Math.max(1, currentMedicinePage - 1)" :disabled="currentMedicinePage <= 1" class="px-3 py-2 border border-gray-300 rounded-lg text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">
+                                    Prev
+                                </button>
+                                <span class="text-sm text-gray-700" x-text="`Page ${currentMedicinePage} of ${totalMedicinePages}`"></span>
+                                <button @click="currentMedicinePage = Math.min(totalMedicinePages, currentMedicinePage + 1)" :disabled="currentMedicinePage >= totalMedicinePages" class="px-3 py-2 border border-gray-300 rounded-lg text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">
+                                    Next
+                                </button>
+                            </div>
+                        </div>
+
                         <!-- Empty State -->
                         <div x-show="!loadingMedicines && filteredMedicines.length === 0" class="text-center py-16">
                             <div class="w-20 h-20 bg-gradient-to-br from-gray-100 to-gray-200 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -875,21 +948,69 @@
                     <!-- Supplies Inventory Table -->
                     <div x-show="activeTab === 'supplies'" class="bg-white rounded-xl shadow-sm overflow-hidden">
                         <!-- Supplies Table -->
-                        <div class="overflow-x-auto">
-                            <table class="min-w-full divide-y divide-gray-200">
+                        <div class="sm:hidden space-y-3 p-3">
+                            <template x-for="(supply, index) in paginatedSupplies" :key="supply.id || index">
+                                <div class="bg-white rounded-2xl shadow-lg border border-gray-200 p-3">
+                                    <div class="flex items-start gap-3 min-w-0">
+                                        <div class="w-10 h-10 rounded-xl bg-orange-500 flex items-center justify-center shadow-md flex-shrink-0">
+                                            <i data-feather="tool" class="w-5 h-5 text-white"></i>
+                                        </div>
+                                        <div class="flex-1 min-w-0">
+                                            <div class="text-xs font-semibold text-gray-900 truncate" x-text="(((currentSupplyPage - 1) * supplyRowsPerPage) + index + 1) + '. ' + (supply.item_name || supply.name || 'Unknown Supply')"></div>
+                                            <div class="text-[11px] text-gray-500 truncate" x-text="supply.brand_model || (supply.brand && supply.model ? supply.brand + ' ' + supply.model : '')"></div>
+
+                                            <div class="mt-2 flex flex-wrap items-center gap-2">
+                                                <span class="px-2 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-800" x-text="supply.category"></span>
+                                                <span class="px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800" x-text="String(supply.quantity || 0)"></span>
+                                                <span class="px-2 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-800" x-text="supply.arrival_date || 'N/A'"></span>
+                                                <span class="px-2 py-1 text-xs font-semibold rounded-full bg-amber-100 text-amber-800" x-text="supply.expiry_date || 'N/A'"></span>
+                                                <span class="px-2 py-1 text-xs font-semibold rounded-full"
+                                                      :class="{
+                                                          'bg-green-100 text-green-800': supply.condition_status === 'Working Properly' || supply.condition_status === 'Good' || supply.condition_status === 'Excellent',
+                                                          'bg-yellow-100 text-yellow-800': supply.condition_status === 'Needs Maintenance' || supply.condition_status === 'Fair',
+                                                          'bg-red-100 text-red-800': supply.condition_status === 'For Repair' || supply.condition_status === 'Needs Repair',
+                                                          'bg-gray-100 text-gray-800': supply.condition_status === 'Not Functional' || supply.condition_status === 'Poor'
+                                                      }"
+                                                      x-text="getConditionText(supply.condition_status)"></span>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="mt-3 flex items-center justify-end gap-2">
+                                        <button @click="editSupply(supply)"
+                                                class="text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 p-2 rounded-xl transition-colors"
+                                                title="Edit Supply">
+                                            <i data-feather="edit-2" class="w-4 h-4"></i>
+                                        </button>
+                                        <button @click="deleteSupply(supply.id)"
+                                                class="text-red-600 hover:text-red-800 bg-red-50 hover:bg-red-100 p-2 rounded-xl transition-colors"
+                                                title="Delete Supply">
+                                            <i data-feather="trash-2" class="w-4 h-4"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+
+                        <div class="hidden sm:block overflow-x-auto">
+                            <table class="min-w-full divide-y divide-gray-200 responsive-table">
                                 <thead class="bg-gray-50">
                                     <tr>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">No.</th>
                                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Item</th>
                                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category</th>
                                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Quantity</th>
                                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Condition</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Arrival Date</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Expiry Date</th>
                                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Remarks</th>
                                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody class="bg-white divide-y divide-gray-200">
-                                    <template x-for="(supply, index) in filteredSupplies" :key="supply.id || index">
+                                    <template x-for="(supply, index) in paginatedSupplies" :key="supply.id || index">
                                         <tr class="hover:bg-gray-50">
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900" x-text="((currentSupplyPage - 1) * supplyRowsPerPage) + index + 1"></td>
                                             <td class="px-6 py-4 whitespace-nowrap">
                                                 <div class="flex items-center">
                                                     <div class="ml-4">
@@ -924,6 +1045,12 @@
                                                       x-text="getConditionText(supply.condition_status)"></span>
                                             </td>
                                             <td class="px-6 py-4 whitespace-nowrap">
+                                                <div class="text-sm text-gray-900" x-text="supply.arrival_date || 'N/A'"></div>
+                                            </td>
+                                            <td class="px-6 py-4 whitespace-nowrap">
+                                                <div class="text-sm text-gray-900" x-text="supply.expiry_date || 'N/A'"></div>
+                                            </td>
+                                            <td class="px-6 py-4 whitespace-nowrap">
                                                 <div class="text-sm text-gray-900" x-text="supply.notes || supply.remarks || 'No remarks'"></div>
                                             </td>
                                             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
@@ -946,6 +1073,28 @@
                             </table>
                         </div>
 
+                        <!-- Supply Pagination -->
+                        <div x-show="filteredSupplies.length > 0" class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 px-6 py-4 border-t border-gray-200">
+                            <div class="flex items-center gap-2">
+                                <span class="text-sm text-gray-600">Rows</span>
+                                <select x-model.number="supplyRowsPerPage" @change="currentSupplyPage = 1" class="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white text-gray-900">
+                                    <option :value="10">10</option>
+                                    <option :value="20">20</option>
+                                    <option :value="50">50</option>
+                                </select>
+                                <span class="text-sm text-gray-600" x-text="`of ${filteredSupplies.length}`"></span>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <button @click="currentSupplyPage = Math.max(1, currentSupplyPage - 1)" :disabled="currentSupplyPage <= 1" class="px-3 py-2 border border-gray-300 rounded-lg text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">
+                                    Prev
+                                </button>
+                                <span class="text-sm text-gray-700" x-text="`Page ${currentSupplyPage} of ${totalSupplyPages}`"></span>
+                                <button @click="currentSupplyPage = Math.min(totalSupplyPages, currentSupplyPage + 1)" :disabled="currentSupplyPage >= totalSupplyPages" class="px-3 py-2 border border-gray-300 rounded-lg text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">
+                                    Next
+                                </button>
+                            </div>
+                        </div>
+
                         <!-- Empty State -->
                         <div x-show="!loadingSupplies && filteredSupplies.length === 0" class="text-center py-16">
                             <div class="w-20 h-20 bg-gradient-to-br from-gray-100 to-gray-200 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -963,11 +1112,11 @@
                     <div x-show="activeTab === 'archive'" x-data="{ archiveCategory: 'medicines' }">
                         
                         <!-- Archive Category Tabs -->
-                        <div class="bg-white rounded-xl shadow-sm p-4 -mt-12 mb-6">
-                            <div class="flex flex-wrap gap-3">
-                                <button @click="archiveCategory = 'medicines'" 
+                        <div class="bg-white rounded-xl shadow-sm p-3 sm:p-4 -mt-12 mb-6">
+                            <div class="flex flex-col sm:flex-row sm:flex-wrap gap-2 sm:gap-3">
+                                <button @click="archiveCategory = 'medicines'; currentExpiredMedicinePage = 1" 
                                         :class="archiveCategory === 'medicines' ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'"
-                                        class="px-6 py-3 rounded-lg font-medium transition-all duration-200 flex items-center gap-2 shadow-md hover:shadow-lg">
+                                        class="w-full sm:w-auto px-4 sm:px-6 py-2.5 sm:py-3 rounded-lg font-medium transition-all duration-200 flex items-center justify-between sm:justify-start gap-2 shadow-md hover:shadow-lg">
                                     <i data-feather="package" class="w-5 h-5"></i>
                                     <span>Expired Medicines</span>
                                     <span class="px-2 py-0.5 rounded-full text-xs font-bold" 
@@ -975,9 +1124,9 @@
                                           x-text="expiredMedicines.length"></span>
                                 </button>
                                 
-                                <button @click="archiveCategory = 'supplies'" 
+                                <button @click="archiveCategory = 'supplies'; currentExpiredSupplyPage = 1" 
                                         :class="archiveCategory === 'supplies' ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'"
-                                        class="px-6 py-3 rounded-lg font-medium transition-all duration-200 flex items-center gap-2 shadow-md hover:shadow-lg">
+                                        class="w-full sm:w-auto px-4 sm:px-6 py-2.5 sm:py-3 rounded-lg font-medium transition-all duration-200 flex items-center justify-between sm:justify-start gap-2 shadow-md hover:shadow-lg">
                                     <i data-feather="clipboard" class="w-5 h-5"></i>
                                     <span>Expired Supplies</span>
                                     <span class="px-2 py-0.5 rounded-full text-xs font-bold" 
@@ -988,7 +1137,7 @@
                         </div>
                         
                         <!-- Archive Statistics Cards -->
-                        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-6">
+                        <div class="inv-archive-stats-grid grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-5 mb-6">
                             <!-- Total Expired Items -->
                             <div class="stat-card bg-white rounded-xl shadow-md border border-red-200 p-6 hover:shadow-xl">
                                 <div class="flex items-center justify-between">
@@ -1044,8 +1193,8 @@
                         
                         <!-- Expired Medicines Section -->
                         <div x-show="archiveCategory === 'medicines'" class="bg-white rounded-xl shadow-sm overflow-hidden">
-                            <div class="p-6 bg-gradient-to-r from-blue-50 to-blue-100 border-b border-blue-200">
-                                <div class="flex items-center justify-between">
+                            <div class="p-3 sm:p-6 bg-gradient-to-r from-blue-50 to-blue-100 border-b border-blue-200">
+                                <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                                     <div class="flex items-center gap-3">
                                         <div class="w-10 h-10 bg-blue-500 rounded-lg flex items-center justify-center shadow-lg">
                                             <i data-feather="package" class="w-5 h-5 text-white"></i>
@@ -1055,23 +1204,61 @@
                                             <p class="text-sm text-gray-600">Medicines that have passed their expiration date</p>
                                         </div>
                                     </div>
-                                    <div class="flex items-center gap-3">
-                                        <select x-model="selectedExpiryStatus" class="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white text-gray-900">
+                                    <div class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
+                                        <select x-model="selectedExpiryStatus" class="w-full sm:w-auto px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white text-gray-900">
                                             <option value="">All Expiry Status</option>
                                             <option value="valid">Valid (&gt; 30 days)</option>
                                             <option value="expiring">Expiring Soon (0-30 days)</option>
                                             <option value="expired">Expired</option>
                                         </select>
-                                        <span class="px-3 py-1 bg-blue-500 text-white rounded-full text-sm font-semibold" x-text="expiredMedicines.length + ' items'"></span>
+                                        <span class="w-fit px-3 py-1 bg-blue-500 text-white rounded-full text-sm font-semibold" x-text="expiredMedicines.length + ' items'"></span>
                                     </div>
                                 </div>
                             </div>
 
+                            <div class="sm:hidden space-y-3 p-3">
+                                <template x-for="(medicine, index) in paginatedExpiredMedicines" :key="medicine.id || index">
+                                    <div class="bg-white rounded-2xl shadow-lg border border-gray-200 p-3">
+                                        <div class="flex items-start gap-3 min-w-0">
+                                            <div class="w-10 h-10 rounded-xl bg-red-500 flex items-center justify-center shadow-md flex-shrink-0">
+                                                <i data-feather="alert-triangle" class="w-5 h-5 text-white"></i>
+                                            </div>
+                                            <div class="flex-1 min-w-0">
+                                                <div class="text-xs font-semibold text-gray-900 truncate" x-text="`${((Number(currentExpiredMedicinePage) || 1) - 1) * (Number(expiredMedicineRowsPerPage) || 10) + index + 1}. ${medicine.name || 'Unknown Medicine'}`"></div>
+                                                <div class="text-[11px] text-gray-500 truncate" x-text="medicine.brand_name || 'No brand name'"></div>
+
+                                                <div class="mt-2 flex flex-wrap items-center gap-2">
+                                                    <span class="px-2 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-800" x-text="medicine.category || 'N/A'"></span>
+                                                    <span class="px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800" x-text="(medicine.quantity || 0) + ' units'"></span>
+                                                    <span class="px-2 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-800" x-text="medicine.earliest_batch_expiry_date || medicine.expiry_date || 'No Date'"></span>
+                                                    <span class="px-2 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-800" x-text="getDaysExpired(medicine.earliest_batch_expiry_date || medicine.expiry_date)"></span>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div class="mt-3 flex items-center justify-end gap-2">
+                                            <button x-show="medicine.batches && medicine.batches.length > 0"
+                                                    @click="viewBatches(medicine, 'expired')"
+                                                    class="text-purple-600 hover:text-purple-800 bg-purple-50 hover:bg-purple-100 p-2 rounded-xl transition-colors"
+                                                    title="View Expired/Expiring Batches">
+                                                <i data-feather="package" class="w-4 h-4"></i>
+                                            </button>
+                                            <button @click="deleteMedicine(medicine.id)"
+                                                    class="text-red-600 hover:text-red-800 bg-red-50 hover:bg-red-100 p-2 rounded-xl transition-colors"
+                                                    title="Delete Permanently">
+                                                <i data-feather="trash-2" class="w-4 h-4"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </template>
+                            </div>
+
                         <!-- Archived Medicines Table -->
-                        <div class="overflow-x-auto">
-                            <table class="min-w-full divide-y divide-gray-200">
+                        <div class="hidden sm:block overflow-x-auto">
+                            <table class="min-w-full divide-y divide-gray-200 responsive-table">
                                 <thead class="bg-gray-50">
                                     <tr>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">No.</th>
                                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Medicine</th>
                                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category</th>
                                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Quantity</th>
@@ -1082,8 +1269,9 @@
                                     </tr>
                                 </thead>
                                 <tbody class="bg-white divide-y divide-gray-200">
-                                    <template x-for="(medicine, index) in expiredMedicines" :key="medicine.id || index">
+                                    <template x-for="(medicine, index) in paginatedExpiredMedicines" :key="medicine.id || index">
                                         <tr class="hover:bg-red-50">
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900" x-text="((Number(currentExpiredMedicinePage) || 1) - 1) * (Number(expiredMedicineRowsPerPage) || 10) + index + 1"></td>
                                             <td class="px-6 py-4 whitespace-nowrap">
                                                 <div class="flex items-center">
                                                     <div class="ml-4">
@@ -1102,11 +1290,11 @@
                                             </td>
                                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900" x-text="medicine.strength || 'N/A'"></td>
                                             <td class="px-6 py-4 whitespace-nowrap">
-                                                <div class="text-sm text-red-600 font-semibold" x-text="medicine.expiry_date || 'No Date'"></div>
+                                                <div class="text-sm text-red-600 font-semibold" x-text="medicine.earliest_batch_expiry_date || medicine.expiry_date || 'No Date'"></div>
                                             </td>
                                             <td class="px-6 py-4 whitespace-nowrap">
                                                 <span class="px-2 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-800" 
-                                                      x-text="getDaysExpired(medicine.expiry_date)"></span>
+                                                      x-text="getDaysExpired(medicine.earliest_batch_expiry_date || medicine.expiry_date)"></span>
                                             </td>
                                             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
                                                 <div class="flex items-center space-x-2">
@@ -1137,12 +1325,29 @@
                             <h3 class="text-lg font-medium text-gray-900 mb-2">No Expired Medicines</h3>
                             <p class="text-gray-500">All medicines are within their expiration dates!</p>
                         </div>
+
+                        <div x-show="expiredMedicines.length > 0" class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 border-t border-gray-200">
+                            <div class="flex items-center gap-3">
+                                <label class="text-sm text-gray-700">Rows per page</label>
+                                <select x-model="expiredMedicineRowsPerPage" @change="currentExpiredMedicinePage = 1" class="px-3 py-2 border border-gray-300 rounded-lg text-gray-700 bg-white">
+                                    <option value="10">10</option>
+                                    <option value="20">20</option>
+                                    <option value="50">50</option>
+                                </select>
+                                <span class="text-sm text-gray-600" x-text="(() => { const total = expiredMedicines.length; const per = Number(expiredMedicineRowsPerPage)||10; const page = Math.min(Math.max(1, Number(currentExpiredMedicinePage)||1), totalExpiredMedicinePages); const start = total===0?0:((page-1)*per+1); const end = Math.min(page*per,total); return `Showing ${start}-${end} of ${total}`; })()"></span>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <button @click="currentExpiredMedicinePage = Math.max(1, currentExpiredMedicinePage - 1)" :disabled="currentExpiredMedicinePage <= 1" class="px-3 py-2 border border-gray-300 rounded-lg text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">Prev</button>
+                                <span class="text-sm text-gray-700" x-text="`Page ${currentExpiredMedicinePage} of ${totalExpiredMedicinePages}`"></span>
+                                <button @click="currentExpiredMedicinePage = Math.min(totalExpiredMedicinePages, currentExpiredMedicinePage + 1)" :disabled="currentExpiredMedicinePage >= totalExpiredMedicinePages" class="px-3 py-2 border border-gray-300 rounded-lg text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">Next</button>
+                            </div>
+                        </div>
                     </div>
                     
                     <!-- Expired Supplies Section -->
                     <div x-show="archiveCategory === 'supplies'" class="bg-white rounded-xl shadow-sm overflow-hidden">
-                        <div class="p-6 bg-gradient-to-r from-orange-50 to-orange-100 border-b border-orange-200">
-                            <div class="flex items-center justify-between">
+                        <div class="p-3 sm:p-6 bg-gradient-to-r from-orange-50 to-orange-100 border-b border-orange-200">
+                            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                                 <div class="flex items-center gap-3">
                                     <div class="w-10 h-10 bg-orange-500 rounded-lg flex items-center justify-center shadow-lg">
                                         <i data-feather="clipboard" class="w-5 h-5 text-white"></i>
@@ -1152,15 +1357,45 @@
                                         <p class="text-sm text-gray-600">Supplies and equipment that are no longer usable</p>
                                     </div>
                                 </div>
-                                <span class="px-3 py-1 bg-orange-500 text-white rounded-full text-sm font-semibold" x-text="expiredSupplies.length + ' items'"></span>
+                                <span class="w-fit px-3 py-1 bg-orange-500 text-white rounded-full text-sm font-semibold" x-text="expiredSupplies.length + ' items'"></span>
                             </div>
                         </div>
 
+                        <div class="sm:hidden space-y-3 p-3">
+                            <template x-for="(supply, index) in paginatedExpiredSupplies" :key="supply.id || index">
+                                <div class="bg-white rounded-2xl shadow-lg border border-gray-200 p-3">
+                                    <div class="flex items-start gap-3 min-w-0">
+                                        <div class="w-10 h-10 rounded-xl bg-orange-500 flex items-center justify-center shadow-md flex-shrink-0">
+                                            <i data-feather="clipboard" class="w-5 h-5 text-white"></i>
+                                        </div>
+                                        <div class="flex-1 min-w-0">
+                                            <div class="text-xs font-semibold text-gray-900 truncate" x-text="`${((Number(currentExpiredSupplyPage) || 1) - 1) * (Number(expiredSupplyRowsPerPage) || 10) + index + 1}. ${supply.item_name || 'Unknown Item'}`"></div>
+                                            <div class="mt-2 flex flex-wrap items-center gap-2">
+                                                <span class="px-2 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-800" x-text="supply.category || 'N/A'"></span>
+                                                <span class="px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800" x-text="(supply.quantity || 0) + ' units'"></span>
+                                                <span class="px-2 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-800" x-text="supply.condition_status || supply.condition || 'Not Functional'"></span>
+                                            </div>
+                                            <div class="mt-2 text-[11px] text-gray-600" x-text="supply.notes || supply.remarks || 'No remarks'"></div>
+                                        </div>
+                                    </div>
+
+                                    <div class="mt-3 flex items-center justify-end gap-2">
+                                        <button @click="deleteSupply(supply.id)"
+                                                class="text-red-600 hover:text-red-800 bg-red-50 hover:bg-red-100 p-2 rounded-xl transition-colors"
+                                                title="Delete Permanently">
+                                            <i data-feather="trash-2" class="w-4 h-4"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+
                         <!-- Archived Supplies Table -->
-                        <div class="overflow-x-auto">
-                            <table class="min-w-full divide-y divide-gray-200">
+                        <div class="hidden sm:block overflow-x-auto">
+                            <table class="min-w-full divide-y divide-gray-200 responsive-table">
                                 <thead class="bg-gray-50">
                                     <tr>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">No.</th>
                                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Item Name</th>
                                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category</th>
                                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Quantity</th>
@@ -1170,8 +1405,9 @@
                                     </tr>
                                 </thead>
                                 <tbody class="bg-white divide-y divide-gray-200">
-                                    <template x-for="(supply, index) in expiredSupplies" :key="supply.id || index">
+                                    <template x-for="(supply, index) in paginatedExpiredSupplies" :key="supply.id || index">
                                         <tr class="hover:bg-orange-50">
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900" x-text="((Number(currentExpiredSupplyPage) || 1) - 1) * (Number(expiredSupplyRowsPerPage) || 10) + index + 1"></td>
                                             <td class="px-6 py-4 whitespace-nowrap">
                                                 <div class="flex items-center">
                                                     <div class="ml-4">
@@ -1228,6 +1464,23 @@
                             </div>
                             <h3 class="text-lg font-medium text-gray-900 mb-2">No Expired Supplies</h3>
                             <p class="text-gray-500">All supplies and equipment are in good condition!</p>
+                        </div>
+
+                        <div x-show="expiredSupplies.length > 0" class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 border-t border-gray-200">
+                            <div class="flex items-center gap-3">
+                                <label class="text-sm text-gray-700">Rows per page</label>
+                                <select x-model="expiredSupplyRowsPerPage" @change="currentExpiredSupplyPage = 1" class="px-3 py-2 border border-gray-300 rounded-lg text-gray-700 bg-white">
+                                    <option value="10">10</option>
+                                    <option value="20">20</option>
+                                    <option value="50">50</option>
+                                </select>
+                                <span class="text-sm text-gray-600" x-text="(() => { const total = expiredSupplies.length; const per = Number(expiredSupplyRowsPerPage)||10; const page = Math.min(Math.max(1, Number(currentExpiredSupplyPage)||1), totalExpiredSupplyPages); const start = total===0?0:((page-1)*per+1); const end = Math.min(page*per,total); return `Showing ${start}-${end} of ${total}`; })()"></span>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <button @click="currentExpiredSupplyPage = Math.max(1, currentExpiredSupplyPage - 1)" :disabled="currentExpiredSupplyPage <= 1" class="px-3 py-2 border border-gray-300 rounded-lg text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">Prev</button>
+                                <span class="text-sm text-gray-700" x-text="`Page ${currentExpiredSupplyPage} of ${totalExpiredSupplyPages}`"></span>
+                                <button @click="currentExpiredSupplyPage = Math.min(totalExpiredSupplyPages, currentExpiredSupplyPage + 1)" :disabled="currentExpiredSupplyPage >= totalExpiredSupplyPages" class="px-3 py-2 border border-gray-300 rounded-lg text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">Next</button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -1540,9 +1793,9 @@
             return {
                 // State
                 sidebarCollapsed: false,
-                mobileMenuOpen: false,
-                isMobile: false,
                 sidebarHovered: false,
+                isMobile: false,
+                mobileMenuOpen: false,
                 notificationDropdown: false,
                 userDropdown: false,
                 showSettingsModal: false,
@@ -1570,8 +1823,19 @@
                 // Active tab
                 activeTab: 'medicines',
                 
+                // Archive pagination (expired items)
+                currentExpiredMedicinePage: 1,
+                expiredMedicineRowsPerPage: 10,
+                currentExpiredSupplyPage: 1,
+                expiredSupplyRowsPerPage: 10,
+                
                 // Filters
                 searchTerm: '',
+                debouncedSearchTerm: '',
+                medicineSearchBy: 'name',
+                _medicineSearchDebounceTimer: null,
+                currentMedicinePage: 1,
+                medicineRowsPerPage: 10,
                 selectedCategory: '',
                 selectedStatus: '',
                 expiryDateFrom: '',
@@ -1583,7 +1847,8 @@
                 selectedSupplyCategory: '',
                 selectedCondition: '',
                 selectedLocation: '',
-                
+                currentSupplyPage: 1,
+                supplyRowsPerPage: 10,
                 
                 // Edit form data
                 editingMedicine: {
@@ -1624,7 +1889,9 @@
                     item_name: '',
                     category: '',
                     quantity: 1,
-                    condition: 'Excellent'
+                    condition: 'Excellent',
+                    arrival_date: '',
+                    expiry_date: ''
                 },
                 
                 // Edit supply form data
@@ -1637,12 +1904,27 @@
                     location: '',
                     brand_model: '',
                     purchase_date: '',
+                    arrival_date: '',
+                    expiry_date: '',
                     cost: 0,
                     supplier: '',
                     notes: ''
                 },
                 
                 // Computed properties
+                get totalMedicinePages() {
+                    const total = this.filteredMedicines.length;
+                    const perPage = Number(this.medicineRowsPerPage) || 10;
+                    return Math.max(1, Math.ceil(total / perPage));
+                },
+
+                get paginatedMedicines() {
+                    const perPage = Number(this.medicineRowsPerPage) || 10;
+                    const page = Math.min(Math.max(1, Number(this.currentMedicinePage) || 1), this.totalMedicinePages);
+                    const start = (page - 1) * perPage;
+                    return this.filteredMedicines.slice(start, start + perPage);
+                },
+
                 get filteredMedicines() {
                     return this.medicines.filter(medicine => {
                         const hasExpiryRangeFilter = !!this.expiryDateFrom || !!this.expiryDateTo;
@@ -1705,33 +1987,50 @@
 
                         if (!matchesExpiryRange) return false;
 
-                        // Default behavior: show medicines that are NOT expired (including expiring soon)
+                        // Preserve current default behavior: by default, show only medicines with at least one batch > 30 days
                         if (!hasExpiryRangeFilter && !hasExpiryStatusFilter) {
-                            let hasNonExpiredBatch = false;
+                            let hasActiveBatches = false;
 
                             if (medicine.batches && medicine.batches.length > 0) {
-                                hasNonExpiredBatch = medicine.batches.some(batch => {
+                                hasActiveBatches = medicine.batches.some(batch => {
                                     const daysUntilExpiry = this.getDaysUntilExpiry(batch.expiry_date);
-                                    return daysUntilExpiry >= 0;
+                                    return daysUntilExpiry > 30;
                                 });
-                            } else if (medicine.expiry_date) {
-                                const daysUntilExpiry = this.getDaysUntilExpiry(medicine.expiry_date);
-                                hasNonExpiredBatch = daysUntilExpiry >= 0;
                             } else {
-                                // If no expiry info, still show it in active list
-                                hasNonExpiredBatch = true;
+                                const daysUntilExpiry = this.getDaysUntilExpiry(medicine.expiry_date);
+                                hasActiveBatches = daysUntilExpiry > 30;
                             }
 
-                            if (!hasNonExpiredBatch) {
+                            if (!hasActiveBatches) {
                                 return false;
                             }
                         }
                         
-                        // Search filter - check medicine name, brand name, and generic name
-                        const matchesSearch = !this.searchTerm || 
-                            medicine.name.toLowerCase().includes(this.searchTerm.toLowerCase()) ||
-                            (medicine.brand_name && medicine.brand_name.toLowerCase().includes(this.searchTerm.toLowerCase())) ||
-                            (medicine.generic_name && medicine.generic_name.toLowerCase().includes(this.searchTerm.toLowerCase()));
+                        // Search filter
+                        const normalizeSearchText = (val) => {
+                            if (val === null || val === undefined) return '';
+                            return String(val)
+                                .toLowerCase()
+                                .trim()
+                                .replace(/\s+/g, ' ');
+                        };
+
+                        const query = normalizeSearchText(this.debouncedSearchTerm);
+                        const matchesPrefixQuery = (haystack) => {
+                            if (!query) return true;
+                            const h = normalizeSearchText(haystack);
+                            return h.startsWith(query);
+                        };
+
+                        const searchBy = this.medicineSearchBy || 'name';
+                        const matchesSearch = (() => {
+                            if (!query) return true;
+                            if (searchBy === 'name') return matchesPrefixQuery(medicine.name);
+                            if (searchBy === 'brand') return matchesPrefixQuery(medicine.brand_name);
+                            if (searchBy === 'generic') return matchesPrefixQuery(medicine.generic_name);
+                            if (searchBy === 'category') return matchesPrefixQuery(medicine.category);
+                            return true;
+                        })();
                         
                         // Category filter
                         const matchesCategory = !this.selectedCategory || medicine.category === this.selectedCategory;
@@ -1747,6 +2046,13 @@
                     // Exclude supplies that should be in Archive (Not Functional, Poor, damaged, etc.)
                     const activeSupplies = (this.supplies || []).filter(supply => {
                         const condition = (supply.condition_status || supply.condition || '').toLowerCase();
+                        const arrivalDateStr = supply.arrival_date;
+                        const arrivalDate = arrivalDateStr ? new Date(arrivalDateStr + 'T00:00:00') : null;
+                        const today = new Date();
+                        today.setHours(0, 0, 0, 0);
+                        const cutoff = new Date(today);
+                        cutoff.setFullYear(cutoff.getFullYear() - 4);
+                        const isOldSupply = arrivalDate && !isNaN(arrivalDate.getTime()) && arrivalDate <= cutoff;
                         
                         // Exclude archived conditions (case-insensitive)
                         const isArchived = condition === 'not functional' || 
@@ -1759,12 +2065,25 @@
                                          condition === 'not-functional' ||
                                          condition === 'for disposal';
                         
-                        return !isArchived; // Return only non-archived supplies
+                        return !(isArchived || isOldSupply); // Return only non-archived supplies
                     });
                     
                     return activeSupplies;
                 },
-                
+
+                get totalSupplyPages() {
+                    const total = this.filteredSupplies.length;
+                    const perPage = Number(this.supplyRowsPerPage) || 10;
+                    return Math.max(1, Math.ceil(total / perPage));
+                },
+
+                get paginatedSupplies() {
+                    const perPage = Number(this.supplyRowsPerPage) || 10;
+                    const page = Math.min(Math.max(1, Number(this.currentSupplyPage) || 1), this.totalSupplyPages);
+                    const start = (page - 1) * perPage;
+                    return this.filteredSupplies.slice(start, start + perPage);
+                },
+
                 get expiredMedicines() {
                     const today = new Date();
                     today.setHours(0, 0, 0, 0);
@@ -1824,6 +2143,13 @@
                     // Filter supplies that are not functional or need disposal
                     return this.supplies.filter(supply => {
                         const condition = (supply.condition_status || supply.condition || '').toLowerCase();
+                        const arrivalDateStr = supply.arrival_date;
+                        const arrivalDate = arrivalDateStr ? new Date(arrivalDateStr + 'T00:00:00') : null;
+                        const today = new Date();
+                        today.setHours(0, 0, 0, 0);
+                        const cutoff = new Date(today);
+                        cutoff.setFullYear(cutoff.getFullYear() - 4);
+                        const isOldSupply = arrivalDate && !isNaN(arrivalDate.getTime()) && arrivalDate <= cutoff;
                         
                         // Archive supplies that are not functional (need disposal) - case-insensitive
                         const isArchived = condition === 'not functional' || 
@@ -1836,8 +2162,34 @@
                                          condition === 'not-functional' ||
                                          condition === 'for disposal';
                         
-                        return isArchived;
+                        return isArchived || isOldSupply;
                     });
+                },
+
+                get totalExpiredMedicinePages() {
+                    const total = this.expiredMedicines.length;
+                    const perPage = Number(this.expiredMedicineRowsPerPage) || 10;
+                    return Math.max(1, Math.ceil(total / perPage));
+                },
+
+                get paginatedExpiredMedicines() {
+                    const perPage = Number(this.expiredMedicineRowsPerPage) || 10;
+                    const page = Math.min(Math.max(1, Number(this.currentExpiredMedicinePage) || 1), this.totalExpiredMedicinePages);
+                    const start = (page - 1) * perPage;
+                    return this.expiredMedicines.slice(start, start + perPage);
+                },
+
+                get totalExpiredSupplyPages() {
+                    const total = this.expiredSupplies.length;
+                    const perPage = Number(this.expiredSupplyRowsPerPage) || 10;
+                    return Math.max(1, Math.ceil(total / perPage));
+                },
+
+                get paginatedExpiredSupplies() {
+                    const perPage = Number(this.expiredSupplyRowsPerPage) || 10;
+                    const page = Math.min(Math.max(1, Number(this.currentExpiredSupplyPage) || 1), this.totalExpiredSupplyPages);
+                    const start = (page - 1) * perPage;
+                    return this.expiredSupplies.slice(start, start + perPage);
                 },
                 
                 get totalMedicines() {
@@ -1865,19 +2217,32 @@
                     console.log('📦 Total medicines:', this.medicines.length);
                     
                     const expiring = this.medicines.filter(m => {
-                        if (!m.expiry_date) {
-                            return false;
+                        const parseDateOnly = (dateStr) => {
+                            if (!dateStr) return null;
+                            const d = new Date(dateStr + 'T00:00:00');
+                            return isNaN(d.getTime()) ? null : d;
+                        };
+
+                        // Expiring soon if ANY batch is within [today, 30 days]
+                        if (m.batches && m.batches.length > 0) {
+                            const isExpiringByBatch = m.batches.some(b => {
+                                const expiryDate = parseDateOnly(b && b.expiry_date);
+                                return expiryDate && expiryDate >= today && expiryDate <= thirtyDaysFromNow;
+                            });
+                            if (isExpiringByBatch) {
+                                console.log(`  ⚠️ ${m.name} has batch(es) expiring soon`);
+                            }
+                            return isExpiringByBatch;
                         }
-                        
-                        // Parse expiry date
-                        const expiryDate = new Date(m.expiry_date + 'T00:00:00');
-                        
+
+                        // Fallback: use medicine-level expiry_date when no batches
+                        const expiryDate = parseDateOnly(m.expiry_date);
+                        if (!expiryDate) return false;
+
                         const isExpiring = expiryDate >= today && expiryDate <= thirtyDaysFromNow;
-                        
                         if (isExpiring) {
                             console.log(`  ⚠️ ${m.name} expires on ${m.expiry_date}`);
                         }
-                        
                         return isExpiring;
                     });
                     
@@ -1892,6 +2257,15 @@
                 },
                 
                 // Methods
+                debounceMedicineSearch() {
+                    if (this._medicineSearchDebounceTimer) {
+                        clearTimeout(this._medicineSearchDebounceTimer);
+                    }
+                    this._medicineSearchDebounceTimer = setTimeout(() => {
+                        this.debouncedSearchTerm = this.searchTerm;
+                        this.currentMedicinePage = 1;
+                    }, 200);
+                },
                 // Batch Management Functions
                 addBatchRow() {
                     const today = new Date().toISOString().split('T')[0];
@@ -2044,6 +2418,8 @@
                                     min_stock_level: 10,
                                     acquired: medicine.acquired || medicine.date_added || new Date().toISOString(),
                                     expiry_date: medicine.expiry_date || '',
+                                    latest_batch_arrival_date: medicine.latest_batch_arrival_date || null,
+                                    earliest_batch_expiry_date: medicine.earliest_batch_expiry_date || null,
                                     strength: medicine.strength || '',
                                     status: medicine.status || 'Available',
                                     batches: medicine.batches || []
@@ -2109,9 +2485,24 @@
                     thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
                     
                     return this.medicines.filter(m => {
-                        if (!m.expiry_date) return false;
-                        const expiryDate = new Date(m.expiry_date);
-                        return expiryDate <= thirtyDaysFromNow && expiryDate > new Date();
+                        const today = new Date();
+                        today.setHours(0, 0, 0, 0);
+
+                        const parseDateOnly = (dateStr) => {
+                            if (!dateStr) return null;
+                            const d = new Date(dateStr + 'T00:00:00');
+                            return isNaN(d.getTime()) ? null : d;
+                        };
+
+                        if (m.batches && m.batches.length > 0) {
+                            return m.batches.some(b => {
+                                const expiryDate = parseDateOnly(b && b.expiry_date);
+                                return expiryDate && expiryDate <= thirtyDaysFromNow && expiryDate >= today;
+                            });
+                        }
+
+                        const expiryDate = parseDateOnly(m.expiry_date);
+                        return expiryDate && expiryDate <= thirtyDaysFromNow && expiryDate >= today;
                     });
                 },
                 
@@ -2122,12 +2513,26 @@
                 
                 getMedicineStatus(medicine) {
                     const today = new Date();
-                    
-                    if (medicine.expiry_date) {
-                        const expiryDate = new Date(medicine.expiry_date);
-                        if (expiryDate < today) {
-                            return 'Expired';
+
+                    const getMinDaysUntilExpiry = () => {
+                        const candidates = [];
+                        if (medicine.batches && medicine.batches.length > 0) {
+                            medicine.batches.forEach(b => {
+                                if (b && b.expiry_date) {
+                                    candidates.push(this.getDaysUntilExpiry(b.expiry_date));
+                                }
+                            });
                         }
+                        if (candidates.length === 0 && medicine.expiry_date) {
+                            candidates.push(this.getDaysUntilExpiry(medicine.expiry_date));
+                        }
+                        if (candidates.length === 0) return null;
+                        return Math.min(...candidates);
+                    };
+
+                    const minDaysUntilExpiry = getMinDaysUntilExpiry();
+                    if (minDaysUntilExpiry !== null && minDaysUntilExpiry < 0) {
+                        return 'Expired';
                     }
                     
                     if (medicine.quantity === 0) {
@@ -2222,8 +2627,8 @@
                         quantity: medicine.quantity || 0,
                         unit: unit,
                         minStock: medicine.min_stock_level || 10,
-                        acquired: medicine.acquired,
-                        expiry: medicine.expiry_date,
+                        acquired: medicine.latest_batch_arrival_date || medicine.acquired,
+                        expiry: medicine.earliest_batch_expiry_date || medicine.expiry_date,
                         strength: medicine.strength || '',
                         existingBatches: medicine.batches || [],
                         newBatches: []
@@ -2312,10 +2717,21 @@
                                 medicine.quantity = medicine.batches.reduce((total, batch) => total + batch.quantity, 0);
                                 
                                 // Update earliest expiry date
-                                const expiryDates = medicine.batches
-                                    .map(batch => batch.expiry_date)
-                                    .filter(date => date);
-                                medicine.expiry_date = expiryDates.length > 0 ? Math.min(...expiryDates.map(d => new Date(d))) : null;
+                                const expiryDates = (medicine.batches || [])
+                                    .map(batch => batch && batch.expiry_date)
+                                    .filter(Boolean)
+                                    .map(d => ({ raw: d, date: new Date(d + 'T00:00:00') }))
+                                    .filter(x => !isNaN(x.date.getTime()));
+
+                                if (expiryDates.length > 0) {
+                                    expiryDates.sort((a, b) => a.date - b.date);
+                                    const earliest = expiryDates[0].raw;
+                                    medicine.earliest_batch_expiry_date = earliest;
+                                    medicine.expiry_date = earliest;
+                                } else {
+                                    medicine.earliest_batch_expiry_date = null;
+                                    medicine.expiry_date = null;
+                                }
                             }
                             
                             this.showNotification('Success', 'Batch deleted successfully!', 'success');
@@ -2355,7 +2771,13 @@
                                 expiryDate.setHours(0, 0, 0, 0);
                                 
                                 if (expiryDate < today) {
-                                    this.showNotification('Validation Error', `New Batch #${i + 1}: Cannot add medicine with expired date. The expiry date (${batch.expiry_date}) has already passed.`, 'error');
+                                    this.showNotification('Validation Error', `New Batch #${i + 1}: Unable to add this batch because the expiry date (${batch.expiry_date}) has already passed. Please select a valid expiry date.`, 'error');
+                                    return;
+                                }
+
+                                const diffDays = Math.ceil((expiryDate - today) / (1000 * 60 * 60 * 24));
+                                if (diffDays <= 30) {
+                                    this.showNotification('Validation Error', `New Batch #${i + 1}: Unable to add this batch because it expires too soon. The expiry date (${batch.expiry_date}) is ${diffDays} day(s) away. Please use an expiry date more than 30 days from today.`, 'error');
                                     return;
                                 }
                             }
@@ -2503,7 +2925,13 @@
                             expiryDate.setHours(0, 0, 0, 0);
                             
                             if (expiryDate < today) {
-                                this.showNotification('Validation Error', `Batch #${i + 1}: Cannot add medicine with expired date. The expiry date (${batch.expiry_date}) has already passed.`, 'error');
+                                this.showNotification('Validation Error', `Batch #${i + 1}: Unable to add this medicine because the expiry date (${batch.expiry_date}) has already passed. Please select a valid expiry date.`, 'error');
+                                return;
+                            }
+
+                            const diffDays = Math.ceil((expiryDate - today) / (1000 * 60 * 60 * 24));
+                            if (diffDays <= 30) {
+                                this.showNotification('Validation Error', `Batch #${i + 1}: Unable to add this medicine because it expires too soon. The expiry date (${batch.expiry_date}) is ${diffDays} day(s) away. Please use an expiry date more than 30 days from today.`, 'error');
                                 return;
                             }
                         }
@@ -2586,7 +3014,7 @@
                     
                     this.medicines.forEach(medicine => {
                         const status = this.getMedicineStatus(medicine);
-                        const daysLeft = this.getDaysUntilExpiry(medicine.expiry);
+                        const daysLeft = this.getDaysUntilExpiry(medicine.earliest_batch_expiry_date || medicine.expiry_date);
                         
                         report += `Medicine: ${medicine.name}\n`;
                         report += `Category: ${medicine.category}\n`;
@@ -2594,8 +3022,8 @@
                         report += `Quantity: ${medicine.quantity} ${medicine.unit}\n`;
                         report += `Min Stock: ${medicine.minStock} ${medicine.unit}\n`;
                         report += `Status: ${status}\n`;
-                        report += `Acquired: ${medicine.acquired}\n`;
-                        report += `Expires: ${medicine.expiry} (${daysLeft} days)\n`;
+                        report += `Acquired: ${medicine.latest_batch_arrival_date || medicine.acquired}\n`;
+                        report += `Expires: ${medicine.earliest_batch_expiry_date || medicine.expiry_date} (${daysLeft} days)\n`;
                         report += '-'.repeat(30) + '\n';
                     });
                     
@@ -2658,6 +3086,8 @@
                         location: supply.location,
                         brand_model: supply.brand_model,
                         purchase_date: supply.purchase_date,
+                        arrival_date: supply.arrival_date,
+                        expiry_date: supply.expiry_date,
                         cost: supply.cost || 0,
                         supplier: supply.supplier || '',
                         notes: supply.notes || ''
@@ -2683,6 +3113,8 @@
                                 location: this.editingSupply.location,
                                 brand_model: this.editingSupply.brand_model,
                                 purchase_date: this.editingSupply.purchase_date,
+                                arrival_date: this.editingSupply.arrival_date || null,
+                                expiry_date: this.editingSupply.expiry_date || null,
                                 cost: parseFloat(this.editingSupply.cost) || 0,
                                 supplier: this.editingSupply.supplier,
                                 notes: this.editingSupply.notes
@@ -2748,6 +3180,33 @@
                     try {
                         console.log('🚀 Adding supply with data:', this.newSupply);
                         console.log('📝 item_name value:', this.newSupply.item_name);
+
+                        const today = new Date();
+                        today.setHours(0, 0, 0, 0);
+
+                        if (!this.newSupply.arrival_date) {
+                            this.showNotification('Validation Error', 'Arrival date is required.', 'error');
+                            return;
+                        }
+
+                        if (!this.newSupply.expiry_date) {
+                            this.showNotification('Validation Error', 'Expiry date is required.', 'error');
+                            return;
+                        }
+
+                        const expiryDate = new Date(this.newSupply.expiry_date);
+                        expiryDate.setHours(0, 0, 0, 0);
+
+                        if (expiryDate < today) {
+                            this.showNotification('Validation Error', `Unable to add this supply because the expiry date (${this.newSupply.expiry_date}) has already passed. Please select a valid expiry date.`, 'error');
+                            return;
+                        }
+
+                        const diffDays = Math.ceil((expiryDate - today) / (1000 * 60 * 60 * 24));
+                        if (diffDays <= 30) {
+                            this.showNotification('Validation Error', `Unable to add this supply because it expires too soon. The expiry date (${this.newSupply.expiry_date}) is ${diffDays} day(s) away. Please use an expiry date more than 30 days from today.`, 'error');
+                            return;
+                        }
                         
                         const payload = {
                             item_name: this.newSupply.item_name,
@@ -2758,6 +3217,8 @@
                             brand_model: '',
                             last_maintenance: null,
                             purchase_date: null,
+                            arrival_date: this.newSupply.arrival_date || null,
+                            expiry_date: this.newSupply.expiry_date || null,
                             cost: 0,
                             supplier: '',
                             notes: this.newSupply.notes || ''
@@ -2807,6 +3268,8 @@
                         category: '',
                         quantity: 1,
                         condition: 'Working Properly',
+                        arrival_date: new Date().toISOString().split('T')[0],
+                        expiry_date: '',
                         notes: ''
                     };
                 },
@@ -2858,21 +3321,14 @@
                 
                 handleResize() {
                     this.isMobile = window.innerWidth < 768;
-                    if (this.isMobile) {
+                    if (window.innerWidth < 768) {
+                        this.sidebarCollapsed = true;
+                        this.mobileMenuOpen = false;
+                    } else if (window.innerWidth >= 1024) {
                         this.sidebarCollapsed = false;
                         this.mobileMenuOpen = false;
-                        document.body.classList.remove('mobile-menu-open');
                     } else {
-                        this.sidebarCollapsed = false;
                         this.mobileMenuOpen = false;
-                        document.body.classList.remove('mobile-menu-open');
-                    }
-                },
-
-                toggleMobileMenu() {
-                    if (this.isMobile) {
-                        this.mobileMenuOpen = !this.mobileMenuOpen;
-                        document.body.classList.toggle('mobile-menu-open', this.mobileMenuOpen);
                     }
                 }
                 
@@ -2880,8 +3336,7 @@
         }
     </script>
 
-    <!-- View Batches Modal -->
-    <div x-show="showBatchesModal" x-cloak x-transition:enter="transition ease-out duration-300"
+    <!-- View Batches Modal -->`n    <div x-show="showBatchesModal" x-cloak x-transition:enter="transition ease-out duration-300"
          x-transition:enter="transition ease-out duration-300"
          x-transition:enter-start="opacity-0"
          x-transition:enter-end="opacity-100"
@@ -3173,6 +3628,18 @@
                                 <option value="Not Functional">Not Functional</option>
                             </select>
                         </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Arrival Date</label>
+                            <input type="date" x-model="newSupply.arrival_date" required
+                                   class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500">
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Expiry Date</label>
+                            <input type="date" x-model="newSupply.expiry_date" required
+                                   class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500">
+                        </div>
                     </div>
                     
                     <!-- Remarks Field -->
@@ -3253,6 +3720,18 @@
                                 <option value="For Repair">For Repair</option>
                                 <option value="Not Functional">Not Functional</option>
                             </select>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Arrival Date</label>
+                            <input type="date" x-model="editingSupply.arrival_date"
+                                   class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Expiry Date</label>
+                            <input type="date" x-model="editingSupply.expiry_date"
+                                   class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
                         </div>
                     </div>
                     

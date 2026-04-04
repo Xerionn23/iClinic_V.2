@@ -48,82 +48,71 @@ def send_booking_confirmation(patient_email, patient_name, appointment_date, app
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Appointment Confirmation</title>
 </head>
-<body style="margin: 0; padding: 0; background-color: #f3f4f6; font-family: Arial, sans-serif;">
-    <div style="max-width: 600px; margin: 20px auto; background-color: white; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
-        <!-- Header -->
-        <div style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; padding: 20px; border-radius: 8px 8px 0 0;">
-            <div style="display: flex; align-items: center;">
-                <div style="background-color: white; color: #10b981; width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-right: 15px;">
-                    <span style="font-size: 20px;">✓</span>
-                </div>
-                <div>
-                    <h1 style="margin: 0; font-size: 24px; font-weight: bold;">APPOINTMENT CONFIRMED</h1>
-                    <p style="margin: 5px 0 0 0; opacity: 0.9;">Your appointment has been successfully booked</p>
-                </div>
-            </div>
+<body style="margin: 0; padding: 0; background-color: #f3f4f6; font-family: 'Inter', Arial, sans-serif;">
+    <div style="max-width: 600px; margin: 20px auto; background-color: white; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); overflow: hidden;">
+        <!-- Blue Header -->
+        <div style="background-color: #2563eb; color: white; padding: 30px 20px; text-align: center;">
+            <h1 style="margin: 0; font-size: 24px; font-weight: bold;">iClinic Management System</h1>
+            <p style="margin: 5px 0 0 0; opacity: 0.9; font-size: 14px;">Norzagaray College</p>
         </div>
         
         <!-- Content -->
-        <div style="padding: 30px;">
-            <div style="background-color: #f0fdf4; border-left: 4px solid #10b981; padding: 15px; margin-bottom: 25px;">
-                <p style="margin: 0; color: #166534; font-weight: 500;">
-                    ✅ Your appointment has been confirmed and scheduled. Please save this information for your reference.
+        <div style="padding: 40px 30px;">
+            <h2 style="color: #1e40af; margin: 0 0 20px 0; font-size: 22px;">Appointment Confirmed</h2>
+            
+            <p style="color: #374151; margin: 0 0 20px 0; line-height: 1.6;">
+                Hello {patient_name},
+            </p>
+            
+            <p style="color: #374151; margin: 0 0 25px 0; line-height: 1.6;">
+                Your appointment has been successfully scheduled with the iClinic Management System.
+            </p>
+            
+            <!-- Appointment Details Box -->
+            <div style="background-color: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 20px; margin-bottom: 25px;">
+                <p style="margin: 0 0 12px 0; font-size: 14px; color: #374151;">
+                    <strong>Patient Name:</strong> {patient_name}
+                </p>
+                <p style="margin: 0 0 12px 0; font-size: 14px; color: #374151;">
+                    <strong>Date:</strong> {formatted_date}
+                </p>
+                <p style="margin: 0 0 12px 0; font-size: 14px; color: #374151;">
+                    <strong>Time:</strong> {formatted_time}
+                </p>
+                <p style="margin: 0; font-size: 14px; color: #374151;">
+                    <strong>Type:</strong> {appointment_type}
                 </p>
             </div>
             
-            <h2 style="color: #1f2937; margin-bottom: 20px;">Appointment Details</h2>
-            
-            <table style="width: 100%; border-collapse: collapse; margin-bottom: 25px;">
-                <tr>
-                    <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; font-weight: 600; color: #6b7280; width: 140px;">Patient Name:</td>
-                    <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; color: #1f2937;">{patient_name}</td>
-                </tr>
-                <tr>
-                    <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; font-weight: 600; color: #6b7280;">Date:</td>
-                    <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; color: #1f2937;">{formatted_date}</td>
-                </tr>
-                <tr>
-                    <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; font-weight: 600; color: #6b7280;">Time:</td>
-                    <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; color: #1f2937;">{formatted_time}</td>
-                </tr>
-                <tr>
-                    <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; font-weight: 600; color: #6b7280;">Type:</td>
-                    <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; color: #1f2937;">{appointment_type}</td>
-                </tr>
-            </table>
-            
-            <div style="background-color: #fef3c7; padding: 20px; border-radius: 6px; margin-bottom: 25px;">
-                <h3 style="color: #92400e; margin-top: 0; margin-bottom: 10px;">📅 Important Reminder:</h3>
-                <ul style="margin: 0; padding-left: 20px; color: #78350f;">
-                    <li style="margin-bottom: 8px;">Please arrive 10 minutes before your scheduled time</li>
-                    <li style="margin-bottom: 8px;">Bring your valid ID for verification</li>
-                    <li style="margin-bottom: 8px;">Cancellation or rescheduling is not allowed within 3 days of the appointment</li>
-                    <li style="margin-bottom: 0;">You will receive a reminder email 3 days before your appointment</li>
-                </ul>
-            </div>
-            
-            <div style="background-color: #f9fafb; padding: 20px; border-radius: 6px; margin-bottom: 25px;">
-                <h3 style="color: #1f2937; margin-top: 0; margin-bottom: 10px;">📍 Clinic Information:</h3>
-                <p style="margin: 0; color: #4b5563; line-height: 1.6;">
-                    <strong>Norzagaray College Clinic</strong><br>
-                    Norzagaray, Bulacan<br>
-                    Please bring this confirmation email on your appointment day.
+            <!-- Important Notice -->
+            <div style="background-color: #fef3c7; border-left: 4px solid #f59e0b; padding: 15px; margin-bottom: 25px;">
+                <p style="margin: 0; color: #92400e; font-size: 14px; line-height: 1.5;">
+                    <strong>Important:</strong> Please arrive 10 minutes before your scheduled time. Bring a valid ID for verification.
                 </p>
             </div>
             
-            <div style="text-align: center; margin-top: 30px;">
-                <p style="color: #6b7280; font-size: 14px; margin: 0;">
-                    This is an automated notification from the iClinic Management System.<br>
-                    Please do not reply to this email. For inquiries, visit the clinic directly.
-                </p>
+            <!-- Button -->
+            <div style="text-align: center; margin-bottom: 25px;">
+                <a href="http://127.0.0.1:5000" 
+                   style="display: inline-block; background-color: #2563eb; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; font-weight: 500;">
+                    View Your Appointment
+                </a>
             </div>
+            
+            <p style="color: #6b7280; font-size: 13px; margin: 0 0 10px 0;">
+                If the button doesn't work, copy and paste this link into your browser:
+            </p>
+            <p style="margin: 0;">
+                <a href="http://127.0.0.1:5000" style="color: #2563eb; font-size: 13px; word-break: break-all;">http://127.0.0.1:5000</a>
+            </p>
         </div>
         
         <!-- Footer -->
-        <div style="background-color: #f9fafb; padding: 20px; text-align: center; border-radius: 0 0 8px 8px; border-top: 1px solid #e5e7eb;">
-            <p style="margin: 0; color: #6b7280; font-size: 12px;">
-                iClinic Management System • Norzagaray College<br>
-                Confirmation sent on {datetime.now().strftime('%B %d, %Y at %I:%M %p')}
+        <div style="background-color: #f9fafb; padding: 20px; text-align: center; border-top: 1px solid #e5e7eb;">
+            <p style="margin: 0; color: #6b7280; font-size: 12px; line-height: 1.5;">
+                © 2024 iClinic Management System<br>
+                Norzagaray College<br>
+                If you need assistance, please contact IT support.
             </p>
         </div>
     </div>
@@ -184,90 +173,85 @@ def send_three_day_reminder(patient_email, patient_name, appointment_date, appoi
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Appointment Reminder</title>
 </head>
-<body style="margin: 0; padding: 0; background-color: #f3f4f6; font-family: Arial, sans-serif;">
-    <div style="max-width: 600px; margin: 20px auto; background-color: white; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
-        <!-- Header -->
-        <div style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: white; padding: 20px; border-radius: 8px 8px 0 0;">
-            <div style="display: flex; align-items: center;">
-                <div style="background-color: white; color: #f59e0b; width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-right: 15px;">
-                    <span style="font-size: 20px;">⏰</span>
-                </div>
-                <div>
-                    <h1 style="margin: 0; font-size: 24px; font-weight: bold;">APPOINTMENT REMINDER</h1>
-                    <p style="margin: 5px 0 0 0; opacity: 0.9;">Your appointment is coming up soon!</p>
-                </div>
-            </div>
+<body style="margin: 0; padding: 0; background-color: #f3f4f6; font-family: 'Inter', Arial, sans-serif;">
+    <div style="max-width: 600px; margin: 20px auto; background-color: white; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); overflow: hidden;">
+        <!-- Blue Header -->
+        <div style="background-color: #2563eb; color: white; padding: 30px 20px; text-align: center;">
+            <h1 style="margin: 0; font-size: 24px; font-weight: bold;">iClinic Management System</h1>
+            <p style="margin: 5px 0 0 0; opacity: 0.9; font-size: 14px;">Norzagaray College</p>
         </div>
         
         <!-- Content -->
-        <div style="padding: 30px;">
-            <div style="background-color: #fef3c7; border-left: 4px solid #f59e0b; padding: 15px; margin-bottom: 25px;">
-                <p style="margin: 0; color: #92400e; font-weight: 500;">
-                    ⏰ This is a friendly reminder that you have an appointment scheduled in {days_until} day(s). Please mark your calendar!
+        <div style="padding: 40px 30px;">
+            <h2 style="color: #1e40af; margin: 0 0 20px 0; font-size: 22px;">Appointment Reminder</h2>
+            
+            <p style="color: #374151; margin: 0 0 20px 0; line-height: 1.6;">
+                Hello {patient_name},
+            </p>
+            
+            <p style="color: #374151; margin: 0 0 25px 0; line-height: 1.6;">
+                This is a friendly reminder that you have an appointment scheduled in {days_until} day(s).
+            </p>
+            
+            <!-- Appointment Details Box -->
+            <div style="background-color: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 20px; margin-bottom: 25px;">
+                <p style="margin: 0 0 12px 0; font-size: 14px; color: #374151;">
+                    <strong>Patient Name:</strong> {patient_name}
+                </p>
+                <p style="margin: 0 0 12px 0; font-size: 14px; color: #374151;">
+                    <strong>Date:</strong> {formatted_date}
+                </p>
+                <p style="margin: 0 0 12px 0; font-size: 14px; color: #374151;">
+                    <strong>Time:</strong> {formatted_time}
+                </p>
+                <p style="margin: 0; font-size: 14px; color: #374151;">
+                    <strong>Type:</strong> {appointment_type}
                 </p>
             </div>
             
-            <h2 style="color: #1f2937; margin-bottom: 20px;">Your Appointment Details</h2>
-            
-            <table style="width: 100%; border-collapse: collapse; margin-bottom: 25px;">
-                <tr>
-                    <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; font-weight: 600; color: #6b7280; width: 140px;">Patient Name:</td>
-                    <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; color: #1f2937;">{patient_name}</td>
-                </tr>
-                <tr>
-                    <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; font-weight: 600; color: #6b7280;">Date:</td>
-                    <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; color: #1f2937;">{formatted_date}</td>
-                </tr>
-                <tr>
-                    <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; font-weight: 600; color: #6b7280;">Time:</td>
-                    <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; color: #1f2937;">{formatted_time}</td>
-                </tr>
-                <tr>
-                    <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; font-weight: 600; color: #6b7280;">Type:</td>
-                    <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; color: #1f2937;">{appointment_type}</td>
-                </tr>
-            </table>
-            
-            <div style="background-color: #fee2e2; border: 2px solid #dc2626; padding: 20px; border-radius: 6px; margin-bottom: 25px;">
-                <h3 style="color: #991b1b; margin-top: 0; margin-bottom: 10px;">🔒 IMPORTANT: 3-Day Lock Policy</h3>
-                <p style="margin: 0; color: #7f1d1d; font-weight: 500; line-height: 1.6;">
-                    Your appointment is now within the 3-day lock period. <strong>Cancellation and rescheduling are no longer permitted.</strong> Please ensure you attend your scheduled appointment.
+            <!-- Important Notice - 3 Day Lock -->
+            <div style="background-color: #fee2e2; border-left: 4px solid #dc2626; padding: 15px; margin-bottom: 25px;">
+                <p style="margin: 0; color: #991b1b; font-size: 14px; line-height: 1.5;">
+                    <strong>Important:</strong> Your appointment is now within the 3-day lock period. Cancellation and rescheduling are no longer permitted.
                 </p>
             </div>
             
-            <div style="background-color: #f0fdf4; padding: 20px; border-radius: 6px; margin-bottom: 25px;">
-                <h3 style="color: #166534; margin-top: 0; margin-bottom: 10px;">📋 Preparation Checklist:</h3>
-                <ul style="margin: 0; padding-left: 20px; color: #166534;">
-                    <li style="margin-bottom: 8px;">Arrive 10 minutes before your scheduled time</li>
-                    <li style="margin-bottom: 8px;">Bring valid ID for verification</li>
-                    <li style="margin-bottom: 8px;">List any medications you're currently taking</li>
-                    <li style="margin-bottom: 8px;">Bring any relevant medical records</li>
-                    <li style="margin-bottom: 0;">Wear comfortable clothing for examination</li>
+            <!-- Preparation Checklist -->
+            <div style="background-color: #f0fdf4; border-left: 4px solid #10b981; padding: 15px; margin-bottom: 25px;">
+                <p style="margin: 0 0 10px 0; color: #166534; font-size: 14px; font-weight: 600;">
+                    Preparation Checklist:
+                </p>
+                <ul style="margin: 0; padding-left: 20px; color: #166534; font-size: 14px; line-height: 1.6;">
+                    <li>Arrive 10 minutes before your scheduled time</li>
+                    <li>Bring valid ID for verification</li>
+                    <li>List any medications you're currently taking</li>
+                    <li>Bring any relevant medical records</li>
+                    <li>Wear comfortable clothing for examination</li>
                 </ul>
             </div>
             
-            <div style="background-color: #f9fafb; padding: 20px; border-radius: 6px; margin-bottom: 25px;">
-                <h3 style="color: #1f2937; margin-top: 0; margin-bottom: 10px;">📍 Clinic Information:</h3>
-                <p style="margin: 0; color: #4b5563; line-height: 1.6;">
-                    <strong>Norzagaray College Clinic</strong><br>
-                    Norzagaray, Bulacan<br>
-                    Operating hours: Monday - Friday, 8:00 AM - 5:00 PM
-                </p>
+            <!-- Button -->
+            <div style="text-align: center; margin-bottom: 25px;">
+                <a href="http://127.0.0.1:5000" 
+                   style="display: inline-block; background-color: #2563eb; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; font-weight: 500;">
+                    View Your Appointment
+                </a>
             </div>
             
-            <div style="text-align: center; margin-top: 30px;">
-                <p style="color: #6b7280; font-size: 14px; margin: 0;">
-                    This is an automated reminder from the iClinic Management System.<br>
-                    Please do not reply to this email. For urgent matters, contact the clinic directly.
-                </p>
-            </div>
+            <p style="color: #6b7280; font-size: 13px; margin: 0 0 10px 0;">
+                If the button doesn't work, copy and paste this link into your browser:
+            </p>
+            <p style="margin: 0;">
+                <a href="http://127.0.0.1:5000" style="color: #2563eb; font-size: 13px; word-break: break-all;">http://127.0.0.1:5000</a>
+            </p>
         </div>
         
         <!-- Footer -->
-        <div style="background-color: #f9fafb; padding: 20px; text-align: center; border-radius: 0 0 8px 8px; border-top: 1px solid #e5e7eb;">
-            <p style="margin: 0; color: #6b7280; font-size: 12px;">
-                iClinic Management System • Norzagaray College<br>
-                Reminder sent on {datetime.now().strftime('%B %d, %Y at %I:%M %p')}
+        <div style="background-color: #f9fafb; padding: 20px; text-align: center; border-top: 1px solid #e5e7eb;">
+            <p style="margin: 0; color: #6b7280; font-size: 12px; line-height: 1.5;">
+                © 2024 iClinic Management System<br>
+                Norzagaray College<br>
+                If you need assistance, please contact IT support.
             </p>
         </div>
     </div>

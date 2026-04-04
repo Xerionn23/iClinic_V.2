@@ -338,7 +338,7 @@
         }
     </style>
 </head>
-<body class="bg-white transition-colors duration-200" x-data="consultationsModule()" x-init="init()">
+<body class="bg-white transition-colors duration-200 overflow-x-hidden" x-data="consultationsModule()" x-init="init()">
     
     <div class="flex min-h-[100dvh] md:h-screen md:overflow-hidden">
 
@@ -370,7 +370,7 @@
             <nav class="relative mt-8 px-4 space-y-3">
                 <!-- Dashboard -->
                 <a href="{{ url_for('staff_dashboard') }}"
-                   @click="mobileMenuOpen = false; document.body.classList.remove('mobile-menu-open');"
+                   @click="mobileMenuOpen = false"
                    class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all group hover:bg-white/10">
                     <div class="flex items-center justify-center" :class="(sidebarCollapsed && !sidebarHovered && !mobileMenuOpen) ? 'w-full' : ''">
                         <i data-feather="home" class="w-5 h-5 group-hover:scale-110 transition-transform"></i>
@@ -380,7 +380,7 @@
                 
                 <!-- Patients -->
                 <a href="{{ url_for('staff_patients') }}"
-                   @click="mobileMenuOpen = false; document.body.classList.remove('mobile-menu-open');"
+                   @click="mobileMenuOpen = false"
                    class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all group hover:bg-white/10">
                     <div class="flex items-center justify-center" :class="(sidebarCollapsed && !sidebarHovered && !mobileMenuOpen) ? 'w-full' : ''">
                         <i data-feather="users" class="w-5 h-5 group-hover:scale-110 transition-transform"></i>
@@ -390,7 +390,7 @@
                 
                 <!-- Appointments -->
                 <a href="{{ url_for('staff_appointments') }}"
-                   @click="mobileMenuOpen = false; document.body.classList.remove('mobile-menu-open');"
+                   @click="mobileMenuOpen = false"
                    class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all group hover:bg-white/10">
                     <div class="flex items-center justify-center" :class="(sidebarCollapsed && !sidebarHovered && !mobileMenuOpen) ? 'w-full' : ''">
                         <i data-feather="calendar" class="w-5 h-5 group-hover:scale-110 transition-transform"></i>
@@ -400,7 +400,7 @@
                 
                 <!-- Announcements -->
                 <a href="{{ url_for('staff_announcements') }}"
-                   @click="mobileMenuOpen = false; document.body.classList.remove('mobile-menu-open');"
+                   @click="mobileMenuOpen = false"
                    class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all group hover:bg-white/10">
                     <div class="flex items-center justify-center" :class="(sidebarCollapsed && !sidebarHovered && !mobileMenuOpen) ? 'w-full' : ''">
                         <i data-feather="volume-2" class="w-5 h-5 group-hover:scale-110 transition-transform"></i>
@@ -410,7 +410,7 @@
                 
                 <!-- Consultations -->
                 <a href="{{ url_for('staff_consultations') }}"
-                   @click="mobileMenuOpen = false; document.body.classList.remove('mobile-menu-open');"
+                   @click="mobileMenuOpen = false"
                    class="sidebar-item-active flex items-center gap-3 px-4 py-3 rounded-lg transition-all group">
                     <div class="flex items-center justify-center" :class="(sidebarCollapsed && !sidebarHovered && !mobileMenuOpen) ? 'w-full' : ''">
                         <i data-feather="message-circle" class="w-5 h-5 group-hover:scale-110 transition-transform"></i>
@@ -420,7 +420,7 @@
                 
                 <!-- Inventory -->
                 <a href="{{ url_for('staff_inventory') }}"
-                   @click="mobileMenuOpen = false; document.body.classList.remove('mobile-menu-open');"
+                   @click="mobileMenuOpen = false"
                    class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all group hover:bg-white/10">
                     <div class="flex items-center justify-center" :class="(sidebarCollapsed && !sidebarHovered && !mobileMenuOpen) ? 'w-full' : ''">
                         <i data-feather="package" class="w-5 h-5 group-hover:scale-110 transition-transform"></i>
@@ -430,7 +430,7 @@
                 
                 <!-- Reports -->
                 <a href="{{ url_for('staff_reports') }}"
-                   @click="mobileMenuOpen = false; document.body.classList.remove('mobile-menu-open');"
+                   @click="mobileMenuOpen = false"
                    class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all group hover:bg-white/10">
                     <div class="flex items-center justify-center" :class="(sidebarCollapsed && !sidebarHovered && !mobileMenuOpen) ? 'w-full' : ''">
                         <i data-feather="bar-chart-2" class="w-5 h-5 group-hover:scale-110 transition-transform"></i>
@@ -441,7 +441,7 @@
             </nav>
         
         <!-- User Profile -->
-        <div class="absolute bottom-0 w-full p-4 bg-gradient-to-t from-black/20 to-transparent">
+        <div class="mt-auto w-full p-4 bg-gradient-to-t from-black/20 to-transparent">
             <div class="relative" @click.outside="userDropdown = false">
                 <button @click="userDropdown = !userDropdown" 
                         class="w-full flex items-center gap-3 p-2 rounded-lg hover:bg-white/10 transition-colors" 
@@ -1572,21 +1572,17 @@
                     if (this.isMobile) {
                         this.sidebarCollapsed = true;
                         this.mobileMenuOpen = false;
-                        document.body.classList.remove('mobile-menu-open');
                     } else if (window.innerWidth >= 1024) {
                         this.sidebarCollapsed = false;
                         this.mobileMenuOpen = false;
-                        document.body.classList.remove('mobile-menu-open');
                     } else {
                         this.mobileMenuOpen = false;
-                        document.body.classList.remove('mobile-menu-open');
                     }
                 },
 
                 toggleMobileMenu() {
                     if (this.isMobile) {
                         this.mobileMenuOpen = !this.mobileMenuOpen;
-                        document.body.classList.toggle('mobile-menu-open', this.mobileMenuOpen);
                     }
                 },
                 
@@ -2480,7 +2476,7 @@
                                 id: `${record.patient_role.replace(/\s+/g, '_')}_${record.id}`, // Unique ID: Role_ID
                                 originalId: record.id, // Keep original ID for reference
                                 patient: record.patient_name || 'Unknown Patient',
-                                patientId: record.patient_id ? `STU-${record.patient_id}` : 'N/A',
+                                patientId: record.patient_id ? `${this.getPatientIdPrefix(record.patient_role)}${record.patient_id}` : 'N/A',
                                 role: record.patient_role || 'Student',
                                 date: this.formatDate(record.visit_date),
                                 time: this.formatTimeOnly(record.visit_time), // Don't add || 'N/A' here, let formatTime handle it
@@ -2625,6 +2621,15 @@
                         return 'Online';
                     }
                     return 'General';
+                },
+
+                getPatientIdPrefix(role) {
+                    const normalizedRole = (role || '').toLowerCase();
+                    if (normalizedRole === 'student') return 'STU-';
+                    if (normalizedRole === 'teaching staff') return 'FAC-';
+                    if (normalizedRole === 'non-teaching staff') return 'NTS-';
+                    if (normalizedRole === 'dean') return 'DEAN-';
+                    return '';
                 },
                 
                 exportConsultations() {

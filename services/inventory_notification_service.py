@@ -132,7 +132,7 @@ def get_inventory_alerts():
 
 
 def create_email_html(alerts):
-    """Create HTML email content with all alerts"""
+    """Create HTML email content with all alerts - standardized format"""
     
     # Count total alerts
     total_alerts = (
@@ -145,228 +145,222 @@ def create_email_html(alerts):
     if total_alerts == 0:
         return None  # No alerts to send
     
-    html = f"""
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <style>
-            body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; background-color: #f5f5f5; }}
-            .container {{ max-width: 800px; margin: 0 auto; background: white; }}
-            .header {{ background: linear-gradient(135deg, #dc2626 0%, #ef4444 100%); color: white; padding: 30px; text-align: center; }}
-            .header h1 {{ margin: 0; font-size: 28px; }}
-            .header p {{ margin: 10px 0 0 0; font-size: 16px; opacity: 0.9; }}
-            .content {{ padding: 30px; }}
-            .alert-section {{ margin-bottom: 30px; }}
-            .alert-header {{ background: #f8f9fa; padding: 15px; border-left: 4px solid #dc2626; margin-bottom: 15px; }}
-            .alert-header h2 {{ margin: 0; color: #dc2626; font-size: 20px; }}
-            .alert-header p {{ margin: 5px 0 0 0; color: #666; font-size: 14px; }}
-            .alert-table {{ width: 100%; border-collapse: collapse; margin-bottom: 20px; }}
-            .alert-table th {{ background: #f8f9fa; padding: 12px; text-align: left; border-bottom: 2px solid #dee2e6; font-size: 14px; }}
-            .alert-table td {{ padding: 12px; border-bottom: 1px solid #dee2e6; font-size: 14px; }}
-            .alert-table tr:hover {{ background: #f8f9fa; }}
-            .badge {{ display: inline-block; padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: bold; }}
-            .badge-danger {{ background: #fee2e2; color: #dc2626; }}
-            .badge-warning {{ background: #fef3c7; color: #d97706; }}
-            .badge-info {{ background: #dbeafe; color: #2563eb; }}
-            .summary {{ background: #fef2f2; border: 1px solid #fecaca; padding: 20px; border-radius: 8px; margin-bottom: 30px; }}
-            .summary h3 {{ margin: 0 0 15px 0; color: #dc2626; }}
-            .summary-grid {{ display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; }}
-            .summary-item {{ background: white; padding: 15px; border-radius: 6px; border-left: 3px solid #dc2626; }}
-            .summary-item .number {{ font-size: 32px; font-weight: bold; color: #dc2626; margin: 0; }}
-            .summary-item .label {{ color: #666; font-size: 14px; margin: 5px 0 0 0; }}
-            .footer {{ background: #f8f9fa; padding: 20px; text-align: center; color: #666; font-size: 12px; }}
-            .action-required {{ background: #fef2f2; border: 2px solid #dc2626; padding: 15px; border-radius: 8px; margin: 20px 0; }}
-            .action-required h3 {{ margin: 0 0 10px 0; color: #dc2626; }}
-        </style>
-    </head>
-    <body>
-        <div class="container">
-            <div class="header">
-                <h1>🏥 iClinic Inventory Alert</h1>
-                <p>Medicine Inventory Status Report - {datetime.now().strftime('%B %d, %Y')}</p>
-            </div>
-            
-            <div class="content">
-                <div class="summary">
-                    <h3>📊 Alert Summary</h3>
-                    <div class="summary-grid">
-                        <div class="summary-item">
-                            <p class="number">{len(alerts['expired'])}</p>
-                            <p class="label">Expired Medicines</p>
-                        </div>
-                        <div class="summary-item">
-                            <p class="number">{len(alerts['expiring_30_days'])}</p>
-                            <p class="label">Expiring in 30 Days</p>
-                        </div>
-                        <div class="summary-item">
-                            <p class="number">{len(alerts['expiring_60_days'])}</p>
-                            <p class="label">Expiring in 60 Days</p>
-                        </div>
-                        <div class="summary-item">
-                            <p class="number">{len(alerts['low_stock'])}</p>
-                            <p class="label">Low Stock Items</p>
-                        </div>
-                    </div>
-                </div>
-    """
+    # Build alert sections
+    alert_sections = ""
     
-    # EXPIRED MEDICINES (Highest Priority)
+    # EXPIRED MEDICINES
     if alerts['expired']:
-        html += """
-                <div class="alert-section">
-                    <div class="alert-header">
-                        <h2>🚨 EXPIRED MEDICINES - IMMEDIATE ACTION REQUIRED</h2>
-                        <p>These medicines have already expired and should be removed from inventory immediately</p>
-                    </div>
-                    <table class="alert-table">
-                        <thead>
-                            <tr>
-                                <th>Medicine Name</th>
-                                <th>Quantity</th>
-                                <th>Expired Date</th>
-                                <th>Days Overdue</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-        """
+        expired_rows = ""
         for item in alerts['expired']:
-            html += f"""
-                            <tr>
-                                <td><strong>{item['medicine_name']}</strong></td>
-                                <td><span class="badge badge-danger">{item['quantity']} units</span></td>
-                                <td>{item['expiry_date']}</td>
-                                <td><span class="badge badge-danger">{item['days_overdue']} days</span></td>
-                            </tr>
-            """
-        html += """
-                        </tbody>
-                    </table>
+            expired_rows += f"""
+                    <tr>
+                        <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; color: #374151;"><strong>{item['medicine_name']}</strong></td>
+                        <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; color: #374151;"><span style="display: inline-block; padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: bold; background: #fee2e2; color: #dc2626;">{item['quantity']} units</span></td>
+                        <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; color: #374151;">{item['expiry_date']}</td>
+                        <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; color: #374151;"><span style="display: inline-block; padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: bold; background: #fee2e2; color: #dc2626;">{item['days_overdue']} days</span></td>
+                    </tr>"""
+        alert_sections += f"""
+            <!-- Expired Section -->
+            <div style="margin-bottom: 30px;">
+                <div style="background: #fef2f2; padding: 15px; border-left: 4px solid #dc2626; margin-bottom: 15px;">
+                    <h3 style="margin: 0; color: #dc2626; font-size: 18px;">🚨 EXPIRED MEDICINES</h3>
+                    <p style="margin: 5px 0 0 0; color: #666; font-size: 14px;">These medicines have already expired and should be removed immediately</p>
                 </div>
-        """
+                <table style="width: 100%; border-collapse: collapse; background: white; border: 1px solid #e5e7eb; border-radius: 8px;">
+                    <thead>
+                        <tr style="background: #f9fafb;">
+                            <th style="padding: 12px; text-align: left; border-bottom: 2px solid #e5e7eb; font-size: 14px; color: #374151;">Medicine Name</th>
+                            <th style="padding: 12px; text-align: left; border-bottom: 2px solid #e5e7eb; font-size: 14px; color: #374151;">Quantity</th>
+                            <th style="padding: 12px; text-align: left; border-bottom: 2px solid #e5e7eb; font-size: 14px; color: #374151;">Expired Date</th>
+                            <th style="padding: 12px; text-align: left; border-bottom: 2px solid #e5e7eb; font-size: 14px; color: #374151;">Days Overdue</th>
+                        </tr>
+                    </thead>
+                    <tbody>{expired_rows}</tbody>
+                </table>
+            </div>"""
     
     # EXPIRING IN 30 DAYS
     if alerts['expiring_30_days']:
-        html += """
-                <div class="alert-section">
-                    <div class="alert-header">
-                        <h2>⚠️ EXPIRING IN 30 DAYS - URGENT ATTENTION NEEDED</h2>
-                        <p>These medicines will expire within 30 days. Plan usage or replacement soon</p>
-                    </div>
-                    <table class="alert-table">
-                        <thead>
-                            <tr>
-                                <th>Medicine Name</th>
-                                <th>Quantity</th>
-                                <th>Expiry Date</th>
-                                <th>Days Until Expiry</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-        """
+        expiring_rows = ""
         for item in alerts['expiring_30_days']:
-            html += f"""
-                            <tr>
-                                <td><strong>{item['medicine_name']}</strong></td>
-                                <td><span class="badge badge-warning">{item['quantity']} units</span></td>
-                                <td>{item['expiry_date']}</td>
-                                <td><span class="badge badge-warning">{item['days_until_expiry']} days</span></td>
-                            </tr>
-            """
-        html += """
-                        </tbody>
-                    </table>
+            expiring_rows += f"""
+                    <tr>
+                        <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; color: #374151;"><strong>{item['medicine_name']}</strong></td>
+                        <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; color: #374151;"><span style="display: inline-block; padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: bold; background: #fef3c7; color: #d97706;">{item['quantity']} units</span></td>
+                        <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; color: #374151;">{item['expiry_date']}</td>
+                        <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; color: #374151;"><span style="display: inline-block; padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: bold; background: #fef3c7; color: #d97706;">{item['days_until_expiry']} days</span></td>
+                    </tr>"""
+        alert_sections += f"""
+            <!-- Expiring 30 Days Section -->
+            <div style="margin-bottom: 30px;">
+                <div style="background: #fef3c7; padding: 15px; border-left: 4px solid #f59e0b; margin-bottom: 15px;">
+                    <h3 style="margin: 0; color: #d97706; font-size: 18px;">⚠️ EXPIRING IN 30 DAYS</h3>
+                    <p style="margin: 5px 0 0 0; color: #666; font-size: 14px;">These medicines will expire within 30 days. Plan usage or replacement soon</p>
                 </div>
-        """
+                <table style="width: 100%; border-collapse: collapse; background: white; border: 1px solid #e5e7eb; border-radius: 8px;">
+                    <thead>
+                        <tr style="background: #f9fafb;">
+                            <th style="padding: 12px; text-align: left; border-bottom: 2px solid #e5e7eb; font-size: 14px; color: #374151;">Medicine Name</th>
+                            <th style="padding: 12px; text-align: left; border-bottom: 2px solid #e5e7eb; font-size: 14px; color: #374151;">Quantity</th>
+                            <th style="padding: 12px; text-align: left; border-bottom: 2px solid #e5e7eb; font-size: 14px; color: #374151;">Expiry Date</th>
+                            <th style="padding: 12px; text-align: left; border-bottom: 2px solid #e5e7eb; font-size: 14px; color: #374151;">Days Until</th>
+                        </tr>
+                    </thead>
+                    <tbody>{expiring_rows}</tbody>
+                </table>
+            </div>"""
     
     # EXPIRING IN 60 DAYS
     if alerts['expiring_60_days']:
-        html += """
-                <div class="alert-section">
-                    <div class="alert-header">
-                        <h2>📅 EXPIRING IN 60 DAYS - MONITOR CLOSELY</h2>
-                        <p>These medicines will expire within 60 days. Monitor usage and plan accordingly</p>
-                    </div>
-                    <table class="alert-table">
-                        <thead>
-                            <tr>
-                                <th>Medicine Name</th>
-                                <th>Quantity</th>
-                                <th>Expiry Date</th>
-                                <th>Days Until Expiry</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-        """
+        expiring60_rows = ""
         for item in alerts['expiring_60_days']:
-            html += f"""
-                            <tr>
-                                <td><strong>{item['medicine_name']}</strong></td>
-                                <td><span class="badge badge-info">{item['quantity']} units</span></td>
-                                <td>{item['expiry_date']}</td>
-                                <td><span class="badge badge-info">{item['days_until_expiry']} days</span></td>
-                            </tr>
-            """
-        html += """
-                        </tbody>
-                    </table>
+            expiring60_rows += f"""
+                    <tr>
+                        <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; color: #374151;"><strong>{item['medicine_name']}</strong></td>
+                        <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; color: #374151;"><span style="display: inline-block; padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: bold; background: #dbeafe; color: #2563eb;">{item['quantity']} units</span></td>
+                        <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; color: #374151;">{item['expiry_date']}</td>
+                        <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; color: #374151;"><span style="display: inline-block; padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: bold; background: #dbeafe; color: #2563eb;">{item['days_until_expiry']} days</span></td>
+                    </tr>"""
+        alert_sections += f"""
+            <!-- Expiring 60 Days Section -->
+            <div style="margin-bottom: 30px;">
+                <div style="background: #dbeafe; padding: 15px; border-left: 4px solid #2563eb; margin-bottom: 15px;">
+                    <h3 style="margin: 0; color: #2563eb; font-size: 18px;">📅 EXPIRING IN 60 DAYS</h3>
+                    <p style="margin: 5px 0 0 0; color: #666; font-size: 14px;">These medicines will expire within 60 days. Monitor usage and plan accordingly</p>
                 </div>
-        """
+                <table style="width: 100%; border-collapse: collapse; background: white; border: 1px solid #e5e7eb; border-radius: 8px;">
+                    <thead>
+                        <tr style="background: #f9fafb;">
+                            <th style="padding: 12px; text-align: left; border-bottom: 2px solid #e5e7eb; font-size: 14px; color: #374151;">Medicine Name</th>
+                            <th style="padding: 12px; text-align: left; border-bottom: 2px solid #e5e7eb; font-size: 14px; color: #374151;">Quantity</th>
+                            <th style="padding: 12px; text-align: left; border-bottom: 2px solid #e5e7eb; font-size: 14px; color: #374151;">Expiry Date</th>
+                            <th style="padding: 12px; text-align: left; border-bottom: 2px solid #e5e7eb; font-size: 14px; color: #374151;">Days Until</th>
+                        </tr>
+                    </thead>
+                    <tbody>{expiring60_rows}</tbody>
+                </table>
+            </div>"""
     
     # LOW STOCK
     if alerts['low_stock']:
-        html += """
-                <div class="alert-section">
-                    <div class="alert-header">
-                        <h2>📦 LOW STOCK ALERT - REORDER NEEDED</h2>
-                        <p>These medicines have 10 or fewer units in stock. Consider reordering</p>
-                    </div>
-                    <table class="alert-table">
-                        <thead>
-                            <tr>
-                                <th>Medicine Name</th>
-                                <th>Category</th>
-                                <th>Current Stock</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-        """
+        lowstock_rows = ""
         for item in alerts['low_stock']:
-            html += f"""
-                            <tr>
-                                <td><strong>{item['medicine_name']}</strong></td>
-                                <td>{item['category']}</td>
-                                <td><span class="badge badge-warning">{item['total_stock']} units</span></td>
-                            </tr>
-            """
-        html += """
-                        </tbody>
-                    </table>
+            lowstock_rows += f"""
+                    <tr>
+                        <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; color: #374151;"><strong>{item['medicine_name']}</strong></td>
+                        <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; color: #374151;">{item['category']}</td>
+                        <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; color: #374151;"><span style="display: inline-block; padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: bold; background: #fef3c7; color: #d97706;">{item['total_stock']} units</span></td>
+                    </tr>"""
+        alert_sections += f"""
+            <!-- Low Stock Section -->
+            <div style="margin-bottom: 30px;">
+                <div style="background: #fef3c7; padding: 15px; border-left: 4px solid #f59e0b; margin-bottom: 15px;">
+                    <h3 style="margin: 0; color: #d97706; font-size: 18px;">📦 LOW STOCK ALERT</h3>
+                    <p style="margin: 5px 0 0 0; color: #666; font-size: 14px;">These medicines have 10 or fewer units in stock. Consider reordering</p>
                 </div>
-        """
+                <table style="width: 100%; border-collapse: collapse; background: white; border: 1px solid #e5e7eb; border-radius: 8px;">
+                    <thead>
+                        <tr style="background: #f9fafb;">
+                            <th style="padding: 12px; text-align: left; border-bottom: 2px solid #e5e7eb; font-size: 14px; color: #374151;">Medicine Name</th>
+                            <th style="padding: 12px; text-align: left; border-bottom: 2px solid #e5e7eb; font-size: 14px; color: #374151;">Category</th>
+                            <th style="padding: 12px; text-align: left; border-bottom: 2px solid #e5e7eb; font-size: 14px; color: #374151;">Current Stock</th>
+                        </tr>
+                    </thead>
+                    <tbody>{lowstock_rows}</tbody>
+                </table>
+            </div>"""
     
-    html += """
-                <div class="action-required">
-                    <h3>📋 Action Required</h3>
-                    <p><strong>Please review the inventory alerts above and take appropriate action:</strong></p>
-                    <ul>
-                        <li>Remove expired medicines from inventory immediately</li>
-                        <li>Plan usage for medicines expiring soon</li>
-                        <li>Reorder low stock items to maintain adequate supply</li>
-                        <li>Update inventory records in the iClinic Management System</li>
-                    </ul>
+    html = f"""<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Inventory Alert</title>
+</head>
+<body style="margin: 0; padding: 0; background-color: #f3f4f6; font-family: 'Inter', Arial, sans-serif;">
+    <div style="max-width: 800px; margin: 20px auto; background-color: white; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); overflow: hidden;">
+        <!-- Blue Header -->
+        <div style="background-color: #2563eb; color: white; padding: 30px 20px; text-align: center;">
+            <h1 style="margin: 0; font-size: 24px; font-weight: bold;">iClinic Management System</h1>
+            <p style="margin: 5px 0 0 0; opacity: 0.9; font-size: 14px;">Norzagaray College</p>
+        </div>
+        
+        <!-- Content -->
+        <div style="padding: 40px 30px;">
+            <h2 style="color: #1e40af; margin: 0 0 20px 0; font-size: 22px;">🏥 Inventory Alert</h2>
+            
+            <p style="color: #374151; margin: 0 0 20px 0; line-height: 1.6;">
+                Hello,
+            </p>
+            
+            <p style="color: #374151; margin: 0 0 25px 0; line-height: 1.6;">
+                This is an automated alert regarding the current status of medicine inventory. Please review the details below and take appropriate action.
+            </p>
+            
+            <!-- Summary Box -->
+            <div style="background-color: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 20px; margin-bottom: 25px;">
+                <h3 style="margin: 0 0 15px 0; color: #dc2626; font-size: 18px;">� Alert Summary</h3>
+                <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px;">
+                    <div style="background: white; padding: 15px; border-radius: 6px; border-left: 3px solid #dc2626;">
+                        <p style="font-size: 32px; font-weight: bold; color: #dc2626; margin: 0;">{len(alerts['expired'])}</p>
+                        <p style="color: #666; font-size: 14px; margin: 5px 0 0 0;">Expired Medicines</p>
+                    </div>
+                    <div style="background: white; padding: 15px; border-radius: 6px; border-left: 3px solid #f59e0b;">
+                        <p style="font-size: 32px; font-weight: bold; color: #d97706; margin: 0;">{len(alerts['expiring_30_days'])}</p>
+                        <p style="color: #666; font-size: 14px; margin: 5px 0 0 0;">Expiring in 30 Days</p>
+                    </div>
+                    <div style="background: white; padding: 15px; border-radius: 6px; border-left: 3px solid #2563eb;">
+                        <p style="font-size: 32px; font-weight: bold; color: #2563eb; margin: 0;">{len(alerts['expiring_60_days'])}</p>
+                        <p style="color: #666; font-size: 14px; margin: 5px 0 0 0;">Expiring in 60 Days</p>
+                    </div>
+                    <div style="background: white; padding: 15px; border-radius: 6px; border-left: 3px solid #f59e0b;">
+                        <p style="font-size: 32px; font-weight: bold; color: #d97706; margin: 0;">{len(alerts['low_stock'])}</p>
+                        <p style="color: #666; font-size: 14px; margin: 5px 0 0 0;">Low Stock Items</p>
+                    </div>
                 </div>
             </div>
             
-            <div class="footer">
-                <p><strong>iClinic Management System</strong></p>
-                <p>Norzagaray College Clinic</p>
-                <p>This is an automated notification. Please do not reply to this email.</p>
-                <p>For assistance, contact the clinic administrator.</p>
+            {alert_sections}
+            
+            <!-- Action Required -->
+            <div style="background-color: #fef2f2; border: 2px solid #dc2626; padding: 20px; border-radius: 8px; margin: 20px 0;">
+                <h3 style="margin: 0 0 10px 0; color: #dc2626;">📋 Action Required</h3>
+                <p style="margin: 0 0 10px 0; color: #374151;"><strong>Please review the inventory alerts above and take appropriate action:</strong></p>
+                <ul style="margin: 0; padding-left: 20px; color: #374151; line-height: 1.6;">
+                    <li>Remove expired medicines from inventory immediately</li>
+                    <li>Plan usage for medicines expiring soon</li>
+                    <li>Reorder low stock items to maintain adequate supply</li>
+                    <li>Update inventory records in the iClinic Management System</li>
+                </ul>
             </div>
+            
+            <!-- Button -->
+            <div style="text-align: center; margin: 30px 0;">
+                <a href="http://127.0.0.1:5000" 
+                   style="display: inline-block; background-color: #2563eb; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; font-weight: 500;">
+                    View Inventory Dashboard
+                </a>
+            </div>
+            
+            <p style="color: #6b7280; font-size: 13px; margin: 0 0 10px 0;">
+                If the button doesn't work, copy and paste this link into your browser:
+            </p>
+            <p style="margin: 0;">
+                <a href="http://127.0.0.1:5000" style="color: #2563eb; font-size: 13px; word-break: break-all;">http://127.0.0.1:5000</a>
+            </p>
         </div>
-    </body>
-    </html>
-    """
+        
+        <!-- Footer -->
+        <div style="background-color: #f9fafb; padding: 20px; text-align: center; border-top: 1px solid #e5e7eb;">
+            <p style="margin: 0; color: #6b7280; font-size: 12px; line-height: 1.5;">
+                © 2024 iClinic Management System<br>
+                Norzagaray College<br>
+                If you need assistance, please contact IT support.
+            </p>
+        </div>
+    </div>
+</body>
+</html>"""
     
     return html
 
