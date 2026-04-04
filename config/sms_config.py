@@ -3,12 +3,14 @@ import os
 
 class SMSConfig:
     # Set to 'semaphore' to use Semaphore SMS API
-    SMS_PROVIDER = (os.environ.get('SMS_PROVIDER') or 'semaphore').strip()
+    SMS_PROVIDER = (os.environ.get('SMS_PROVIDER') or 'android_gateway').strip()
 
-    PHILSMS_API_TOKEN = (os.environ.get('PHILSMS_API_TOKEN') or '').strip()
-    PHILSMS_SENDER_ID = (os.environ.get('PHILSMS_SENDER_ID') or '').strip()
-    PHILSMS_SMS_TYPE = (os.environ.get('PHILSMS_SMS_TYPE') or '').strip()
-    PHILSMS_CONTACT_LIST_ID = (os.environ.get('PHILSMS_CONTACT_LIST_ID') or '').strip()
-    # SEMAPHORE API KEY - PASTE YOUR KEY HERE
-    SEMAPHORE_API_KEY = (os.environ.get('SEMAPHORE_API_KEY') or '3533cf16b93251cfe1d84f6f525b87fc').strip()
-    SEMAPHORE_SENDER_NAME = (os.environ.get('SEMAPHORE_SENDER_NAME') or '').strip()
+    ANDROID_SMS_GATEWAY_MODE = (os.environ.get('ANDROID_SMS_GATEWAY_MODE') or 'local').strip()
+    ANDROID_SMS_GATEWAY_LOCAL_BASE_URL = (os.environ.get('ANDROID_SMS_GATEWAY_LOCAL_BASE_URL') or 'http://192.168.100.47:8080/').strip()
+    ANDROID_SMS_GATEWAY_CLOUD_BASE_URL = (os.environ.get('ANDROID_SMS_GATEWAY_CLOUD_BASE_URL') or 'https://api.sms-gate.app:443').strip()
+
+    ANDROID_SMS_GATEWAY_LOCAL_USERNAME = (os.environ.get('ANDROID_SMS_GATEWAY_LOCAL_USERNAME') or 'sms').strip()
+    ANDROID_SMS_GATEWAY_LOCAL_PASSWORD = (os.environ.get('ANDROID_SMS_GATEWAY_LOCAL_PASSWORD') or 'yettB3in').strip()
+
+    ANDROID_SMS_GATEWAY_CLOUD_USERNAME = (os.environ.get('ANDROID_SMS_GATEWAY_CLOUD_USERNAME') or '').strip()
+    ANDROID_SMS_GATEWAY_CLOUD_PASSWORD = (os.environ.get('ANDROID_SMS_GATEWAY_CLOUD_PASSWORD') or '').strip()

@@ -6,9 +6,12 @@ Works with: https://github.com/capcom6/android-sms-gateway
 
 import requests
 import json
+import os
 from typing import List, Dict, Optional
 from datetime import datetime
 import logging
+
+from config.sms_config import SMSConfig
 
 logger = logging.getLogger(__name__)
 
@@ -27,19 +30,18 @@ class AndroidSMSGateway:
         """
         self.use_local = use_local
         
-        # Configuration from your screenshot
         if use_local:
             # LOCAL SERVER - Works WITHOUT internet!
-            self.base_url = "http://192.168.100.85:8080"
-            self.username = "sms"
-            self.password = "Qw_Y7IcU"
-            self.device_id = "000000004bbc34ed0000019a11c2b"
+            self.base_url = (os.environ.get('ANDROID_SMS_GATEWAY_LOCAL_BASE_URL') or SMSConfig.ANDROID_SMS_GATEWAY_LOCAL_BASE_URL or '').strip()
+            self.username = (os.environ.get('ANDROID_SMS_GATEWAY_LOCAL_USERNAME') or SMSConfig.ANDROID_SMS_GATEWAY_LOCAL_USERNAME or '').strip()
+            self.password = (os.environ.get('ANDROID_SMS_GATEWAY_LOCAL_PASSWORD') or SMSConfig.ANDROID_SMS_GATEWAY_LOCAL_PASSWORD or '').strip()
         else:
             # CLOUD SERVER - Requires internet
-            self.base_url = "https://api.sms-gate.app:443"
-            self.username = "QYCHOY"
-            self.password = "spmcx3gxj6ja6l"
-            self.device_id = "Yk9DqOBN5DLplpYAqMibd"
+            self.base_url = (os.environ.get('ANDROID_SMS_GATEWAY_CLOUD_BASE_URL') or SMSConfig.ANDROID_SMS_GATEWAY_CLOUD_BASE_URL or '').strip()
+            self.username = (os.environ.get('ANDROID_SMS_GATEWAY_CLOUD_USERNAME') or SMSConfig.ANDROID_SMS_GATEWAY_CLOUD_USERNAME or '').strip()
+            self.password = (os.environ.get('ANDROID_SMS_GATEWAY_CLOUD_PASSWORD') or SMSConfig.ANDROID_SMS_GATEWAY_CLOUD_PASSWORD or '').strip()
+
+        self.base_url = (self.base_url or '').rstrip('/')
         
         self.headers = {
             'Content-Type': 'application/json'
@@ -87,13 +89,13 @@ class AndroidSMSGateway:
                     timeout=10
                 )
             
-            if response.status_code in [200, 201]:
+            if response.status_code in [200, 201, 202]:
                 result = response.json()
-                logger.info(f"✅ SMS sent successfully to {phone_number}")
+                logger.info(f"✅ SMS sent successfully to {phone_number} (Status: {response.status_code})")
                 return {
                     'success': True,
                     'message_id': result.get('id', 'unknown'),
-                    'status': 'sent'
+                    'status': 'sent' if response.status_code != 202 else 'accepted/pending'
                 }
             else:
                 logger.error(f"❌ SMS failed: {response.status_code} - {response.text}")
@@ -158,16 +160,19 @@ class AndroidSMSGateway:
     def _format_phone_number(self, phone: str) -> str:
         """
         Format phone number for SMS gateway
-        Converts 09557850712 to +639171234567
+        Converts 09460296423 to +639460296423
         """
         phone = phone.strip().replace(' ', '').replace('-', '')
         
-        # If starts with 0, replace with +63
+        # If starts with 09, replace with +639
         if phone.startswith('0'):
             phone = '+63' + phone[1:]
-        # If doesn't start with +, add +63
-        elif not phone.startswith('+'):
+        # If starts with 9, add +63
+        elif phone.startswith('9') and len(phone) == 10:
             phone = '+63' + phone
+        # If doesn't start with +, add +
+        elif not phone.startswith('+'):
+            phone = '+' + phone
         
         return phone
     

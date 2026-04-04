@@ -1586,6 +1586,7 @@
                         
                         if (response.ok) {
                             const responseData = await response.json();
+                            console.log('Add medical record response:', responseData);
 
                             // Update inventory if medicines were prescribed
                             if (this.newRecord.prescribed_medicines.length > 0) {
@@ -1602,9 +1603,10 @@
                             this.showSuccess('Medical record added successfully! Inventory updated.');
 
                             if (isMajorCase) {
+                                const createdRecordId = (responseData?.record_id ?? responseData?.id ?? responseData?.medical_record_id ?? this.selectedPatient?.medical_records?.[0]?.id ?? null);
                                 this.majorCaseActions = {
-                                    record_id: responseData?.record_id || null,
-                                    role: role || 'Student',
+                                    record_id: createdRecordId,
+                                    role: role || this.selectedPatient?.role || 'Student',
                                     patient_id: this.selectedPatient?.id || null
                                 };
                                 this.showEndorseNowModal = true;
@@ -1623,7 +1625,7 @@
 
                 async endorseMajorCaseNow() {
                     try {
-                        if (!this.majorCaseActions?.record_id) {
+                        if (!this.majorCaseActions || this.majorCaseActions.record_id === null || this.majorCaseActions.record_id === undefined) {
                             this.showError('Unable to endorse: missing record ID.');
                             return;
                         }
@@ -1665,7 +1667,7 @@
                             return;
                         }
 
-                        if (!this.majorCaseActions?.record_id) {
+                        if (!this.majorCaseActions || this.majorCaseActions.record_id === null || this.majorCaseActions.record_id === undefined) {
                             this.showError('Unable to notify: missing record ID.');
                             return;
                         }
@@ -1689,6 +1691,7 @@
                         }
 
                         this.showSuccess(data.message || 'Guardian notified successfully');
+                        this.showEndorseNowModal = false;
                     } catch (e) {
                         console.error('Notify error:', e);
                         this.showError('Network error while notifying guardian.');
@@ -3672,7 +3675,7 @@
                                                         </tr>
                                                     </thead>
                                                     <tbody class="divide-y divide-gray-100">
-                                                        <template x-for="record in selectedPatient.medical_records" :key="record.id">
+                                                        <template x-for="(record, idx) in (selectedPatient && selectedPatient.medical_records ? selectedPatient.medical_records : [])" :key="record.id || idx">
                                                             <tr class="hover:bg-blue-50 transition-all duration-200 group">
                                                                 <td class="px-2 sm:px-3 md:px-4 lg:px-6 py-2 sm:py-3 md:py-4 whitespace-nowrap">
                                                                     <div class="flex flex-col">
@@ -4515,7 +4518,7 @@
                         <div class="p-6 space-y-4">
                             <div class="bg-red-50 border border-red-200 rounded-xl p-4">
                                 <p class="text-sm text-red-800 font-medium">Major case saved. Please proceed with endorsement and guardian notification.</p>
-                                <p class="text-xs text-red-700 mt-1" x-text="majorCaseActions && majorCaseActions.record_id ? 'Record ID: ' + majorCaseActions.record_id : ''"></p>
+                                <p class="text-xs text-red-700 mt-1" x-text="majorCaseActions && majorCaseActions.record_id !== null && majorCaseActions.record_id !== undefined ? 'Record ID: ' + majorCaseActions.record_id : ''"></p>
                             </div>
 
                             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -5729,7 +5732,7 @@
                                 </tr>
                             </thead>
                             <tbody class="bg-white divide-y divide-gray-100">
-                                <template x-for="record in printHistory" :key="record.id">
+                                <template x-for="(record, idx) in (printHistory ? printHistory : [])" :key="record.id || idx">
                                     <tr class="hover:bg-gray-50 transition-all duration-200">
                                         <td class="px-4 py-3 whitespace-nowrap">
                                             <div class="flex items-center">

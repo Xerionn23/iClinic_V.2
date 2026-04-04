@@ -589,218 +589,6 @@ def _send_major_case_notification_sms(phone_number, message):
         provider = (os.environ.get('SMS_PROVIDER') or SMSConfig.SMS_PROVIDER or '').strip().lower()
         if not provider:
             return {'success': False, 'error': 'SMS provider not configured (set SMS_PROVIDER)'}
-        if provider == 'philsms':
-            api_token = (os.environ.get('PHILSMS_API_TOKEN') or SMSConfig.PHILSMS_API_TOKEN or '').strip()
-            sender_id = (os.environ.get('PHILSMS_SENDER_ID') or SMSConfig.PHILSMS_SENDER_ID or '').strip()
-            sms_type = (os.environ.get('PHILSMS_SMS_TYPE') or SMSConfig.PHILSMS_SMS_TYPE or 'plain').strip() or 'plain'
-            contact_list_id = (os.environ.get('PHILSMS_CONTACT_LIST_ID') or SMSConfig.PHILSMS_CONTACT_LIST_ID or '').strip()
-
-            if not api_token:
-                return {'success': False, 'error': 'Missing PHILSMS_API_TOKEN'}
-            if not sender_id:
-                return {'success': False, 'error': 'Missing PHILSMS_SENDER_ID'}
-
-            try:
-                raw = str(phone_number).strip()
-                digits = ''.join(ch for ch in raw if ch.isdigit())
-                if digits.startswith('0'):
-                    digits = '63' + digits[1:]
-                elif digits.startswith('63'):
-                    pass
-                elif raw.startswith('+') and digits.startswith('63'):
-                    pass
-                else:
-                    if digits:
-                        digits = '63' + digits
-
-                payload = {
-                    'recipient': digits,
-                    'sender_id': sender_id,
-                    'type': sms_type,
-                    'message': str(message),
-                }
-
-                campaign_payload = dict(payload)
-                if contact_list_id:
-                    campaign_payload['contact_list_id'] = contact_list_id
-
-                headers = {
-                    'Authorization': f'Bearer {api_token}',
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json',
-                }
-
-                # Prefer single-send endpoint to avoid requiring a contact list/group.
-                response = http_requests.post(
-                    'https://app.philsms.com/api/v3/sms/send',
-                    headers=headers,
-                    json=payload,
-                    timeout=20
-                )
-
-                # Some accounts/environments may not support /sms/send. Fallback to campaign.
-                if response.status_code == 404 or (response.status_code in (400, 422) and contact_list_id):
-                    response = http_requests.post(
-                        'https://app.philsms.com/api/v3/sms/campaign',
-                        headers=headers,
-                        json=campaign_payload,
-                        timeout=20
-                    )
-
-                if response.status_code not in (200, 201):
-                    return {
-                        'success': False,
-                        'error': f"HTTP {response.status_code}: {response.text}",
-                        'provider': 'philsms'
-                    }
-
-                try:
-                    data = response.json()
-                except Exception:
-                    data = None
-
-                status = None
-                message_id = None
-                api_message = None
-                if isinstance(data, dict):
-                    status = data.get('status')
-                    api_message = data.get('message') or data.get('error')
-                    msg_data = data.get('data')
-                    if isinstance(msg_data, dict):
-                        message_id = msg_data.get('uid') or msg_data.get('id')
-
-                if isinstance(status, str) and status.strip().lower() not in ('success', 'sent', 'queued'):
-                    return {
-                        'success': False,
-                        'provider': 'philsms',
-                        'error': api_message or f"PHILSMS status: {status}",
-                        'status': status,
-                        'message_id': message_id
-                    }
-
-                return {
-                    'success': True,
-                    'provider': 'philsms',
-                    'status': status or 'sent',
-                    'message_id': message_id or 'unknown'
-                }
-            except Exception as e:
-                return {'success': False, 'error': str(e)}
-        if provider == 'semaphore':
-            api_key = (os.environ.get('SEMAPHORE_API_KEY') or SMSConfig.SEMAPHORE_API_KEY or '').strip()
-            sender_name = (os.environ.get('SEMAPHORE_SENDER_NAME') or SMSConfig.SEMAPHORE_SENDER_NAME or '').strip() or None
-
-            if not api_key:
-                return {'success': False, 'error': 'Missing SEMAPHORE_API_KEY'}
-
-            try:
-                raw = str(phone_number).strip()
-                digits = ''.join(ch for ch in raw if ch.isdigit())
-                if digits.startswith('63') and len(digits) >= 12:
-                    digits = '0' + digits[2:]
-                if not digits.startswith('0') and len(digits) == 10:
-                    digits = '0' + digits
-
-                if not digits.startswith('0') or len(digits) != 11:
-                    return {'success': False, 'error': f'Invalid phone number format for Semaphore: {raw}'}
-
-                payload_base = {
-                    'apikey': api_key,
-                    'number': digits,
-                    'message': str(message),
-                }
-
-                def _post_semaphore(payload_to_send):
-                    return http_requests.post(
-                        'https://semaphore.co/api/v4/messages',
-                        data=payload_to_send,
-                        timeout=15
-                    )
-
-                payload = dict(payload_base)
-                if sender_name:
-                    payload['sendername'] = sender_name
-
-                response = _post_semaphore(payload)
-
-                raw_text = None
-                try:
-                    raw_text = response.text
-                except Exception:
-                    raw_text = None
-
-                # If sender name is not approved/active, retry without sendername to use default sender.
-                if sender_name and response.status_code in (400, 401, 403, 422, 500):
-                    body_lower = (raw_text or '').lower()
-                    if 'sendername' in body_lower or 'sender name' in body_lower or 'no active sender' in body_lower:
-                        response = _post_semaphore(payload_base)
-                        try:
-                            raw_text = response.text
-                        except Exception:
-                            raw_text = None
-
-                if response.status_code not in (200, 201):
-                    body_lower = (raw_text or '').lower()
-                    if 'no active sender name found' in body_lower:
-                        return {
-                            'success': False,
-                            'provider': 'semaphore',
-                            'error': 'Semaphore requires an active/approved Sender Name on your account. Please apply/activate a Sender Name in Semaphore dashboard, then retry.'
-                        }
-                    if 'sendername' in body_lower and ('not valid' in body_lower or 'invalid' in body_lower):
-                        return {
-                            'success': False,
-                            'provider': 'semaphore',
-                            'error': 'Invalid Sender Name for Semaphore. Remove SEMAPHORE_SENDER_NAME (leave blank) or use an approved Sender Name from your Semaphore account.'
-                        }
-                    return {'success': False, 'error': f"HTTP {response.status_code}: {raw_text or response.text}"}
-
-                try:
-                    data = response.json()
-                except Exception:
-                    data = None
-
-                if isinstance(data, dict):
-                    if data.get('status') and str(data.get('status')).lower() not in ('queued', 'success', 'sent'):
-                        return {
-                            'success': False,
-                            'provider': 'semaphore',
-                            'error': data.get('message') or data.get('error') or str(data.get('status'))
-                        }
-
-                    if data.get('status') and str(data.get('status')).lower() in ('queued', 'success', 'sent'):
-                        return {
-                            'success': True,
-                            'provider': 'semaphore',
-                            'status': data.get('status')
-                        }
-
-                if isinstance(data, list) and len(data) > 0:
-                    item = data[0] if isinstance(data[0], dict) else {}
-                    status = (item.get('status') or '').lower()
-                    if status in ('queued', 'success', 'sent'):
-                        return {
-                            'success': True,
-                            'provider': 'semaphore',
-                            'message_id': item.get('message_id') or item.get('id') or 'unknown',
-                            'status': item.get('status')
-                        }
-                    return {
-                        'success': False,
-                        'provider': 'semaphore',
-                        'error': item.get('message') or item.get('error') or item.get('status') or 'Semaphore send failed'
-                    }
-
-                if isinstance(data, str) and data.strip():
-                    return {'success': False, 'provider': 'semaphore', 'error': data}
-
-                if raw_text and str(raw_text).strip():
-                    return {'success': False, 'provider': 'semaphore', 'error': str(raw_text).strip()}
-
-                return {'success': False, 'provider': 'semaphore', 'error': 'Unexpected Semaphore response (empty body)'}
-            except Exception as e:
-                return {'success': False, 'error': str(e)}
-
         if provider != 'android_gateway':
             return {'success': False, 'error': f"Unsupported SMS_PROVIDER: {provider}"}
 
@@ -814,6 +602,368 @@ def _send_major_case_notification_sms(phone_number, message):
         return gateway.send_sms(phone_number, message)
     except Exception as e:
         return {'success': False, 'error': str(e)}
+
+
+def _format_major_case_datetime(visit_date, visit_time):
+    date_str = ''
+    time_str = ''
+    try:
+        if visit_date:
+            date_str = str(visit_date)
+    except Exception:
+        date_str = ''
+
+    try:
+        if visit_time:
+            time_str = str(visit_time)
+    except Exception:
+        time_str = ''
+
+    dt = (date_str + ' ' + time_str).strip()
+    return dt
+
+
+def _build_guardian_major_case_sms(patient_name, role_label, visit_dt, chief_complaint, action_label, record_id=None, clinic_name='NORZAGARAY COLLEGE', guardian_name=None, guardian_relationship=None, version='full'):
+    # Convert names to Title Case (Capital Each Word)
+    patient_name = (patient_name or '').strip().title() or 'Your Child'
+    guardian_name = (guardian_name or '').strip().title()
+
+    # action_label is used to distinguish between "Home Rest" and "Hospital Endorsement"
+    is_hospital = action_label and ('hospital' in action_label.lower() or 'endorse' in action_label.lower())
+
+    # Simplified formatting: Reduced newlines and removed extra spaces to stay within SMS character limits
+    msg = f"{clinic_name}\niClinic Management System\n\n"
+    
+    if guardian_name:
+        msg += f"Dear Mr./Ms. {guardian_name},\n"
+    else:
+        msg += "Dear Mr./Ms. Parent/Guardian,\n"
+
+    if not is_hospital:
+        # TEMPLATE 1 — For Home Rest / Pick-up
+        msg += f"This is to formally inform you that, {patient_name}, is currently at the school clinic and has been assessed with a health concern that requires rest and proper care at home.\n"
+        msg += "We kindly request your immediate presence at the school clinic for proper coordination and to ensure proper rest at home.\n"
+    else:
+        # TEMPLATE 2 — For Hospital Endorsement
+        msg += f"This is to formally inform you that, {patient_name}, is currently at the school clinic and has been assessed with a condition that requires further medical evaluation.\n"
+        msg += "We request your immediate presence at the school clinic for proper coordination and possible endorsement to a hospital for further medical attention.\n"
+
+    msg += "Sincerely,\niClinic Management System\nNorzagaray College"
+    
+    return msg
+
+
+def _resolve_major_case_guardian_contact(cursor, conn, role, record_id):
+    role_normalized = (role or '').strip().lower()
+    table = _resolve_medical_record_table(role)
+    if not table:
+        return {
+            'error': 'Invalid role'
+        }
+
+    cursor.execute(
+        f"SELECT id, chief_complaint, visit_date, visit_time FROM {table} WHERE id = %s",
+        (record_id,)
+    )
+    record = cursor.fetchone()
+    if not record:
+        return {
+            'error': 'Record not found'
+        }
+
+    chief_complaint = record[1] or ''
+    visit_date = record[2]
+    visit_time = record[3]
+    visit_dt = _format_major_case_datetime(visit_date, visit_time)
+
+    contact_number = None
+    patient_name = None
+    guardian_name = None
+    guardian_relationship = None
+
+    unified_identifier = None
+    unified_source_id = None
+
+    if role_normalized in ['student', 'students', '']:
+        cursor.execute('''
+            SELECT mr.student_number
+            FROM medical_records mr
+            WHERE mr.id = %s
+            LIMIT 1
+        ''', (record_id,))
+        r0 = cursor.fetchone()
+        if r0:
+            unified_identifier = r0[0]
+
+        cursor.execute('''
+            SELECT s.emergency_contact_number,
+                   s.emergency_contact_name,
+                   s.emergency_contact_relationship,
+                   s.std_Firstname,
+                   s.std_Surname
+            FROM medical_records mr
+            INNER JOIN students s ON mr.student_number = s.student_number
+            WHERE mr.id = %s
+            LIMIT 1
+        ''', (record_id,))
+        row = cursor.fetchone()
+        if row:
+            contact_number = row[0]
+            guardian_name = row[1]
+            guardian_relationship = row[2]
+            patient_name = (f"{row[3] or ''} {row[4] or ''}").strip() or None
+
+    elif role_normalized in ['visitor', 'visitors']:
+        cursor.execute('''
+            SELECT mr.visitor_id
+            FROM visitor_medical_records mr
+            WHERE mr.id = %s
+            LIMIT 1
+        ''', (record_id,))
+        r0 = cursor.fetchone()
+        if r0:
+            unified_source_id = r0[0]
+
+        cursor.execute('''
+            SELECT v.contact_number,
+                   v.first_name,
+                   v.last_name
+            FROM visitor_medical_records mr
+            INNER JOIN visitors v ON mr.visitor_id = v.id
+            WHERE mr.id = %s
+            LIMIT 1
+        ''', (record_id,))
+        row = cursor.fetchone()
+        if row:
+            contact_number = row[0]
+            patient_name = (f"{row[1] or ''} {row[2] or ''}").strip() or None
+
+    elif role_normalized in ['teaching staff', 'teaching', 'teaching_staff']:
+        cursor.execute('''
+            SELECT mr.teaching_id
+            FROM teaching_medical_records mr
+            WHERE mr.id = %s
+            LIMIT 1
+        ''', (record_id,))
+        r0 = cursor.fetchone()
+        if r0:
+            unified_source_id = r0[0]
+
+        cursor.execute('''
+            SELECT t.emergency_contact_number,
+                   t.emergency_contact_name,
+                   t.emergency_contact_relationship,
+                   t.first_name,
+                   t.last_name
+            FROM teaching_medical_records mr
+            INNER JOIN teaching t ON mr.teaching_id = t.id
+            WHERE mr.id = %s
+            LIMIT 1
+        ''', (record_id,))
+        row = cursor.fetchone()
+        if row:
+            contact_number = row[0] or row[0]
+            guardian_name = row[1]
+            guardian_relationship = row[2]
+            patient_name = (f"{row[3] or ''} {row[4] or ''}").strip() or None
+
+    elif role_normalized in ['non-teaching staff', 'non teaching staff', 'non_teaching staff', 'non_teaching', 'non_teaching_staff']:
+        cursor.execute('''
+            SELECT mr.non_teaching_id
+            FROM non_teaching_medical_records mr
+            WHERE mr.id = %s
+            LIMIT 1
+        ''', (record_id,))
+        r0 = cursor.fetchone()
+        if r0:
+            unified_source_id = r0[0]
+
+        cursor.execute('''
+            SELECT nt.emergency_contact_number,
+                   nt.emergency_contact_name,
+                   nt.emergency_contact_relationship,
+                   nt.first_name,
+                   nt.last_name
+            FROM non_teaching_medical_records mr
+            INNER JOIN non_teaching_staff nt ON mr.non_teaching_id = nt.id
+            WHERE mr.id = %s
+            LIMIT 1
+        ''', (record_id,))
+        row = cursor.fetchone()
+        if row:
+            contact_number = row[0]
+            guardian_name = row[1]
+            guardian_relationship = row[2]
+            patient_name = (f"{row[3] or ''} {row[4] or ''}").strip() or None
+
+    elif role_normalized in ['dean', 'deans']:
+        cursor.execute('''
+            SELECT mr.dean_id
+            FROM dean_medical_records mr
+            WHERE mr.id = %s
+            LIMIT 1
+        ''', (record_id,))
+        r0 = cursor.fetchone()
+        if r0:
+            unified_source_id = r0[0]
+
+        cursor.execute('''
+            SELECT d.emergency_contact_number,
+                   d.emergency_contact_name,
+                   d.emergency_contact_relationship,
+                   d.first_name,
+                   d.last_name
+            FROM dean_medical_records mr
+            INNER JOIN deans d ON mr.dean_id = d.id
+            WHERE mr.id = %s
+            LIMIT 1
+        ''', (record_id,))
+        row = cursor.fetchone()
+        if row:
+            contact_number = row[0]
+            guardian_name = row[1]
+            guardian_relationship = row[2]
+            patient_name = (f"{row[3] or ''} {row[4] or ''}").strip() or None
+
+    try:
+        cursor.execute("SHOW TABLES LIKE 'patients_unified'")
+        if cursor.fetchone():
+            role_for_unified = None
+            if role_normalized in ['student', 'students', '']:
+                role_for_unified = 'Student'
+            elif role_normalized in ['visitor', 'visitors']:
+                role_for_unified = 'Visitor'
+            elif role_normalized in ['teaching staff', 'teaching', 'teaching_staff']:
+                role_for_unified = 'Teaching Staff'
+            elif role_normalized in ['non-teaching staff', 'non teaching staff', 'non_teaching staff', 'non_teaching', 'non_teaching_staff']:
+                role_for_unified = 'Non-Teaching Staff'
+            elif role_normalized in ['dean', 'deans']:
+                role_for_unified = 'Dean'
+
+            select_cols = ['emergency_contact_number']
+            try:
+                cursor.execute("SHOW COLUMNS FROM patients_unified LIKE 'emergency_contact_name'")
+                if cursor.fetchone():
+                    select_cols.append('emergency_contact_name')
+            except Exception:
+                pass
+            try:
+                cursor.execute("SHOW COLUMNS FROM patients_unified LIKE 'emergency_contact_relationship'")
+                if cursor.fetchone():
+                    select_cols.append('emergency_contact_relationship')
+            except Exception:
+                pass
+            try:
+                cursor.execute("SHOW COLUMNS FROM patients_unified LIKE 'full_name'")
+                if cursor.fetchone():
+                    select_cols.append('full_name')
+            except Exception:
+                pass
+
+            unified_row = None
+            if role_for_unified and unified_identifier:
+                ucur = conn.cursor(dictionary=True, buffered=True)
+                ucur.execute(
+                    f"SELECT {', '.join(select_cols)} FROM patients_unified WHERE role = %s AND identifier = %s LIMIT 1",
+                    (role_for_unified, unified_identifier)
+                )
+                unified_row = ucur.fetchone()
+                ucur.close()
+            elif role_for_unified and unified_source_id is not None:
+                ucur = conn.cursor(dictionary=True, buffered=True)
+                ucur.execute(
+                    f"SELECT {', '.join(select_cols)} FROM patients_unified WHERE role = %s AND source_id = %s LIMIT 1",
+                    (role_for_unified, unified_source_id)
+                )
+                unified_row = ucur.fetchone()
+                ucur.close()
+
+            if isinstance(unified_row, dict):
+                unified_emergency_number = (unified_row.get('emergency_contact_number') or '').strip()
+                if unified_emergency_number:
+                    contact_number = unified_emergency_number
+                if unified_row.get('emergency_contact_name'):
+                    guardian_name = unified_row.get('emergency_contact_name')
+                if unified_row.get('emergency_contact_relationship'):
+                    guardian_relationship = unified_row.get('emergency_contact_relationship')
+                if unified_row.get('full_name'):
+                    patient_name = unified_row.get('full_name')
+    except Exception as e:
+        print(f"Note: Could not resolve unified emergency contact for notification: {e}")
+
+    role_label = None
+    if role_normalized in ['student', 'students', '']:
+        role_label = 'Student'
+    elif role_normalized in ['visitor', 'visitors']:
+        role_label = 'Visitor'
+    elif role_normalized in ['teaching staff', 'teaching', 'teaching_staff']:
+        role_label = 'Teaching Staff'
+    elif role_normalized in ['non-teaching staff', 'non teaching staff', 'non_teaching staff', 'non_teaching', 'non_teaching_staff']:
+        role_label = 'Non-Teaching Staff'
+    elif role_normalized in ['dean', 'deans']:
+        role_label = 'Dean'
+
+    return {
+        'contact_number': contact_number,
+        'guardian_name': guardian_name,
+        'guardian_relationship': guardian_relationship,
+        'patient_name': patient_name,
+        'role_label': role_label,
+        'visit_dt': visit_dt,
+        'chief_complaint': chief_complaint,
+        'record_id': record_id,
+    }
+
+
+@app.route('/api/sms-gateway/status', methods=['GET'])
+def api_sms_gateway_status():
+    if 'user_id' not in session:
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    provider = (os.environ.get('SMS_PROVIDER') or SMSConfig.SMS_PROVIDER or '').strip().lower()
+    if provider != 'android_gateway':
+        return jsonify({'error': f"Unsupported SMS_PROVIDER: {provider}"}), 400
+
+    if AndroidSMSGateway is None:
+        return jsonify({'error': 'Android SMS Gateway service not available'}), 500
+
+    mode = (os.environ.get('ANDROID_SMS_GATEWAY_MODE') or SMSConfig.ANDROID_SMS_GATEWAY_MODE or 'local').strip().lower()
+    use_local = mode != 'cloud'
+
+    gateway = AndroidSMSGateway(use_local=use_local)
+    status = gateway.check_status()
+    return jsonify({'success': True, 'status': status}), 200
+
+
+@app.route('/api/sms-gateway/test-send', methods=['POST'])
+def api_sms_gateway_test_send():
+    if 'user_id' not in session:
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    provider = (os.environ.get('SMS_PROVIDER') or SMSConfig.SMS_PROVIDER or '').strip().lower()
+    if provider != 'android_gateway':
+        return jsonify({'error': f"Unsupported SMS_PROVIDER: {provider}"}), 400
+
+    if AndroidSMSGateway is None:
+        return jsonify({'error': 'Android SMS Gateway service not available'}), 500
+
+    data = request.get_json() or {}
+    phone_number = (data.get('phone_number') or '').strip()
+    message = (data.get('message') or 'iClinic test SMS via Android Gateway').strip()
+
+    if not phone_number:
+        return jsonify({'error': 'phone_number is required'}), 400
+
+    mode = (os.environ.get('ANDROID_SMS_GATEWAY_MODE') or SMSConfig.ANDROID_SMS_GATEWAY_MODE or 'local').strip().lower()
+    use_local = mode != 'cloud'
+
+    gateway = AndroidSMSGateway(use_local=use_local)
+    result = gateway.send_sms(phone_number, message)
+
+    if not result.get('success'):
+        return jsonify({'success': False, 'error': result.get('error') or 'SMS not sent', 'result': result}), 400
+
+    return jsonify({'success': True, 'result': result}), 200
 
 def send_verification_email(to_email, verification_token, user_name):
     """Send email verification link"""
@@ -902,8 +1052,14 @@ def api_endorse_medical_record():
         role = data.get('role')
         record_id = data.get('record_id')
 
-        if not record_id:
+        if record_id is None or (isinstance(record_id, str) and not record_id.strip()):
             return jsonify({'error': 'record_id is required'}), 400
+
+        if isinstance(record_id, str) and record_id.strip().isdigit():
+            try:
+                record_id = int(record_id.strip())
+            except Exception:
+                pass
 
         table = _resolve_medical_record_table(role)
         if not table:
@@ -913,7 +1069,7 @@ def api_endorse_medical_record():
         if not conn:
             return jsonify({'error': 'Database connection failed'}), 500
 
-        cursor = conn.cursor()
+        cursor = conn.cursor(buffered=True)
         cursor.execute(f"SELECT id, endorsement_required, endorsement_status FROM {table} WHERE id = %s", (record_id,))
         row = cursor.fetchone()
         if not row:
@@ -927,10 +1083,37 @@ def api_endorse_medical_record():
         )
 
         conn.commit()
+
+        ctx = _resolve_major_case_guardian_contact(cursor, conn, role, record_id)
+        contact_number = (ctx.get('contact_number') or '').strip()
+        sms_sent = False
+        sms_error = None
+        if contact_number:
+            sms_message = _build_guardian_major_case_sms(
+                ctx.get('patient_name'),
+                ctx.get('role_label'),
+                ctx.get('visit_dt'),
+                ctx.get('chief_complaint'),
+                'Endorsed to Hospital',
+                record_id=record_id,
+                guardian_name=ctx.get('guardian_name'),
+                guardian_relationship=ctx.get('guardian_relationship'),
+                version='full'
+            )
+            sms_result = _send_major_case_notification_sms(contact_number, sms_message)
+            sms_sent = bool(sms_result.get('success'))
+            if not sms_sent:
+                sms_error = sms_result.get('error') or 'SMS send failed'
+
         cursor.close()
         conn.close()
 
-        return jsonify({'success': True, 'message': 'Record endorsed to hospital successfully'}), 200
+        return jsonify({
+            'success': True,
+            'message': 'Record endorsed to hospital successfully',
+            'sms_sent': sms_sent,
+            'sms_error': sms_error
+        }), 200
 
     except Exception as e:
         print(f"Error endorsing medical record: {str(e)}")
@@ -947,8 +1130,14 @@ def api_notify_guardian_major_case():
         role = data.get('role')
         record_id = data.get('record_id')
 
-        if not record_id:
+        if record_id is None or (isinstance(record_id, str) and not record_id.strip()):
             return jsonify({'error': 'record_id is required'}), 400
+
+        if isinstance(record_id, str) and record_id.strip().isdigit():
+            try:
+                record_id = int(record_id.strip())
+            except Exception:
+                pass
 
         table = _resolve_medical_record_table(role)
         if not table:
@@ -958,188 +1147,29 @@ def api_notify_guardian_major_case():
         if not conn:
             return jsonify({'error': 'Database connection failed'}), 500
 
-        cursor = conn.cursor()
+        cursor = conn.cursor(buffered=True)
 
-        cursor.execute(
-            f"SELECT id, chief_complaint, symptoms, visit_date, visit_time FROM {table} WHERE id = %s",
-            (record_id,)
-        )
-        record = cursor.fetchone()
-        if not record:
+        ctx = _resolve_major_case_guardian_contact(cursor, conn, role, record_id)
+        if ctx.get('error'):
             cursor.close()
             conn.close()
-            return jsonify({'error': 'Record not found'}), 404
+            return jsonify({'error': ctx.get('error')}), 404 if ctx.get('error') == 'Record not found' else 400
 
-        chief_complaint = record[1] or ''
-        symptoms = record[2] or ''
-        visit_date = str(record[3]) if record[3] else ''
-        visit_time = str(record[4]) if record[4] else ''
-
-        contact_number = None
-
-        # Prefer unified emergency contact info (patients_unified) for SMS recipient.
-        # This keeps the Staff Patients UI and notification recipient consistent.
-        unified_identifier = None
-        unified_source_id = None
-
-        role_normalized = (role or '').strip().lower()
-        if role_normalized in ['student', 'students', '']:
-            cursor.execute('''
-                SELECT mr.student_number
-                FROM medical_records mr
-                WHERE mr.id = %s
-                LIMIT 1
-            ''', (record_id,))
-            r0 = cursor.fetchone()
-            if r0:
-                unified_identifier = r0[0]
-            cursor.execute('''
-                SELECT s.emergency_contact_number
-                FROM medical_records mr
-                INNER JOIN students s ON mr.student_number = s.student_number
-                WHERE mr.id = %s
-                LIMIT 1
-            ''', (record_id,))
-            row = cursor.fetchone()
-            if row:
-                contact_number = row[0]
-        elif role_normalized in ['visitor', 'visitors']:
-            cursor.execute('''
-                SELECT mr.visitor_id
-                FROM visitor_medical_records mr
-                WHERE mr.id = %s
-                LIMIT 1
-            ''', (record_id,))
-            r0 = cursor.fetchone()
-            if r0:
-                unified_source_id = r0[0]
-            cursor.execute('''
-                SELECT v.contact_number
-                FROM visitor_medical_records mr
-                INNER JOIN visitors v ON mr.visitor_id = v.id
-                WHERE mr.id = %s
-                LIMIT 1
-            ''', (record_id,))
-            row = cursor.fetchone()
-            if row:
-                contact_number = row[0]
-        elif role_normalized in ['teaching staff', 'teaching', 'teaching_staff']:
-            cursor.execute('''
-                SELECT mr.teaching_id
-                FROM teaching_medical_records mr
-                WHERE mr.id = %s
-                LIMIT 1
-            ''', (record_id,))
-            r0 = cursor.fetchone()
-            if r0:
-                unified_source_id = r0[0]
-            cursor.execute('''
-                SELECT t.contact_number
-                FROM teaching_medical_records mr
-                INNER JOIN teaching t ON mr.teaching_id = t.id
-                WHERE mr.id = %s
-                LIMIT 1
-            ''', (record_id,))
-            row = cursor.fetchone()
-            if row:
-                contact_number = row[0]
-        elif role_normalized in ['non-teaching staff', 'non teaching staff', 'non_teaching staff', 'non_teaching', 'non_teaching_staff']:
-            cursor.execute('''
-                SELECT mr.non_teaching_id
-                FROM non_teaching_medical_records mr
-                WHERE mr.id = %s
-                LIMIT 1
-            ''', (record_id,))
-            r0 = cursor.fetchone()
-            if r0:
-                unified_source_id = r0[0]
-            cursor.execute('''
-                SELECT nt.emergency_contact_number
-                FROM non_teaching_medical_records mr
-                INNER JOIN non_teaching_staff nt ON mr.non_teaching_id = nt.id
-                WHERE mr.id = %s
-                LIMIT 1
-            ''', (record_id,))
-            row = cursor.fetchone()
-            if row:
-                contact_number = row[0]
-        elif role_normalized in ['dean', 'deans']:
-            cursor.execute('''
-                SELECT mr.dean_id
-                FROM dean_medical_records mr
-                WHERE mr.id = %s
-                LIMIT 1
-            ''', (record_id,))
-            r0 = cursor.fetchone()
-            if r0:
-                unified_source_id = r0[0]
-            cursor.execute('''
-                SELECT d.emergency_contact_number
-                FROM dean_medical_records mr
-                INNER JOIN deans d ON mr.dean_id = d.id
-                WHERE mr.id = %s
-                LIMIT 1
-            ''', (record_id,))
-            row = cursor.fetchone()
-            if row:
-                contact_number = row[0]
-
-        # Override SMS recipient from patients_unified emergency contact fields when available.
-        # This keeps SMS recipient aligned with the Staff Patients UI (patients_unified.emergency_contact_number).
-        try:
-            cursor.execute("SHOW TABLES LIKE 'patients_unified'")
-            if cursor.fetchone():
-                role_for_unified = None
-                if role_normalized in ['student', 'students', '']:
-                    role_for_unified = 'Student'
-                elif role_normalized in ['visitor', 'visitors']:
-                    role_for_unified = 'Visitor'
-                elif role_normalized in ['teaching staff', 'teaching', 'teaching_staff']:
-                    role_for_unified = 'Teaching Staff'
-                elif role_normalized in ['non-teaching staff', 'non teaching staff', 'non_teaching staff', 'non_teaching', 'non_teaching_staff']:
-                    role_for_unified = 'Non-Teaching Staff'
-                elif role_normalized in ['dean', 'deans']:
-                    role_for_unified = 'Dean'
-
-                unified_row = None
-                if role_for_unified and unified_identifier:
-                    ucur = conn.cursor(dictionary=True)
-                    ucur.execute(
-                        '''
-                        SELECT emergency_contact_number
-                        FROM patients_unified
-                        WHERE role = %s AND identifier = %s
-                        LIMIT 1
-                        ''',
-                        (role_for_unified, unified_identifier)
-                    )
-                    unified_row = ucur.fetchone()
-                    ucur.close()
-                elif role_for_unified and unified_source_id is not None:
-                    ucur = conn.cursor(dictionary=True)
-                    ucur.execute(
-                        '''
-                        SELECT emergency_contact_number
-                        FROM patients_unified
-                        WHERE role = %s AND source_id = %s
-                        LIMIT 1
-                        ''',
-                        (role_for_unified, unified_source_id)
-                    )
-                    unified_row = ucur.fetchone()
-                    ucur.close()
-
-                if isinstance(unified_row, dict):
-                    unified_emergency_number = (unified_row.get('emergency_contact_number') or '').strip()
-                    if unified_emergency_number:
-                        contact_number = unified_emergency_number
-        except Exception as e:
-            print(f"Note: Could not resolve unified emergency contact for notification: {e}")
+        contact_number = (ctx.get('contact_number') or '').strip()
+        sms_sent = False
+        sms_error = None
 
         if contact_number:
-            sms_message = (
-                f"iClinic ALERT: Major case recorded. Date/Time: {visit_date} {visit_time}. "
-                f"Complaint: {chief_complaint}. Please coordinate immediately."
+            sms_message = _build_guardian_major_case_sms(
+                ctx.get('patient_name'),
+                ctx.get('role_label'),
+                ctx.get('visit_dt'),
+                ctx.get('chief_complaint'),
+                'Guardian Notification',
+                record_id=record_id,
+                guardian_name=ctx.get('guardian_name'),
+                guardian_relationship=ctx.get('guardian_relationship'),
+                version='full'
             )
             sms_result = _send_major_case_notification_sms(contact_number, sms_message)
             sms_sent = bool(sms_result.get('success'))
@@ -2035,29 +2065,7 @@ def init_db():
         )
     ''')
 
-    # Add sample clinic supplies if table is empty
-    cursor.execute('SELECT COUNT(*) FROM clinic_supplies')
-    supplies_count = cursor.fetchone()[0]
-    if supplies_count == 0:
-        sample_supplies = [
-            ('Digital Blood Pressure Monitor', 'Medical Equipment', 3, 'Excellent', 'Consultation Room 1', 'Omron HEM-7120', '2024-01-15', '2023-06-15', 2500.00, 'Medical Supply Co.', 'Regular calibration required'),
-            ('Stethoscope', 'Medical Equipment', 5, 'Good', 'Consultation Room 1', 'Littmann Classic III', None, '2023-08-20', 1200.00, 'Healthcare Plus', 'Professional grade'),
-            ('Digital Thermometer', 'Medical Equipment', 8, 'Excellent', 'Nurse Station', 'Braun ThermoScan', None, '2024-02-10', 450.00, 'Medical Supply Co.', 'Infrared type'),
-            ('Examination Table', 'Furniture', 2, 'Good', 'Consultation Room 1', 'Midmark 204', '2023-12-01', '2022-05-10', 15000.00, 'Medical Furniture Inc.', 'Hydraulic adjustment'),
-            ('Medical Cart', 'Furniture', 3, 'Fair', 'Storage Room', 'Harloff AL3256', None, '2023-03-15', 8500.00, 'Healthcare Solutions', 'Mobile storage unit'),
-            ('Pulse Oximeter', 'Medical Equipment', 4, 'Excellent', 'Nurse Station', 'Masimo SET', None, '2024-01-05', 800.00, 'Medical Supply Co.', 'Finger clip type'),
-            ('Medical Scale', 'Medical Equipment', 1, 'Good', 'Consultation Room 2', 'Health o meter 349KLX', '2024-03-01', '2023-07-12', 1800.00, 'Scale Solutions', 'Digital display'),
-            ('First Aid Kit', 'Medical Supplies', 6, 'Good', 'Multiple Locations', 'Johnson & Johnson', None, '2024-02-20', 250.00, 'Safety First Co.', 'Complete emergency kit'),
-            ('Wheelchair', 'Medical Equipment', 2, 'Good', 'Entrance Hall', 'Drive Medical RTL12029', None, '2023-09-05', 3200.00, 'Mobility Solutions', 'Standard transport chair'),
-            ('Medical Refrigerator', 'Medical Equipment', 1, 'Excellent', 'Medicine Storage', 'Thermo Scientific TSX', '2024-02-15', '2023-11-20', 12000.00, 'Lab Equipment Co.', 'Temperature controlled storage')
-        ]
-        
-        for supply in sample_supplies:
-            cursor.execute('''
-                INSERT INTO clinic_supplies (item_name, category, quantity, condition_status, location, 
-                                           brand_model, last_maintenance, purchase_date, cost, supplier, notes)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-            ''', supply)
+    
     
     # Appointments table
     cursor.execute('''
@@ -3445,7 +3453,7 @@ def init_db():
                 status ENUM('available', 'expired', 'depleted') DEFAULT 'available',
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-                FOREIGN KEY (medicine_id) REFERENCES medicines(id) ON DELETE CASCADE,
+                FOREIGN KEY (medicine_id) REFERENCES medicines(medicine_id) ON DELETE CASCADE,
                 INDEX idx_medicine_id (medicine_id),
                 INDEX idx_expiry_date (expiry_date),
                 INDEX idx_status (status)
@@ -3621,12 +3629,19 @@ def login():
     cursor = conn.cursor()
     try:
         user = None
+        user_is_active = None
         
         # ðŸ†• PRIORITY: Try to find user directly by user_id column first (fastest and most direct)
         print(f"ðŸ” Step 1: Checking user_id column in users table...")
         try:
-            cursor.execute('SELECT id, username, password_hash, role, first_name, last_name, position, email FROM users WHERE user_id = %s', (user_id,))
-            user = cursor.fetchone()
+            try:
+                cursor.execute('SELECT id, username, password_hash, role, first_name, last_name, position, email, is_active FROM users WHERE user_id = %s', (user_id,))
+                user = cursor.fetchone()
+                if user is not None and len(user) >= 9:
+                    user_is_active = user[8]
+            except Exception:
+                cursor.execute('SELECT id, username, password_hash, role, first_name, last_name, position, email FROM users WHERE user_id = %s', (user_id,))
+                user = cursor.fetchone()
         except Exception:
             user = None
         if user:
@@ -3641,8 +3656,14 @@ def login():
             if student:
                 print(f"âœ… Found student: {student[1]} {student[2]} (Student Number: {student[0]})")
                 # Student found, now check if they have a user account
-                cursor.execute('SELECT id, username, password_hash, role, first_name, last_name, position, email FROM users WHERE email = %s', (student[3],))
-                user = cursor.fetchone()
+                try:
+                    cursor.execute('SELECT id, username, password_hash, role, first_name, last_name, position, email, is_active FROM users WHERE email = %s', (student[3],))
+                    user = cursor.fetchone()
+                    if user is not None and len(user) >= 9:
+                        user_is_active = user[8]
+                except Exception:
+                    cursor.execute('SELECT id, username, password_hash, role, first_name, last_name, position, email FROM users WHERE email = %s', (student[3],))
+                    user = cursor.fetchone()
                 if user:
                     print(f"âœ… Student has user account with role: {user[3]}, email: {user[7]}")
         
@@ -3654,8 +3675,14 @@ def login():
             if nurse:
                 print(f"âœ… Found nurse: {nurse[1]} {nurse[2]} (Nurse ID: {nurse[0]})")
                 # Nurse found, now check if they have a user account
-                cursor.execute('SELECT id, username, password_hash, role, first_name, last_name, position, email FROM users WHERE email = %s', (nurse[3],))
-                user = cursor.fetchone()
+                try:
+                    cursor.execute('SELECT id, username, password_hash, role, first_name, last_name, position, email, is_active FROM users WHERE email = %s', (nurse[3],))
+                    user = cursor.fetchone()
+                    if user is not None and len(user) >= 9:
+                        user_is_active = user[8]
+                except Exception:
+                    cursor.execute('SELECT id, username, password_hash, role, first_name, last_name, position, email FROM users WHERE email = %s', (nurse[3],))
+                    user = cursor.fetchone()
                 if user:
                     print(f"âœ… Nurse has user account with role: {user[3]}, email: {user[7]}")
         
@@ -3667,16 +3694,28 @@ def login():
             if admin:
                 print(f"âœ… Found admin: {admin[1]} {admin[2]} (Admin ID: {admin[0]})")
                 # Admin found, now check if they have a user account
-                cursor.execute('SELECT id, username, password_hash, role, first_name, last_name, position, email FROM users WHERE email = %s', (admin[3],))
-                user = cursor.fetchone()
+                try:
+                    cursor.execute('SELECT id, username, password_hash, role, first_name, last_name, position, email, is_active FROM users WHERE email = %s', (admin[3],))
+                    user = cursor.fetchone()
+                    if user is not None and len(user) >= 9:
+                        user_is_active = user[8]
+                except Exception:
+                    cursor.execute('SELECT id, username, password_hash, role, first_name, last_name, position, email FROM users WHERE email = %s', (admin[3],))
+                    user = cursor.fetchone()
                 if user:
                     print(f"âœ… Admin has user account with role: {user[3]}, email: {user[7]}")
         
         # If not found as student/nurse/admin, try to find by username or email in users table (for other staff)
         if not user:
             print(f"ðŸ” Step 5: Checking if User ID is a staff username/email...")
-            cursor.execute('SELECT id, username, password_hash, role, first_name, last_name, position, email FROM users WHERE username = %s OR email = %s', (user_id, user_id))
-            user = cursor.fetchone()
+            try:
+                cursor.execute('SELECT id, username, password_hash, role, first_name, last_name, position, email, is_active FROM users WHERE username = %s OR email = %s', (user_id, user_id))
+                user = cursor.fetchone()
+                if user is not None and len(user) >= 9:
+                    user_is_active = user[8]
+            except Exception:
+                cursor.execute('SELECT id, username, password_hash, role, first_name, last_name, position, email FROM users WHERE username = %s OR email = %s', (user_id, user_id))
+                user = cursor.fetchone()
             if user:
                 print(f"âœ… Found staff/admin user: {user[1]}, role: {user[3]}, email: {user[7]}")
         
@@ -3687,6 +3726,17 @@ def login():
                 print(f"Password check: {check_password_hash(user[2], password)}")  # Debug log
             else:
                 print("Password check skipped: missing password_hash")  # Debug log
+
+        if user and user_is_active is not None and not bool(user_is_active):
+            print("❌ Login blocked: Account is inactive")
+            flash('Your account is inactive. Please contact the administrator.', 'error')
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.accept_mimetypes.accept_json:
+                return jsonify({
+                    'success': False,
+                    'code': 'ACCOUNT_INACTIVE',
+                    'message': 'Your account is inactive. Please contact the administrator.'
+                }), 403
+            return redirect(url_for('login_page'))
 
         # Clearer feedback cases
         if not user:
@@ -6074,8 +6124,8 @@ def it_inventory():
     if 'user_id' not in session:
         return redirect(url_for('login_page'))
 
-    if session.get('role') != 'admin':
-        flash('Access denied.', 'error')
+    if session.get('role') not in ['admin', 'it_staff']:
+        flash('Access denied. IT Staff only.', 'error')
         return redirect(url_for('login_page'))
 
     user_info = {
@@ -12014,7 +12064,7 @@ def api_delete_teaching_medical_record(record_id):
         return jsonify({'error': 'Database connection failed'}), 500
     
     try:
-        cursor = conn.cursor()
+        cursor = conn.cursor(buffered=True)
         ticket_number = generate_unique_ticket_number(conn)
         
         # Check if record exists
@@ -12046,7 +12096,7 @@ def api_delete_visitor_medical_record(record_id):
         return jsonify({'error': 'Database connection failed'}), 500
     
     try:
-        cursor = conn.cursor()
+        cursor = conn.cursor(buffered=True)
         ticket_number = generate_unique_ticket_number(conn)
         
         # Check if record exists
@@ -12078,7 +12128,7 @@ def api_delete_medical_record(record_id):
         return jsonify({'error': 'Database connection failed'}), 500
     
     try:
-        cursor = conn.cursor()
+        cursor = conn.cursor(buffered=True)
         ticket_number = generate_unique_ticket_number(conn)
         
         # Check if record exists
@@ -12110,7 +12160,7 @@ def api_delete_non_teaching_medical_record(record_id):
         return jsonify({'error': 'Database connection failed'}), 500
     
     try:
-        cursor = conn.cursor()
+        cursor = conn.cursor(buffered=True)
         ticket_number = generate_unique_ticket_number(conn)
         
         # Check if record exists
@@ -12142,7 +12192,7 @@ def api_delete_dean_medical_record(record_id):
         return jsonify({'error': 'Database connection failed'}), 500
     
     try:
-        cursor = conn.cursor()
+        cursor = conn.cursor(buffered=True)
         ticket_number = generate_unique_ticket_number(conn)
         
         # Check if record exists
@@ -18858,8 +18908,15 @@ def schedule_inventory_notification():
 if __name__ == '__main__':
     # Initialize database on startup
     print("ðŸ”§ Initializing database with sample data...")
-    init_db()
-    print("âœ… Database initialization complete!")
+    try:
+        ok = init_db()
+        if ok:
+            print("âœ… Database initialization complete!")
+        else:
+            print("⚠️ Database initialization did not complete successfully. The app will still start, but DB-backed features may fail.")
+    except Exception as e:
+        print(f"❌ init_db crashed: {e}")
+        print("⚠️ The app will still start, but DB-backed features may fail.")
     # Run the application
     app.run(debug=True, host='0.0.0.0', port=5000)
 

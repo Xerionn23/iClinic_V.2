@@ -621,6 +621,16 @@
                     </div>
                     <span x-show="!sidebarCollapsed || sidebarHovered || mobileMenuOpen" x-transition class="font-medium">Patient Management</span>
                 </a>
+
+                <!-- Inventory -->
+                <a href="{{ url_for('it_inventory') }}"
+                   @click="mobileMenuOpen = false"
+                   class="flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all group hover:bg-white/10">
+                    <div class="flex items-center justify-center" :class="(sidebarCollapsed && !sidebarHovered && !mobileMenuOpen) ? 'w-full' : ''">
+                        <i data-feather="package" class="w-5 h-5 group-hover:scale-110 transition-transform"></i>
+                    </div>
+                    <span x-show="!sidebarCollapsed || sidebarHovered || mobileMenuOpen" x-transition class="font-medium">Inventory</span>
+                </a>
             </nav>
         
         <!-- User Profile -->
