@@ -363,9 +363,6 @@
                 } else if (payload && payload.rate_limited) {
                     // Rate limit - user already has a ticket today
                     this.ticketError = payload.error || 'You can only generate one ticket per day. Please wait for your current ticket to be called or try again tomorrow.';
-                } else if (payload && payload.daily_limit_reached) {
-                    // Daily limit reached (100 tickets)
-                    this.ticketError = payload.error || 'Daily ticket limit reached (100 tickets). All tickets for today have been issued. Please try again tomorrow.';
                 } else {
                     this.ticketError = payload.error || payload.message || 'Unable to create ticket. Please try again.';
                 }

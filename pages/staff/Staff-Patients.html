@@ -5447,7 +5447,7 @@
                         </div>
                         <div class="flex justify-between">
                             <span class="font-medium text-gray-700">Reason for Visit:</span>
-                            <span class="text-gray-600" x-text="deletingRecord ? (deletingRecord.symptoms || 'Not specified') : ''"></span>
+                            <span class="text-gray-600" x-text="deletingRecord ? (deletingRecord.chief_complaint || deletingRecord.symptoms || 'Not specified') : ''"></span>
                         </div>
                     </div>
                 </div>

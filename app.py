@@ -59,7 +59,6 @@ EMAIL_CONFIG = {
     'from_name': 'iClinic Management System'
 }
 
-
 def _get_email_config():
     smtp_server = (os.environ.get('ICLINIC_SMTP_SERVER') or EMAIL_CONFIG.get('smtp_server') or '').strip() or 'smtp.gmail.com'
     smtp_port_raw = (os.environ.get('ICLINIC_SMTP_PORT') or str(EMAIL_CONFIG.get('smtp_port') or '')).strip() or '587'
@@ -1193,97 +1192,64 @@ def api_notify_guardian_major_case():
         print(f"Error notifying guardian for major case: {str(e)}")
         return jsonify({'error': f'Database error: {str(e)}'}), 500
 
-def send_password_reset_email(to_email, reset_token, user_name):
+def send_password_reset_email(to_email, reset_link, user_name):
     """Send password reset link"""
     try:
-        # Create reset link
-        reset_link = f"http://127.0.0.1:5000/reset-password?token={reset_token}"
-        
-        # Create email content
         subject = "Reset Your iClinic Password"
-        
-        html_body = f"""
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <meta charset="UTF-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>Reset Your Password</title>
-        </head>
-        <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
-            <div style="background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
-                <h1 style="color: white; margin: 0; font-size: 28px;">iClinic Management System</h1>
-                <p style="color: rgba(255,255,255,0.9); margin: 10px 0 0 0;">Norzagaray College</p>
-            </div>
-            
-            <div style="background: white; padding: 30px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 10px 10px;">
-                <h2 style="color: #1e40af; margin-top: 0;">Reset Your Password</h2>
-                
-                <p>Hello{', ' + user_name if user_name else ''},</p>
-                
-                <p>We received a request to reset your password for your iClinic Management System account.</p>
-                
-                <p>To reset your password and regain access to your account, please click the button below:</p>
-                
-                <div style="text-align: center; margin: 30px 0;">
-                    <a href="{reset_link}" 
-                       style="background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%); 
-                              color: white; 
-                              padding: 15px 30px; 
-                              text-decoration: none; 
-                              border-radius: 8px; 
-                              font-weight: bold; 
-                              display: inline-block;
-                              box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
-                        Reset Password
-                    </a>
-                </div>
-                
-                <div style="background: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin: 20px 0; border-radius: 4px;">
-                    <p style="margin: 0; color: #856404;"><strong>âš ï¸ Important:</strong></p>
-                    <ul style="margin: 10px 0 0 0; padding-left: 20px; color: #856404;">
-                        <li>This link will expire in <strong>1 hour</strong> for security reasons</li>
-                        <li>If you didn't request this password reset, please ignore this email</li>
-                        <li>Your password will not be changed unless you click the link above</li>
-                    </ul>
-                </div>
-                
-                <p style="color: #6b7280; font-size: 14px;">
-                    If the button doesn't work, copy and paste this link into your browser:<br>
-                    <a href="{reset_link}" style="color: #3b82f6; word-break: break-all;">{reset_link}</a>
-                </p>
-                
-                <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0;">
-                
-                <p style="color: #6b7280; font-size: 12px; text-align: center;">
-                    This email was sent by the iClinic Management System<br>
-                    Norzagaray College<br>
-                    If you need assistance, please contact IT support.
-                </p>
-            </div>
-        </body>
-        </html>
-        """
-        
-        # Create message
-        msg = MIMEMultipart('alternative')
-        msg['Subject'] = subject
-        msg['From'] = f"{EMAIL_CONFIG['from_name']} <{EMAIL_CONFIG['email']}>"
-        msg['To'] = to_email
-        
-        # Add HTML content
-        html_part = MIMEText(html_body, 'html')
-        msg.attach(html_part)
-        
-        # Send email
-        with smtplib.SMTP(EMAIL_CONFIG['smtp_server'], EMAIL_CONFIG['smtp_port']) as server:
-            server.starttls()
-            server.login(EMAIL_CONFIG['email'], EMAIL_CONFIG['password'])
-            server.send_message(msg)
-        
-        return True
+
+        safe_name = (user_name or '').strip()
+        greeting_name = f", {safe_name}" if safe_name else ""
+
+        html_body = f"""<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reset Your Password</title>
+</head>
+<body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+    <div style="background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
+        <h1 style="color: white; margin: 0; font-size: 28px;">iClinic Management System</h1>
+        <p style="color: rgba(255,255,255,0.9); margin: 10px 0 0 0;">Norzagaray College</p>
+    </div>
+    <div style="background: white; padding: 30px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 10px 10px;">
+        <h2 style="color: #1e40af; margin-top: 0;">Reset Your Password</h2>
+        <p>Hello{greeting_name},</p>
+        <p>We received a request to reset your password for your iClinic Management System account.</p>
+        <p>To reset your password and regain access to your account, please click the button below:</p>
+        <div style="text-align: center; margin: 30px 0;">
+            <a href="{reset_link}"
+               style="background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%);
+                      color: white;
+                      padding: 15px 30px;
+                      text-decoration: none;
+                      border-radius: 8px;
+                      font-weight: bold;
+                      display: inline-block;
+                      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">Reset Password</a>
+        </div>
+        <div style="background: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin: 20px 0; border-radius: 4px;">
+            <p style="margin: 0; color: #856404;"><strong>Important:</strong></p>
+            <ul style="margin: 10px 0 0 0; padding-left: 20px; color: #856404;">
+                <li>This link will expire in <strong>1 hour</strong> for security reasons</li>
+                <li>If you didn't request this password reset, please ignore this email</li>
+                <li>Your password will not be changed unless you click the link above</li>
+            </ul>
+        </div>
+        <p style="color: #6b7280; font-size: 14px;">If the button doesn't work, copy and paste this link into your browser:<br>
+            <a href="{reset_link}" style="color: #3b82f6; word-break: break-all;">{reset_link}</a>
+        </p>
+        <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0;">
+        <p style="color: #6b7280; font-size: 12px; text-align: center;">This email was sent by the iClinic Management System<br>
+            Norzagaray College<br>
+            If you need assistance, please contact IT support.</p>
+    </div>
+</body>
+</html>"""
+
+        return _send_email_html(to_email, subject, html_body)
     except Exception as e:
-        print(f"âŒ Failed to send verification email: {str(e)}")
+        print(f"❌ Failed to send password reset email: {str(e)}")
         return False
 
 def validate_id_and_get_info(cursor, role, id_number, full_name, email):
@@ -4012,6 +3978,9 @@ def forgot_password():
         reset_token = secrets.token_urlsafe(32)
         expires_at = datetime.now() + timedelta(hours=1)
         
+        print(f"🔑 Generated reset token for {user_email}: {reset_token}")
+        print(f"⏰ Token expires at: {expires_at}")
+        
         # Create password_reset_tokens table if it doesn't exist
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS password_reset_tokens (
@@ -4032,23 +4001,36 @@ def forgot_password():
             VALUES (%s, %s, %s)
         ''', (user_email, reset_token, expires_at))
         
+        # Verify token was stored
+        cursor.execute('SELECT token, email, expires_at FROM password_reset_tokens WHERE token = %s', (reset_token,))
+        stored_token = cursor.fetchone()
+        if stored_token:
+            print(f"✅ Token successfully stored in database: {stored_token[0]}")
+        else:
+            print(f"❌ FAILED to store token in database!")
+        
         conn.commit()
         cursor.close()
         conn.close()
         
+        base_url = (os.environ.get('ICLINIC_PUBLIC_BASE_URL') or request.host_url or '').rstrip('/')
+        if not base_url:
+            base_url = 'http://127.0.0.1:5000'
+        reset_link = f"{base_url}/reset-password?token={reset_token}"
+
         # Send password reset email
-        email_sent = send_password_reset_email(user_email, reset_token, user_name)
+        email_sent = send_password_reset_email(user_email, reset_link, user_name)
         
         # FOR TESTING: Return success even if email fails (show reset link in console)
         if not email_sent:
             print(f"âš ï¸ Email failed to send, but here's the reset link for testing:")
-            print(f"ðŸ”— http://127.0.0.1:5000/reset-password?token={reset_token}")
+            print(f"ðŸ”— {reset_link}")
         
         return jsonify({
             'success': True,
             'message': 'Password reset link has been sent to your email.' if email_sent else 'Password reset link generated (check console for testing).',
             'email': user_email,
-            'reset_link': f"http://127.0.0.1:5000/reset-password?token={reset_token}" if not email_sent else None
+            'reset_link': reset_link if not email_sent else None
         }), 200
             
     except Exception as e:
@@ -4063,6 +4045,10 @@ def reset_password():
         token = data.get('token', '').strip()
         new_password = data.get('newPassword', '')
         
+        print(f"🔍 Received reset request")
+        print(f"🔑 Token received: {token}")
+        print(f"🔑 Token length: {len(token)}")
+        
         if not token or not new_password:
             return jsonify({'success': False, 'message': 'Missing required fields'}), 400
         
@@ -4076,7 +4062,10 @@ def reset_password():
         cursor = conn.cursor()
         ticket_number = generate_unique_ticket_number(conn)
         
-        # Verify token
+        # Track which table the token came from
+        token_table = None
+        
+        # Verify token - check both password_reset_tokens (self-service) and password_resets (admin-initiated)
         cursor.execute('''
             SELECT email, expires_at, used 
             FROM password_reset_tokens 
@@ -4085,9 +4074,51 @@ def reset_password():
         
         token_data = cursor.fetchone()
         
+        print(f"🔍 Token lookup result in password_reset_tokens: {token_data}")
+        
+        # If not found in password_reset_tokens, check password_resets (admin-initiated)
+        if not token_data:
+            # Ensure password_resets table supports one-time use tokens.
+            # Older versions of this table may not have a `used` column.
+            try:
+                cursor.execute('ALTER TABLE password_resets ADD COLUMN used BOOLEAN DEFAULT FALSE')
+                conn.commit()
+            except Exception:
+                try:
+                    conn.rollback()
+                except Exception:
+                    pass
+
+            cursor.execute('''
+                SELECT email, expires_at, used 
+                FROM password_resets 
+                WHERE reset_token = %s
+            ''', (token,))
+
+            try:
+                token_data = cursor.fetchone()
+            except Exception:
+                token_data = None
+
+            # Fallback if the `used` column still doesn't exist for some reason
+            if token_data is None:
+                cursor.execute('''
+                    SELECT email, expires_at
+                    FROM password_resets
+                    WHERE reset_token = %s
+                ''', (token,))
+                token_row = cursor.fetchone()
+                token_data = (token_row[0], token_row[1], False) if token_row else None
+
+            token_table = 'password_resets'
+            print(f"🔍 Token lookup result in password_resets: {token_data}")
+        else:
+            token_table = 'password_reset_tokens'
+        
         if not token_data:
             cursor.close()
             conn.close()
+            print(f"❌ Token not found in either table")
             return jsonify({'success': False, 'message': 'Invalid reset token. Please request a new password reset link.'}), 400
         
         email, expires_at, used = token_data
@@ -4114,12 +4145,19 @@ def reset_password():
             WHERE email = %s
         ''', (password_hash, email))
         
-        # Mark token as used
-        cursor.execute('''
-            UPDATE password_reset_tokens 
-            SET used = TRUE 
-            WHERE token = %s
-        ''', (token,))
+        # Mark token as used in the correct table
+        if token_table == 'password_resets':
+            cursor.execute('''
+                UPDATE password_resets 
+                SET used = TRUE 
+                WHERE reset_token = %s
+            ''', (token,))
+        else:
+            cursor.execute('''
+                UPDATE password_reset_tokens 
+                SET used = TRUE 
+                WHERE token = %s
+            ''', (token,))
         
         conn.commit()
         cursor.close()
@@ -6478,44 +6516,60 @@ def priority_order_case_expr(alias: str = "priority") -> str:
 
 def generate_sequential_ticket_number(conn) -> str:
     """
-    Generate sequential ticket number (1-100) that resets daily.
+    Generate sequential ticket number (1-100) that cycles.
+    When it reaches 100, it resets to 1.
     Uses a daily counter stored in the database.
     """
     cursor = conn.cursor()
     try:
+        # Ensure table exists first (critical for Railway migration)
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS daily_ticket_counter (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                counter_date DATE NOT NULL UNIQUE,
+                current_number INT NOT NULL DEFAULT 0,
+                max_number INT NOT NULL DEFAULT 100,
+                created_at DATETIME NOT NULL,
+                updated_at DATETIME NOT NULL,
+                INDEX idx_counter_date (counter_date)
+            )
+            """
+        )
+        conn.commit()
+
         today = datetime.now().date()
-        
+
         # Get or create daily counter for today
         cursor.execute(
             """
-            SELECT current_number, max_number 
-            FROM daily_ticket_counter 
+            SELECT current_number, max_number
+            FROM daily_ticket_counter
             WHERE counter_date = %s
             """,
             (today,)
         )
         result = cursor.fetchone()
-        
+
         if result:
             current_number = result[0]
             max_number = result[1]
-            
-            # Check if we've reached the limit (100)
-            if current_number >= max_number:
-                return None  # No more tickets available for today
-            
-            # Increment counter
+
+            # Increment counter and reset to 1 if it exceeds 100
             new_number = current_number + 1
+            if new_number > max_number:
+                new_number = 1  # Reset to 1 when reaching 100
+
             cursor.execute(
                 """
-                UPDATE daily_ticket_counter 
+                UPDATE daily_ticket_counter
                 SET current_number = %s, updated_at = NOW()
                 WHERE counter_date = %s
                 """,
                 (new_number, today)
             )
             conn.commit()
-            # Format as 3-digit with leading zeros (001, 002, etc.)
+            # Format as 3-digit with leading zeros (001, 002, ..., 100)
             return f"{new_number:03d}"
         else:
             # First ticket of the day - create counter and return 001
@@ -6528,7 +6582,7 @@ def generate_sequential_ticket_number(conn) -> str:
             )
             conn.commit()
             return "001"
-            
+
     except Exception as e:
         print(f"❌ Error generating sequential ticket number: {e}")
         conn.rollback()
@@ -6674,10 +6728,9 @@ def create_consultation_ticket():
             return jsonify(
                 {
                     'success': False,
-                    'error': 'Daily ticket limit reached (100 tickets). No more tickets available for today. Please try again tomorrow.',
-                    'daily_limit_reached': True,
+                    'error': 'Failed to generate ticket number. Please try again.',
                 }
-            ), 503  # Service Unavailable
+            ), 500
         cursor.execute(
             '''
             INSERT INTO consultation_tickets (
@@ -16953,7 +17006,8 @@ def get_users():
         return jsonify({'error': 'Authentication required'}), 401
     
     # Check if user is admin
-    if session.get('role') not in ['admin', 'it_staff']:
+    role_norm = (session.get('role') or '').strip().lower().replace(' ', '_')
+    if role_norm not in ['admin', 'it_staff']:
         return jsonify({'error': 'Admin access required'}), 403
     
     try:
@@ -17046,7 +17100,8 @@ def update_user(user_id):
     if 'user_id' not in session:
         return jsonify({'error': 'Authentication required'}), 401
     
-    if session.get('role') not in ['admin', 'it_staff']:
+    role_norm = (session.get('role') or '').strip().lower().replace(' ', '_')
+    if role_norm not in ['admin', 'it_staff']:
         return jsonify({'error': 'Admin access required'}), 403
     
     data = request.get_json() or {}
@@ -17164,7 +17219,8 @@ def delete_user(user_id):
     if 'user_id' not in session:
         return jsonify({'error': 'Authentication required'}), 401
 
-    if session.get('role') not in ['admin', 'it_staff']:
+    role_norm = (session.get('role') or '').strip().lower().replace(' ', '_')
+    if role_norm not in ['admin', 'it_staff']:
         return jsonify({'error': 'Admin access required'}), 403
 
     try:
@@ -17289,7 +17345,8 @@ def reset_user_password(user_id):
         return jsonify({'error': 'Authentication required'}), 401
     
     # Check if user is admin
-    if session.get('role') not in ['admin', 'it_staff']:
+    role_norm = (session.get('role') or '').strip().lower().replace(' ', '_')
+    if role_norm not in ['admin', 'it_staff']:
         return jsonify({'error': 'Admin access required'}), 403
     
     try:
@@ -17358,7 +17415,8 @@ def forgot_user_password(user_id):
         return jsonify({'error': 'Authentication required'}), 401
     
     # Check if user is admin
-    if session.get('role') not in ['admin', 'it_staff']:
+    role_norm = (session.get('role') or '').strip().lower().replace(' ', '_')
+    if role_norm not in ['admin', 'it_staff']:
         return jsonify({'error': 'Admin access required'}), 403
     
     try:

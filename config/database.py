@@ -7,11 +7,12 @@ class DatabaseConfig:
     """Database configuration for XAMPP MySQL connection"""
     
     # XAMPP MySQL default settings
-    MYSQL_HOST = os.getenv('MYSQL_HOST', 'localhost')
-    MYSQL_PORT = int(os.getenv('MYSQL_PORT', '3306'))
-    MYSQL_USER = os.getenv('MYSQL_USER', 'root')
-    MYSQL_PASSWORD = os.getenv('MYSQL_PASSWORD', '')
-    MYSQL_DATABASE = os.getenv('MYSQL_DATABASE', 'iclinic_db')
+    # Note: Railway MySQL plugin commonly provides MYSQLHOST/MYSQLPORT/MYSQLUSER/MYSQLPASSWORD/MYSQLDATABASE
+    MYSQL_HOST = os.getenv('MYSQL_HOST') or os.getenv('MYSQLHOST') or 'localhost'
+    MYSQL_PORT = int(os.getenv('MYSQL_PORT') or os.getenv('MYSQLPORT') or '3306')
+    MYSQL_USER = os.getenv('MYSQL_USER') or os.getenv('MYSQLUSER') or 'root'
+    MYSQL_PASSWORD = os.getenv('MYSQL_PASSWORD') or os.getenv('MYSQLPASSWORD') or ''
+    MYSQL_DATABASE = os.getenv('MYSQL_DATABASE') or os.getenv('MYSQLDATABASE') or 'iclinic_db'
 
     @staticmethod
     def _parse_database_url():
@@ -85,6 +86,6 @@ class DatabaseConfig:
             connection.close()
             return True
             
-        except Error as e:
+        except Error as e:  
             print(f"Error creating database: {e}")
             return False
