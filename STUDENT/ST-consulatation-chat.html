@@ -811,7 +811,7 @@ function consultationChat() {
 
     rebuildRenderItems() {
         const items = [];
-        const messages = Array.isArray(this.messages) ? this.messages : [];
+        const messages = Array.isArray(this.messages) ? this.messages.filter(m => m && typeof m === 'object') : [];
 
         const getDayKey = (d) => {
             const dt = new Date(d);
@@ -831,13 +831,24 @@ function consultationChat() {
         let prevMeta = null;
         for (let i = 0; i < messages.length; i++) {
             const msg = messages[i];
+            if (!msg) continue;
             const raw = msg?.sentAt || msg?.createdAt || msg?.time || null;
             const dt = raw ? new Date(raw) : null;
+
+            const stableMessageId = (() => {
+                if (msg.id !== undefined && msg.id !== null && String(msg.id).trim() !== '') {
+                    return String(msg.id);
+                }
+                const sender = String(msg.sender || 'unknown');
+                const content = String(msg.content || '');
+                const stamp = String(raw || '');
+                return `local-${sender}-${stamp}-${i}-${content.slice(0, 24)}`;
+            })();
 
             if (!prevMeta || (dt && prevMeta.dt && !isSameDay(dt, prevMeta.dt))) {
                 items.push({
                     kind: 'separator',
-                    id: `sep-${i}-${getDayKey(dt || new Date())}`,
+                    id: `sep-${getDayKey(dt || new Date())}-${i}`,
                     label: this.formatDateHeader(dt || new Date())
                 });
             }
@@ -857,7 +868,7 @@ function consultationChat() {
 
             items.push({
                 kind: 'message',
-                id: msg.id || `m-${i}-${Date.now()}`,
+                id: stableMessageId,
                 sender: msg.sender,
                 content: msg.content,
                 type: msg.type || 'text',
@@ -874,7 +885,7 @@ function consultationChat() {
             prevMeta = { sender: msg.sender, dt };
         }
 
-        this.renderItems = items;
+        this.renderItems = items.filter(Boolean);
     },
 
     formatDateHeader(dateObj) {
@@ -908,9 +919,16 @@ function consultationChat() {
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
-                    patient_name: 'Current Student',  // Let backend determine from session
-                    patient_type: 'student',
-                    complaint: 'General consultation request - Student seeking healthcare assistance'
+                    patient_name: '',  // Let backend determine from session
+                    patient_type: (function() {
+                        const role = '{{ user.role if user and user.role else "" }}'.toLowerCase().trim();
+                        if (role === 'deans' || role === 'dean') return 'dean';
+                        if (role === 'teaching_staff' || role === 'teaching staff' || role === 'teaching') return 'teaching_staff';
+                        if (role === 'non_teaching_staff' || role === 'non-teaching staff' || role === 'non teaching staff' || role === 'non_teaching') return 'non_teaching_staff';
+                        if (role === 'student') return 'student';
+                        return 'student';
+                    })(),
+                    complaint: 'General consultation request - User seeking healthcare assistance'
                 })
             });
             

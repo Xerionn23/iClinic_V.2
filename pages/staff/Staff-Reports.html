@@ -539,6 +539,11 @@
             aside, nav, button, .sidebar, main, .main-content, header, footer {
                 display: none !important;
             }
+
+            /* Prevent blank pages by hiding all non-print sections */
+            body > *:not(.print-only) {
+                display: none !important;
+            }
             
             /* Show only print section */
             .print-only {

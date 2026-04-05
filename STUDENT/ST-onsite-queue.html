@@ -102,7 +102,12 @@
         setInterval(() => this.loadQueueStatus(false), 8000);
         
         // Auto-enable sound on page load
-        this.enableSound();
+        const armSound = () => {
+            try { this.enableSound(); } catch (e) {}
+        };
+        window.addEventListener('click', armSound, { once: true, passive: true, capture: true });
+        window.addEventListener('touchstart', armSound, { once: true, passive: true, capture: true });
+        window.addEventListener('keydown', armSound, { once: true, passive: true, capture: true });
 
         this.handleResize();
         window.addEventListener('resize', () => this.handleResize());
@@ -330,6 +335,8 @@
     async submitOnsiteTicket() {
         if (this.ticketSubmitting) return;
 
+        try { await this.enableSound(); } catch (e) {}
+
         if (this.queueStatus && this.queueStatus.my && this.queueStatus.my.has_ticket) {
             this.ticketError = 'You already have an active ticket. Please wait for it to be called.';
             return;
@@ -361,8 +368,7 @@
                 if (payload && payload.bypass_queue) {
                     this.ticketError = payload.error || 'Please proceed directly to the clinic.';
                 } else if (payload && payload.rate_limited) {
-                    // Rate limit - user already has a ticket today
-                    this.ticketError = payload.error || 'You can only generate one ticket per day. Please wait for your current ticket to be called or try again tomorrow.';
+                    this.ticketError = payload.error || 'You already have an active ticket. Please wait for it to be called.';
                 } else {
                     this.ticketError = payload.error || payload.message || 'Unable to create ticket. Please try again.';
                 }
@@ -371,6 +377,9 @@
 
             this.ticketResult = payload.ticket || null;
             this.loadQueueStatus(false);
+            setTimeout(() => {
+                this.onsiteTicketModal = false;
+            }, 900);
         } catch (error) {
             this.ticketError = 'Network error. Unable to reach the server. Please try again.';
         } finally {

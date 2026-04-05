@@ -13,6 +13,7 @@ import socket
 import secrets
 import random
 import uuid
+import traceback
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from config.database import DatabaseConfig
@@ -5479,44 +5480,66 @@ def get_common_illnesses():
         cursor = conn.cursor()
         ticket_number = generate_unique_ticket_number(conn)
         
-        # Get top 6 diagnoses for current month (ALL patient types)
+        # Get top 6 chief complaints / illness labels (aligned with Nurse Reports -> Medical Records Trends)
         try:
-            cursor.execute("""
-                SELECT 
-                    diagnosis,
-                    COUNT(*) as count
-                FROM (
-                    SELECT diagnosis, visit_date FROM medical_records 
-                    WHERE MONTH(visit_date) = MONTH(CURDATE()) AND YEAR(visit_date) = YEAR(CURDATE())
-                    AND diagnosis IS NOT NULL AND diagnosis != ''
-                    UNION ALL
-                    SELECT diagnosis, visit_date FROM visitor_medical_records 
-                    WHERE MONTH(visit_date) = MONTH(CURDATE()) AND YEAR(visit_date) = YEAR(CURDATE())
-                    AND diagnosis IS NOT NULL AND diagnosis != ''
-                    UNION ALL
-                    SELECT diagnosis, visit_date FROM teaching_medical_records 
-                    WHERE MONTH(visit_date) = MONTH(CURDATE()) AND YEAR(visit_date) = YEAR(CURDATE())
-                    AND diagnosis IS NOT NULL AND diagnosis != ''
-                    UNION ALL
-                    SELECT diagnosis, visit_date FROM non_teaching_medical_records 
-                    WHERE MONTH(visit_date) = MONTH(CURDATE()) AND YEAR(visit_date) = YEAR(CURDATE())
-                    AND diagnosis IS NOT NULL AND diagnosis != ''
-                    UNION ALL
-                    SELECT diagnosis, visit_date FROM dean_medical_records 
-                    WHERE MONTH(visit_date) = MONTH(CURDATE()) AND YEAR(visit_date) = YEAR(CURDATE())
-                    AND diagnosis IS NOT NULL AND diagnosis != ''
-                ) AS all_diagnoses
-                GROUP BY diagnosis
-                ORDER BY count DESC
-                LIMIT 6
-            """)
+            diagnosis_tables = [
+                'medical_records',
+                'visitor_medical_records',
+                'teaching_medical_records',
+                'non_teaching_medical_records',
+                'dean_medical_records'
+            ]
+
+            illness_candidate_columns = [
+                'chief_complaint',
+                'diagnosis',
+                'symptoms',
+                'assessment'
+            ]
+
+            diagnosis_selects = []
+            for table_name in diagnosis_tables:
+                try:
+                    illness_column = None
+                    for col in illness_candidate_columns:
+                        cursor.execute(f"SHOW COLUMNS FROM {table_name} LIKE '{col}'")
+                        if cursor.fetchone():
+                            illness_column = col
+                            break
+
+                    if illness_column:
+                        diagnosis_selects.append(f"""
+                            SELECT {illness_column} AS diagnosis
+                            FROM {table_name}
+                            WHERE {illness_column} IS NOT NULL AND {illness_column} != ''
+                        """)
+                except Exception:
+                    pass
+
+            if diagnosis_selects:
+                cursor.execute(f"""
+                    SELECT 
+                        diagnosis,
+                        COUNT(*) as count
+                    FROM (
+                        {' UNION ALL '.join(diagnosis_selects)}
+                    ) AS all_diagnoses
+                    GROUP BY diagnosis
+                    ORDER BY count DESC
+                    LIMIT 6
+                """)
+            else:
+                results = []
+                illnesses = []
+                counts = []
+                raise Exception('No diagnosis-capable tables found')
             
             results = cursor.fetchall()
             
             illnesses = [row[0] for row in results] if results else []
             counts = [row[1] for row in results] if results else []
         except Exception as query_error:
-            print(f"âš ï¸ Query error (using fallback data): {query_error}")
+            print(f"âš ï¸ Query error (using fallback data): {query_error}")
             illnesses = []
             counts = []
         
@@ -6522,66 +6545,87 @@ def generate_sequential_ticket_number(conn) -> str:
     """
     cursor = conn.cursor()
     try:
-        # Ensure table exists first (critical for Railway migration)
-        cursor.execute(
-            """
-            CREATE TABLE IF NOT EXISTS daily_ticket_counter (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                counter_date DATE NOT NULL UNIQUE,
-                current_number INT NOT NULL DEFAULT 0,
-                max_number INT NOT NULL DEFAULT 100,
-                created_at DATETIME NOT NULL,
-                updated_at DATETIME NOT NULL,
-                INDEX idx_counter_date (counter_date)
-            )
-            """
-        )
-        conn.commit()
-
-        today = datetime.now().date()
-
-        # Get or create daily counter for today
-        cursor.execute(
-            """
-            SELECT current_number, max_number
-            FROM daily_ticket_counter
-            WHERE counter_date = %s
-            """,
-            (today,)
-        )
-        result = cursor.fetchone()
-
-        if result:
-            current_number = result[0]
-            max_number = result[1]
-
-            # Increment counter and reset to 1 if it exceeds 100
-            new_number = current_number + 1
-            if new_number > max_number:
-                new_number = 1  # Reset to 1 when reaching 100
-
+        try:
+            # Ensure table exists first (critical for Railway migration)
             cursor.execute(
                 """
-                UPDATE daily_ticket_counter
-                SET current_number = %s, updated_at = NOW()
-                WHERE counter_date = %s
-                """,
-                (new_number, today)
+                CREATE TABLE IF NOT EXISTS daily_ticket_counter (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    counter_date DATE NOT NULL UNIQUE,
+                    current_number INT NOT NULL DEFAULT 0,
+                    max_number INT NOT NULL DEFAULT 100,
+                    created_at DATETIME NOT NULL,
+                    updated_at DATETIME NOT NULL,
+                    INDEX idx_counter_date (counter_date)
+                )
+                """
             )
             conn.commit()
-            # Format as 3-digit with leading zeros (001, 002, ..., 100)
-            return f"{new_number:03d}"
-        else:
-            # First ticket of the day - create counter and return 001
+
+            today = datetime.now().date()
+
+            # Get or create daily counter for today
             cursor.execute(
                 """
-                INSERT INTO daily_ticket_counter (counter_date, current_number, max_number, created_at, updated_at)
-                VALUES (%s, 1, 100, NOW(), NOW())
+                SELECT current_number, max_number
+                FROM daily_ticket_counter
+                WHERE counter_date = %s
                 """,
                 (today,)
             )
-            conn.commit()
-            return "001"
+            result = cursor.fetchone()
+
+            if result:
+                current_number = result[0]
+                max_number = result[1]
+
+                # Increment counter and reset to 1 if it exceeds 100
+                new_number = current_number + 1
+                if new_number > max_number:
+                    new_number = 1  # Reset to 1 when reaching 100
+
+                cursor.execute(
+                    """
+                    UPDATE daily_ticket_counter
+                    SET current_number = %s, updated_at = NOW()
+                    WHERE counter_date = %s
+                    """,
+                    (new_number, today)
+                )
+                conn.commit()
+                # Format as 3-digit with leading zeros (001, 002, ..., 100)
+                return f"{new_number:03d}"
+            else:
+                # First ticket of the day - create counter and return 001
+                cursor.execute(
+                    """
+                    INSERT INTO daily_ticket_counter (counter_date, current_number, max_number, created_at, updated_at)
+                    VALUES (%s, 1, 100, NOW(), NOW())
+                    """,
+                    (today,)
+                )
+                conn.commit()
+                return "001"
+        except Exception as counter_err:
+            # Fallback if daily_ticket_counter is corrupted (e.g., tablespace error 1813)
+            msg = str(counter_err).lower()
+            if 'tablespace' not in msg and '1813' not in msg:
+                raise
+
+            today = datetime.now().date()
+            cursor.execute(
+                """
+                SELECT MAX(CAST(ticket_number AS UNSIGNED))
+                FROM consultation_tickets
+                WHERE DATE(arrival_time) = %s
+                  AND ticket_number REGEXP '^[0-9]+'
+                """,
+                (today,)
+            )
+            row = cursor.fetchone()
+            last_number = int(row[0]) if row and row[0] is not None else 0
+            new_number = (last_number % 100) + 1
+            return f"{new_number:03d}"
 
     except Exception as e:
         print(f"❌ Error generating sequential ticket number: {e}")
@@ -6601,38 +6645,26 @@ def check_user_ticket_rate_limit(conn, patient_identifier: str) -> tuple[bool, s
     """
     cursor = conn.cursor(dictionary=True)
     try:
-        today = datetime.now().date()
-        tomorrow = today + timedelta(days=1)
-        
-        # Check if user already has a ticket created today
+        if not patient_identifier:
+            return True, ""
+
         cursor.execute(
             """
             SELECT id, ticket_number, status, arrival_time
             FROM consultation_tickets
             WHERE patient_identifier = %s
-              AND DATE(arrival_time) = %s
+              AND status IN ('waiting', 'called', 'in_consultation')
             ORDER BY arrival_time DESC
             LIMIT 1
             """,
-            (patient_identifier, today)
+            (patient_identifier,)
         )
-        today_ticket = cursor.fetchone()
-        
-        if today_ticket:
-            ticket_number = today_ticket['ticket_number']
-            status = today_ticket['status']
-            arrival_time = today_ticket['arrival_time']
-            
-            # Calculate time until they can generate again
-            tomorrow_start = datetime.combine(tomorrow, datetime.min.time())
-            hours_until = int((tomorrow_start - datetime.now()).total_seconds() / 3600)
-            minutes_until = int((tomorrow_start - datetime.now()).total_seconds() / 60) % 60
-            
-            if status in ['waiting', 'called', 'in_consultation']:
-                return False, f"You already have an active ticket (#{ticket_number}) for today. Please wait for it to be called."
-            else:
-                return False, f"You have already used your daily ticket limit. You can generate a new ticket in {hours_until}h {minutes_until}m."
-        
+        active_ticket = cursor.fetchone()
+
+        if active_ticket:
+            ticket_number = active_ticket['ticket_number']
+            return False, f"You already have an active ticket (#{ticket_number}). Please wait for it to be called."
+
         return True, ""
         
     except Exception as e:
@@ -6692,22 +6724,101 @@ def create_consultation_ticket():
 
     try:
         cursor = conn.cursor()
+
+        # Ensure consultation_tickets table exists (avoid 500s if DB init didn't run)
+        try:
+            cursor.execute(
+                '''
+                CREATE TABLE IF NOT EXISTS consultation_tickets (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    ticket_number VARCHAR(10),
+                    patient_type VARCHAR(30) NOT NULL,
+                    patient_identifier VARCHAR(50),
+                    full_name VARCHAR(100),
+                    priority VARCHAR(2) NOT NULL DEFAULT 'P3',
+                    status VARCHAR(20) NOT NULL DEFAULT 'waiting',
+                    chief_complaint VARCHAR(255),
+                    severity_score TINYINT,
+                    triage_notes TEXT,
+                    vitals JSON,
+                    arrival_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    called_at DATETIME,
+                    completed_at DATETIME,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                    INDEX idx_status_priority (status, priority, arrival_time),
+                    INDEX idx_arrival_time (arrival_time)
+                )
+                '''
+            )
+            conn.commit()
+        except Exception as create_err:
+            # Some MySQL/MariaDB builds (common in local XAMPP) don't support JSON column type.
+            msg = str(create_err).lower()
+            if 'json' in msg:
+                cursor.execute(
+                    '''
+                    CREATE TABLE IF NOT EXISTS consultation_tickets (
+                        id INT AUTO_INCREMENT PRIMARY KEY,
+                        ticket_number VARCHAR(10),
+                        patient_type VARCHAR(30) NOT NULL,
+                        patient_identifier VARCHAR(50),
+                        full_name VARCHAR(100),
+                        priority VARCHAR(2) NOT NULL DEFAULT 'P3',
+                        status VARCHAR(20) NOT NULL DEFAULT 'waiting',
+                        chief_complaint VARCHAR(255),
+                        severity_score TINYINT,
+                        triage_notes TEXT,
+                        vitals LONGTEXT,
+                        arrival_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                        called_at DATETIME,
+                        completed_at DATETIME,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                        INDEX idx_status_priority (status, priority, arrival_time),
+                        INDEX idx_arrival_time (arrival_time)
+                    )
+                    '''
+                )
+                conn.commit()
+            else:
+                raise
+
+        # Backward-compatible schema adjustments
+        try:
+            cursor.execute("SHOW COLUMNS FROM consultation_tickets LIKE 'ticket_number'")
+            if not cursor.fetchone():
+                cursor.execute("ALTER TABLE consultation_tickets ADD COLUMN ticket_number VARCHAR(10) AFTER id")
+                conn.commit()
+        except Exception:
+            pass
+
+        try:
+            cursor.execute("ALTER TABLE consultation_tickets MODIFY chief_complaint VARCHAR(255) NULL")
+            conn.commit()
+        except Exception:
+            pass
         
         # Ensure daily_ticket_counter table exists
-        cursor.execute(
-            """
-            CREATE TABLE IF NOT EXISTS daily_ticket_counter (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                counter_date DATE NOT NULL UNIQUE,
-                current_number INT NOT NULL DEFAULT 0,
-                max_number INT NOT NULL DEFAULT 100,
-                created_at DATETIME NOT NULL,
-                updated_at DATETIME NOT NULL,
-                INDEX idx_counter_date (counter_date)
+        try:
+            cursor.execute(
+                """
+                CREATE TABLE IF NOT EXISTS daily_ticket_counter (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    counter_date DATE NOT NULL UNIQUE,
+                    current_number INT NOT NULL DEFAULT 0,
+                    max_number INT NOT NULL DEFAULT 100,
+                    created_at DATETIME NOT NULL,
+                    updated_at DATETIME NOT NULL,
+                    INDEX idx_counter_date (counter_date)
+                )
+                """
             )
-            """
-        )
-        conn.commit()
+            conn.commit()
+        except Exception as counter_err:
+            msg = str(counter_err).lower()
+            if 'tablespace' not in msg and '1813' not in msg:
+                raise
         
         # Check rate limit first (one ticket per user per day)
         can_generate, rate_limit_message = check_user_ticket_rate_limit(conn, patient_identifier)
@@ -6780,7 +6891,16 @@ def create_consultation_ticket():
         ), 201
     except Exception as e:
         print(f"âŒ Error creating consultation ticket: {e}")
-        return jsonify({'error': 'Failed to create ticket'}), 500
+        traceback.print_exc()
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+        debug_errors = (os.environ.get('ICLINIC_DEBUG_ERRORS') or '').strip() == '1'
+        payload = {'error': 'Failed to create ticket'}
+        if debug_errors:
+            payload['details'] = str(e)
+        return jsonify(payload), 500
     finally:
         try:
             cursor.close()
@@ -11048,7 +11168,8 @@ def api_online_consultations():
                 s.student_number,         -- 11 (Student Number for Students)
                 t.faculty_id,             -- 12 (Faculty ID for Teaching Staff)
                 nts.staff_id,             -- 13 (Staff ID for Non-Teaching Staff)
-                u.user_id                 -- 14 (User ID like DEAN-001, PRES-001)
+                d.dean_id,                -- 14 (Dean ID like DEAN-001)
+                u.user_id                 -- 15 (Fallback user_id if present)
             FROM online_consultations oc
             LEFT JOIN students s ON oc.patient_name = CONCAT(s.std_Firstname, ' ', s.std_Surname) 
                 AND oc.patient_role = 'Student'
@@ -11056,6 +11177,8 @@ def api_online_consultations():
                 AND oc.patient_role = 'Teaching Staff'
             LEFT JOIN non_teaching_staff nts ON oc.patient_name = CONCAT(nts.first_name, ' ', nts.last_name) 
                 AND oc.patient_role = 'Non-Teaching Staff'
+            LEFT JOIN deans d ON oc.patient_name = CONCAT(d.first_name, ' ', d.last_name)
+                AND oc.patient_role = 'Dean'
             LEFT JOIN users u ON oc.patient_name = CONCAT(u.first_name, ' ', u.last_name) 
                 AND oc.patient_role IN ('Dean')
             WHERE oc.status = 'active'
@@ -11103,7 +11226,9 @@ def api_online_consultations():
             elif patient_role == 'Non-Teaching Staff' and c[13]:
                 display_id = c[13]  # staff_id (e.g., "NTS-2024-001")
             elif patient_role == 'Dean' and c[14]:
-                display_id = c[14]  # user_id directly (e.g., "DEAN-001", "PRES-001")
+                display_id = c[14]  # dean_id (e.g., "DEAN-001")
+            elif patient_role == 'Dean' and c[15]:
+                display_id = c[15]  # fallback user_id
             elif c[9]:
                 display_id = str(c[9])  # patient_id as fallback
             else:
@@ -11119,7 +11244,8 @@ def api_online_consultations():
             print(f"   student_number (c[11]): {c[11]}")
             print(f"   faculty_id (c[12]): {c[12]}")
             print(f"   staff_id (c[13]): {c[13]}")
-            print(f"   user_id (c[14]): {c[14]}")
+            print(f"   dean_id (c[14]): {c[14]}")
+            print(f"   user_id (c[15]): {c[15]}")
             print(f"   ---")
             print(f"   Final Role: {patient_role}")
             print(f"   âœ… Display ID: {display_id}")
@@ -12652,11 +12778,18 @@ def api_start_online_consultation():
         if 'user_id' in session:
             user_id = session['user_id']
             user_role = session.get('role', '')
+            user_role_norm = (user_role or '').strip().lower()
+            if user_role_norm in ('deans', 'dean'):
+                user_role_norm = 'deans'
+            elif user_role_norm in ('teaching staff', 'teaching', 'teaching_staff'):
+                user_role_norm = 'teaching_staff'
+            elif user_role_norm in ('non-teaching staff', 'non teaching staff', 'non_teaching staff', 'non_teaching', 'non_teaching_staff'):
+                user_role_norm = 'non_teaching_staff'
             
             print(f"ðŸ” Session data - User ID: {user_id}, Role: {user_role}")
             print(f"ðŸ” Session first_name: {session.get('first_name')}, last_name: {session.get('last_name')}")
             
-            if user_role == 'student':
+            if user_role_norm == 'student':
                 # For students, we need to find their actual student ID in the students table
                 # Get the user's name from session first
                 session_first_name = session.get('first_name', '')
@@ -12704,22 +12837,55 @@ def api_start_online_consultation():
                         patient_role = 'Student'
                         print(f"âš ï¸ Using fallback name: {actual_patient_name} (ID: {patient_id})")
             
-            elif user_role == 'dean':
-                # For Dean role
-                cursor.execute('''
-                    SELECT id, CONCAT(first_name, ' ', last_name) as full_name 
-                    FROM users 
-                    WHERE id = %s AND role = 'dean'
-                ''', (user_id,))
+            elif user_role_norm == 'deans':
+                # For Dean role: prefer deans table so we store the real full name (not an ID like DEAN-001)
+                dean_identifier = session.get('identifier_id')
+                dean_email = session.get('email')
+                dean_row = None
+                try:
+                    if dean_identifier:
+                        cursor.execute('''
+                            SELECT dean_id, CONCAT(first_name, ' ', last_name) as full_name
+                            FROM deans
+                            WHERE dean_id = %s
+                            LIMIT 1
+                        ''', (dean_identifier,))
+                        dean_row = cursor.fetchone()
+                    if (not dean_row) and dean_email:
+                        cursor.execute('''
+                            SELECT dean_id, CONCAT(first_name, ' ', last_name) as full_name
+                            FROM deans
+                            WHERE email = %s
+                            LIMIT 1
+                        ''', (dean_email,))
+                        dean_row = cursor.fetchone()
+                except Exception as dean_lookup_error:
+                    print(f"âš ï¸ Dean lookup failed: {dean_lookup_error}")
+
+                if dean_row:
+                    # patient_id stays as users.id (int) when possible, but name/role/type are authoritative
+                    patient_role = 'Dean'
+                    actual_patient_name = dean_row[1]
+                    patient_type = 'dean'
+                    print(f"âœ… Using dean from deans table: {actual_patient_name} (Dean ID: {dean_row[0]})")
                 
-                dean_result = cursor.fetchone()
-                if dean_result:
-                    patient_id = dean_result[0]
-                    patient_role = 'Dean'  # Set role as Dean
-                    actual_patient_name = dean_result[1]
-                    print(f"âœ… Using logged-in Dean: {actual_patient_name} (ID: {patient_id}, Role: Dean)")
+                # Fallback: users table (only if we couldn't resolve from deans table)
+                if not actual_patient_name:
+                    cursor.execute('''
+                        SELECT id, CONCAT(first_name, ' ', last_name) as full_name
+                        FROM users
+                        WHERE id = %s
+                        LIMIT 1
+                    ''', (user_id,))
+                    dean_result = cursor.fetchone()
+                    if dean_result:
+                        patient_id = dean_result[0]
+                        patient_role = 'Dean'
+                        actual_patient_name = dean_result[1]
+                        patient_type = 'dean'
+                        print(f"âœ… Using logged-in Dean from users table: {actual_patient_name} (ID: {patient_id})")
             
-            elif user_role in ['staff', 'admin', 'teaching_staff', 'non_teaching_staff']:
+            elif user_role_norm in ['staff', 'admin', 'teaching_staff', 'non_teaching_staff']:
                 cursor.execute('''
                     SELECT id, CONCAT(first_name, ' ', last_name) as full_name, position 
                     FROM users 
@@ -12732,6 +12898,18 @@ def api_start_online_consultation():
                     patient_role = staff_result[2] if staff_result[2] else 'Staff'  # Use position field
                     actual_patient_name = staff_result[1]
                     print(f"âœ… Using logged-in user: {actual_patient_name} (ID: {patient_id}, Role: {patient_role})")
+                    if user_role_norm == 'teaching_staff':
+                        patient_type = 'teaching_staff'
+                        if not patient_role or patient_role == 'Staff':
+                            patient_role = 'Teaching Staff'
+                    elif user_role_norm == 'non_teaching_staff':
+                        patient_type = 'non_teaching_staff'
+                        if not patient_role or patient_role == 'Staff':
+                            patient_role = 'Non-Teaching Staff'
+                    elif user_role_norm == 'admin':
+                        patient_type = 'admin'
+                    else:
+                        patient_type = 'staff'
         
         # Fallback: If session lookup failed, try to find by name matching
         if not patient_id and patient_type.lower() == 'student':
@@ -12755,6 +12933,16 @@ def api_start_online_consultation():
         if not actual_patient_name:
             actual_patient_name = patient_name
             print(f"âš ï¸ Using fallback patient name: {actual_patient_name}")
+
+        if not patient_role and user_role_norm == 'teaching_staff':
+            patient_role = 'Teaching Staff'
+            patient_type = 'teaching_staff'
+        elif not patient_role and user_role_norm == 'non_teaching_staff':
+            patient_role = 'Non-Teaching Staff'
+            patient_type = 'non_teaching_staff'
+        elif not patient_role and user_role_norm == 'deans':
+            patient_role = 'Dean'
+            patient_type = 'dean'
         
         print(f"ðŸ“ Final consultation data:")
         print(f"   Patient ID: {patient_id}")
@@ -12882,6 +13070,7 @@ def api_get_consultation_messages(consultation_id):
                     sender_type ENUM('patient', 'staff') NOT NULL,
                     message TEXT NOT NULL,
                     sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    is_read BOOLEAN DEFAULT FALSE,
                     INDEX idx_consultation_id (consultation_id)
                 )
             ''')
@@ -12892,7 +13081,21 @@ def api_get_consultation_messages(consultation_id):
             columns = cursor.fetchall()
 
         column_names = [col[0] for col in (columns or [])]
-        message_column = 'message_text' if 'message_text' in column_names else 'message'
+
+        # Backward/forward compatibility: support either message or message_text columns
+        if 'message_text' in column_names:
+            message_column = 'message_text'
+        else:
+            message_column = 'message'
+
+        # Ensure is_read column exists for unread counts/mark-read
+        if 'is_read' not in column_names:
+            try:
+                cursor.execute('ALTER TABLE chat_messages ADD COLUMN is_read BOOLEAN DEFAULT FALSE')
+                conn.commit()
+                column_names.append('is_read')
+            except Exception as alter_error:
+                print(f"Note: unable to add is_read column: {alter_error}")
         
         if after_id is not None:
             cursor.execute(f'''
@@ -12914,13 +13117,21 @@ def api_get_consultation_messages(consultation_id):
         cursor.close()
         conn.close()
         
-        result = [{
-            'id': m[0],
-            'sender_type': 'staff' if m[1] == 'doctor' else m[1],  # Map doctor back to staff for frontend
-            'message': m[2],
-            'sent_at': m[3].strftime('%Y-%m-%d %H:%M:%S') if m[3] else None,
-            'created_at': m[3].strftime('%Y-%m-%d %H:%M:%S') if m[3] else None
-        } for m in messages]
+        result = []
+        for m in messages:
+            sender_raw = m[1]
+            # Handle legacy values like 'doctor' gracefully
+            if sender_raw in ('doctor', 'staff'):
+                sender_out = 'staff'
+            else:
+                sender_out = 'patient'
+            result.append({
+                'id': m[0],
+                'sender_type': sender_out,
+                'message': m[2],
+                'sent_at': m[3].strftime('%Y-%m-%d %H:%M:%S') if m[3] else None,
+                'created_at': m[3].strftime('%Y-%m-%d %H:%M:%S') if m[3] else None
+            })
         
         print(f"Successfully loaded {len(result)} messages for consultation {consultation_id}")
         return jsonify(result)
@@ -12957,23 +13168,74 @@ def api_send_consultation_message(consultation_id):
     
     try:
         cursor = conn.cursor(buffered=True)  # Use buffered cursor
-        # Map sender_type to match database enum values
-        sender_type = data.get('sender_type', 'patient')
-        
-        # Map all non-staff sender types to 'patient' for database compatibility
-        if sender_type == 'staff':
-            sender_type = 'doctor'  # Map staff to doctor for database compatibility
-        elif sender_type in ['dean', 'student', 'teaching_staff', 'non_teaching_staff']:
-            sender_type = 'patient'  # All non-staff users are 'patient' in chat_messages table
-            
-        cursor.execute('''
-            INSERT INTO chat_messages (consultation_id, sender_type, message_text)
-            VALUES (%s, %s, %s)
-        ''', (
-            consultation_id,
-            sender_type,
-            data.get('message')
-        ))
+
+        # Determine actual columns present
+        try:
+            cursor.execute('DESCRIBE chat_messages')
+            columns = cursor.fetchall()  # Consume
+        except Exception:
+            columns = []
+
+        column_names = [col[0] for col in (columns or [])]
+
+        sender_type_column_type = None
+        for col in (columns or []):
+            try:
+                if col and len(col) >= 2 and col[0] == 'sender_type':
+                    sender_type_column_type = col[1]
+                    break
+            except Exception:
+                continue
+
+        # Make schema compatible if needed
+        if not column_names:
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS chat_messages (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    consultation_id INT NOT NULL,
+                    sender_type ENUM('patient', 'staff') NOT NULL,
+                    message TEXT NOT NULL,
+                    sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    is_read BOOLEAN DEFAULT FALSE,
+                    INDEX idx_consultation_id (consultation_id)
+                )
+            ''')
+            conn.commit()
+            cursor.execute('DESCRIBE chat_messages')
+            columns = cursor.fetchall()
+            column_names = [col[0] for col in (columns or [])]
+
+        if 'is_read' not in column_names:
+            try:
+                cursor.execute('ALTER TABLE chat_messages ADD COLUMN is_read BOOLEAN DEFAULT FALSE')
+                conn.commit()
+                column_names.append('is_read')
+            except Exception as alter_error:
+                print(f"Note: unable to add is_read column: {alter_error}")
+
+        message_column = 'message_text' if 'message_text' in column_names else 'message'
+
+        # Normalize sender_type: only 'patient' or 'staff' should be stored
+        sender_type_raw = (data.get('sender_type') or 'patient').lower()
+        if sender_type_raw == 'staff':
+            # Some older DB schemas use ENUM('patient','doctor') instead of ('patient','staff')
+            sender_enum_str = (sender_type_column_type or '')
+            supports_staff = 'staff' in sender_enum_str
+            supports_doctor = 'doctor' in sender_enum_str
+            if supports_staff:
+                sender_type_db = 'staff'
+            elif supports_doctor:
+                sender_type_db = 'doctor'
+            else:
+                sender_type_db = 'staff'
+        else:
+            # student/teaching/non-teaching/dean/etc are treated as patient in chat
+            sender_type_db = 'patient'
+
+        cursor.execute(
+            f"INSERT INTO chat_messages (consultation_id, sender_type, {message_column}) VALUES (%s, %s, %s)",
+            (consultation_id, sender_type_db, data.get('message'))
+        )
         
         message_id = cursor.lastrowid
         conn.commit()

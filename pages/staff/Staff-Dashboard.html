@@ -621,12 +621,21 @@
             // Initialize Common Illnesses Chart
             const illnessesCtx = document.getElementById('commonIllnessesChart');
                         if (illnessesCtx && illnessesCtx.getContext) {
+                                const hasIllnessData = Array.isArray(illnessesData?.illnesses)
+                                    && Array.isArray(illnessesData?.counts)
+                                    && illnessesData.illnesses.length > 0
+                                    && illnessesData.counts.length > 0
+                                    && illnessesData.counts.some(v => Number(v) > 0);
+
+                                const illnessLabels = hasIllnessData ? illnessesData.illnesses : ['No data this month'];
+                                const illnessCounts = hasIllnessData ? illnessesData.counts : [1];
+
                                 this.commonIllnessesChart = new Chart(illnessesCtx, {
                     type: 'doughnut',
                     data: {
-                        labels: illnessesData.illnesses,
+                        labels: illnessLabels,
                         datasets: [{
-                            data: illnessesData.counts,
+                            data: illnessCounts,
                             backgroundColor: [
                                 'rgba(239, 68, 68, 0.8)',
                                 'rgba(59, 130, 246, 0.8)',
@@ -669,7 +678,7 @@
                                         const label = context.label || '';
                                         const value = context.parsed || 0;
                                         const total = context.dataset.data.reduce((a, b) => a + b, 0);
-                                        const percentage = ((value / total) * 100).toFixed(1);
+                                        const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : '0.0';
                                         return `${label}: ${value} (${percentage}%)`;
                                     }
                                 }
@@ -677,6 +686,14 @@
                         }
                     }
                 });
+
+                                if (!hasIllnessData) {
+                                    this.commonIllnessesChart.data.datasets[0].backgroundColor = ['rgba(156, 163, 175, 0.5)'];
+                                    this.commonIllnessesChart.data.datasets[0].borderColor = ['rgba(156, 163, 175, 1)'];
+                                    this.commonIllnessesChart.options.plugins.legend.display = false;
+                                    this.commonIllnessesChart.options.plugins.tooltip.enabled = false;
+                                    this.commonIllnessesChart.update('none');
+                                }
             }
             
                     } catch (error) {

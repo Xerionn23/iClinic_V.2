@@ -821,16 +821,18 @@
                              </button>
 
                              <template x-for="item in paginationItems" :key="item.key">
-                                 <template x-if="item.type === 'page'">
-                                     <button @click="goToPage(item.page)"
-                                             :class="currentPage === item.page ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'"
-                                             class="min-w-[40px] px-3 py-2 rounded-lg border text-sm font-semibold">
-                                         <span x-text="item.page"></span>
-                                     </button>
-                                 </template>
-                                 <template x-if="item.type === 'ellipsis'">
-                                     <span class="px-2 text-sm text-gray-400">...</span>
-                                 </template>
+                                 <div class="contents">
+                                     <template x-if="item.type === 'page'">
+                                         <button @click="goToPage(item.page)"
+                                                 :class="currentPage === item.page ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'"
+                                                 class="min-w-[40px] px-3 py-2 rounded-lg border text-sm font-semibold">
+                                             <span x-text="item.page"></span>
+                                         </button>
+                                     </template>
+                                     <template x-if="item.type === 'ellipsis'">
+                                         <span class="px-2 text-sm text-gray-400">...</span>
+                                     </template>
+                                 </div>
                              </template>
 
                              <button @click="nextPage()" :disabled="currentPage >= totalPages"
@@ -1271,7 +1273,7 @@
                                         
                                         <!-- Messenger-Style Messages -->
                                         <template x-for="message in (selectedChat?.messages || [])" :key="message.id">
-                                            <div class="flex items-start gap-3 mb-4" :class="message.sender === 'doctor' ? 'flex-row-reverse' : 'flex-row'">
+                                            <div class="flex items-start gap-3 mb-4" :class="message.sender === 'doctor' ? 'flex-row-reverse' : 'flex-row'" x-data="{ debug: console.log('🔍 Rendering message:', message) }">
                                                 <!-- Avatar -->
                                                 <div class="flex-shrink-0">
                                                     <div :class="message.sender === 'doctor' ? 'bg-blue-500' : 'bg-gray-500'" 
@@ -2327,6 +2329,37 @@
                     this.lastMessageTime = Date.now();
                     
                     try {
+                        // Add message to local state immediately for instant feedback
+                        const tempLocalId = `local_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+                        const localMessage = {
+                            id: tempLocalId,
+                            originalId: null,
+                            sender: 'doctor',
+                            text: messageText,
+                            time: new Date().toLocaleTimeString('en-US', {hour: 'numeric', minute:'2-digit', hour12: true}),
+                            type: 'text',
+                            fromDatabase: false // Mark as local message
+                        };
+
+                        this.selectedChat.messages.push(localMessage);
+                        this.selectedChat.lastMessage = messageText;
+                        this.selectedChat.lastMessageTime = 'Just now';
+
+                        // Save messages to localStorage for persistence
+                        try {
+                            localStorage.setItem('chatMessages_' + consultationId, JSON.stringify(this.selectedChat.messages));
+                        } catch(e) {
+                            // Ignore storage errors
+                        }
+
+                        // Auto-scroll to bottom
+                        this.$nextTick(() => {
+                            const container = this.$refs.messagesContainer;
+                            if (container) {
+                                container.scrollTop = container.scrollHeight;
+                            }
+                        });
+
                         const response = await fetch(`/api/online-consultations/${consultationId}/send-message`, {
                             method: 'POST',
                             credentials: 'same-origin',
@@ -2341,35 +2374,27 @@
                         
                         if (response.ok) {
                             console.log('âœ… Message sent successfully');
-                            
-                            // Add message to local state immediately for instant feedback
-                            const localMessage = {
-                                id: `local_${Date.now()}`,
-                                sender: 'doctor',
-                                text: messageText,
-                                time: new Date().toLocaleTimeString('en-US', {hour: 'numeric', minute:'2-digit', hour12: true}),
-                                type: 'text',
-                                fromDatabase: false // Mark as local message
-                            };
-                            
-                            this.selectedChat.messages.push(localMessage);
-                            this.selectedChat.lastMessage = messageText;
-                            this.selectedChat.lastMessageTime = 'Just now';
-                            
-                            // Save messages to localStorage for persistence
+
+                            // Reconcile optimistic local message with DB message_id to avoid duplicates
+                            let result = null;
                             try {
-                                localStorage.setItem('chatMessages_' + consultationId, JSON.stringify(this.selectedChat.messages));
-                            } catch(e) {
-                                // Ignore storage errors
+                                result = await response.json();
+                            } catch (e) {
+                                result = null;
                             }
 
-                            // Auto-scroll to bottom
-                            this.$nextTick(() => {
-                                const container = this.$refs.messagesContainer;
-                                if (container) {
-                                    container.scrollTop = container.scrollHeight;
+                            const messageId = result && (result.message_id || result.id);
+                            if (messageId) {
+                                const idx = (this.selectedChat.messages || []).findIndex(m => m && m.id === tempLocalId);
+                                if (idx >= 0) {
+                                    this.selectedChat.messages[idx] = {
+                                        ...this.selectedChat.messages[idx],
+                                        id: `db_${messageId}`,
+                                        originalId: messageId,
+                                        fromDatabase: true
+                                    };
                                 }
-                            });
+                            }
                             
                             // Reload messages after a short delay to sync with database
                             setTimeout(() => {
@@ -2379,12 +2404,16 @@
                             const errorText = await response.text();
                             console.error('âŒ Failed to send message:', response.status, errorText);
                             this.showAlert('Failed to send message. Please try again.', 'error');
+                            // Remove optimistic message since send failed
+                            this.selectedChat.messages = (this.selectedChat.messages || []).filter(m => m && m.id !== tempLocalId);
                             // Restore the message text if sending failed
                             this.newMessage = messageText;
                         }
                     } catch (error) {
                         console.error('âŒ Error sending message:', error);
                         this.showAlert('Error sending message. Please check your connection.', 'error');
+                        // Remove optimistic message since send failed
+                        this.selectedChat.messages = (this.selectedChat.messages || []).filter(m => m && m.id !== tempLocalId);
                         // Restore the message text if sending failed
                         this.newMessage = messageText;
                     }
@@ -2798,7 +2827,7 @@
                             const seen = new Set();
                             
                             allMessages.forEach(msg => {
-                                const key = `${msg.sender}_${msg.text}`;
+                                const key = `${msg.sender}_${msg.text}_${msg.originalId || msg.id || ''}`;
                                 if (!seen.has(key)) {
                                     seen.add(key);
                                     uniqueMessages.push(msg);
@@ -2812,9 +2841,13 @@
                                 return timeA.localeCompare(timeB);
                             });
                             
-                            // Only update if message count changed to prevent unnecessary re-renders
-                            if (this.selectedChat.messages.length !== uniqueMessages.length) {
+                            // Update if message set changed
+                            const currentKey = (this.selectedChat.messages || []).map(m => `${m.sender}_${m.text}_${m.originalId || m.id || ''}`).join('|');
+                            const nextKey = uniqueMessages.map(m => `${m.sender}_${m.text}_${m.originalId || m.id || ''}`).join('|');
+                            if (currentKey !== nextKey) {
                                 this.selectedChat.messages = uniqueMessages;
+                                console.log('🔍 Debug: selectedChat.messages after update:', this.selectedChat.messages);
+                                console.log('🔍 Debug: First message sample:', this.selectedChat.messages[0]);
                                 
                                 // Save to localStorage for persistence
                                 try {
@@ -2880,7 +2913,9 @@
                                 
                                 // Only update if we have different message count or if this is initial load
                                 const currentDbMessages = this.selectedChat.messages.filter(m => m.fromDatabase);
-                                if (currentDbMessages.length !== transformedMessages.length || !this.selectedChat.messages.length) {
+                                const currentDbKey = currentDbMessages.map(m => `${m.sender}_${m.text}_${m.id || ''}`).join('|');
+                                const nextDbKey = transformedMessages.map(m => `${m.sender}_${m.text}_${m.id || ''}`).join('|');
+                                if (currentDbKey !== nextDbKey || !this.selectedChat.messages.length) {
                                     // Keep local messages (not from database) and merge with database messages
                                     const localMessages = this.selectedChat.messages.filter(m => !m.fromDatabase);
                                     this.selectedChat.messages = [...transformedMessages, ...localMessages];

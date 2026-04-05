@@ -938,7 +938,7 @@
                                                     <button @click="editEvent(event)" class="icon-action-btn text-blue-600 hover:bg-blue-50">
                                                         <i data-feather="edit-2" class="w-4 h-4"></i>
                                                     </button>
-                                                    <button @click="deleteEvent(event.id)" class="icon-action-btn text-red-600 hover:bg-red-50">
+                                                    <button @click="deleteEvent(event.db_id)" class="icon-action-btn text-red-600 hover:bg-red-50">
                                                         <i data-feather="trash-2" class="w-4 h-4"></i>
                                                     </button>
                                                 </div>
@@ -1576,8 +1576,13 @@
                             // Process events to ensure consistent field names
                             this.clinicEvents = (data.events || []).map(event => {
                                 console.log('🔧 Processing event from API:', event);
+                                const rawId = event.id;
+                                const dbId = typeof rawId === 'string' && rawId.startsWith('event_')
+                                    ? parseInt(rawId.replace('event_', ''), 10)
+                                    : (typeof rawId === 'number' ? rawId : null);
                                 return {
                                     ...event,
+                                    db_id: dbId,
                                     // Ensure all events are marked as clinic events
                                     type: 'clinic_event',
                                     // Map field variations to consistent names
@@ -1791,6 +1796,10 @@
                     if (!confirm('Are you sure you want to delete this clinic event?')) return;
 
                     try {
+                        if (!eventId || Number.isNaN(Number(eventId))) {
+                            this.showError('Failed to delete event: Invalid event ID');
+                            return;
+                        }
                         const response = await fetch(`/api/clinic-events/${eventId}`, {
                             method: 'DELETE'
                         });
@@ -1799,8 +1808,15 @@
                             await this.loadClinicEvents(); // Reload events
                             this.showSuccess('Clinic event deleted successfully!');
                         } else {
-                            const error = await response.json();
-                            this.showError('Failed to delete event: ' + (error.error || 'Unknown error'));
+                            let errorPayload = null;
+                            const responseClone = response.clone();
+                            try {
+                                errorPayload = await response.json();
+                            } catch (e) {
+                                const text = await responseClone.text();
+                                errorPayload = { error: text || 'Unknown error' };
+                            }
+                            this.showError('Failed to delete event: ' + (errorPayload.error || 'Unknown error'));
                         }
                     } catch (error) {
                         console.error('Error deleting event:', error);
@@ -1876,16 +1892,16 @@
                 editEvent(event) {
                     if (!event) return;
 
-                    this.editingEventId = event.id;
+                    this.editingEventId = event.db_id;
                     this.newEvent = {
-                        title: event.title || '',
-                        description: event.description || '',
-                        event_type: event.event_type || '',
-                        start_date: (event.start_date || event.start || '').toString().split('T')[0],
-                        end_date: (event.end_date || event.end || event.start_date || event.start || '').toString().split('T')[0],
-                        start_time: event.start_time || '',
-                        end_time: event.end_time || '',
-                        is_all_day: !!event.is_all_day
+                        title: event.title,
+                        description: event.description,
+                        event_type: event.event_type,
+                        start_date: event.start_date,
+                        end_date: event.end_date,
+                        start_time: event.start_time,
+                        end_time: event.end_time,
+                        is_all_day: event.is_all_day
                     };
 
                     this.showEventModal = true;
