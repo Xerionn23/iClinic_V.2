@@ -4,8 +4,9 @@ mysql-connector-python==8.1.0
 python-dotenv==1.0.0
 Werkzeug==2.3.7
 docxtpl==0.16.7
-docx2pdf==0.1.8
+docx2pdf==0.1.8; platform_system=="Windows"
 python-docx==0.8.11
 google-generativeai>=0.8.0
 twilio==8.10.0
 schedule==1.2.0
+gunicorn==21.2.0
