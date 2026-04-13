@@ -7,6 +7,7 @@ import mysql.connector
 from mysql.connector import Error
 import sys
 import os
+import re
 
 # Fix Windows console encoding
 if sys.platform == 'win32':
@@ -75,6 +76,20 @@ def get_table_create_statement(connection, table_name):
     except Error as e:
         print(f"❌ Error getting CREATE TABLE for {table_name}: {e}")
         return None
+
+
+def sanitize_create_table_sql(create_sql: str) -> str:
+    """Make MySQL CREATE TABLE DDL more compatible across versions/providers."""
+    if not create_sql:
+        return create_sql
+
+    sql = create_sql
+
+    # Some providers reject DATE defaults that use function calls like CURDATE().
+    # Prefer CURRENT_DATE which is the standard.
+    sql = re.sub(r"\bDEFAULT\s+curdate\s*\(\s*\)", "DEFAULT (CURRENT_DATE)", sql, flags=re.IGNORECASE)
+
+    return sql
 
 
 def get_generated_columns(connection, table_name, database):
@@ -215,6 +230,8 @@ def migrate_database():
             print(f"    ⚠️ Skipping {table} - could not get CREATE statement")
             error_count += 1
             continue
+
+        create_sql = sanitize_create_table_sql(create_sql)
         
         # Drop table if exists on Railway (to avoid conflicts)
         try:

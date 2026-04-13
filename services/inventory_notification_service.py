@@ -25,10 +25,8 @@ EMAIL_CONFIG = {
 def get_inventory_alerts():
     """
     Check medicine inventory and return alerts for:
-    - Expiring in 60 days
     - Expiring in 30 days
     - Low stock (10 or less)
-    - Already expired
     """
     conn = DatabaseConfig.get_connection()
     if not conn:
@@ -37,14 +35,11 @@ def get_inventory_alerts():
     
     cursor = conn.cursor()
     today = datetime.now().date()
-    days_60 = today + timedelta(days=60)
     days_30 = today + timedelta(days=30)
     
     alerts = {
-        'expiring_60_days': [],
         'expiring_30_days': [],
         'low_stock': [],
-        'expired': []
     }
     
     try:
@@ -72,27 +67,10 @@ def get_inventory_alerts():
             
             # Check expiry dates
             if expiry_date:
-                if expiry_date <= today:
-                    # Already expired
-                    alerts['expired'].append({
-                        'medicine_name': medicine_name,
-                        'quantity': batch_qty,
-                        'expiry_date': expiry_date.strftime('%Y-%m-%d'),
-                        'days_overdue': (today - expiry_date).days
-                    })
-                elif expiry_date <= days_30:
+                if today < expiry_date <= days_30:
                     # Expiring in 30 days or less
                     days_until_expiry = (expiry_date - today).days
                     alerts['expiring_30_days'].append({
-                        'medicine_name': medicine_name,
-                        'quantity': batch_qty,
-                        'expiry_date': expiry_date.strftime('%Y-%m-%d'),
-                        'days_until_expiry': days_until_expiry
-                    })
-                elif expiry_date <= days_60:
-                    # Expiring in 60 days or less
-                    days_until_expiry = (expiry_date - today).days
-                    alerts['expiring_60_days'].append({
                         'medicine_name': medicine_name,
                         'quantity': batch_qty,
                         'expiry_date': expiry_date.strftime('%Y-%m-%d'),
@@ -136,9 +114,7 @@ def create_email_html(alerts):
     
     # Count total alerts
     total_alerts = (
-        len(alerts['expired']) + 
         len(alerts['expiring_30_days']) + 
-        len(alerts['expiring_60_days']) + 
         len(alerts['low_stock'])
     )
     
@@ -147,37 +123,6 @@ def create_email_html(alerts):
     
     # Build alert sections
     alert_sections = ""
-    
-    # EXPIRED MEDICINES
-    if alerts['expired']:
-        expired_rows = ""
-        for item in alerts['expired']:
-            expired_rows += f"""
-                    <tr>
-                        <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; color: #374151;"><strong>{item['medicine_name']}</strong></td>
-                        <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; color: #374151;"><span style="display: inline-block; padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: bold; background: #fee2e2; color: #dc2626;">{item['quantity']} units</span></td>
-                        <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; color: #374151;">{item['expiry_date']}</td>
-                        <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; color: #374151;"><span style="display: inline-block; padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: bold; background: #fee2e2; color: #dc2626;">{item['days_overdue']} days</span></td>
-                    </tr>"""
-        alert_sections += f"""
-            <!-- Expired Section -->
-            <div style="margin-bottom: 30px;">
-                <div style="background: #fef2f2; padding: 15px; border-left: 4px solid #dc2626; margin-bottom: 15px;">
-                    <h3 style="margin: 0; color: #dc2626; font-size: 18px;">🚨 EXPIRED MEDICINES</h3>
-                    <p style="margin: 5px 0 0 0; color: #666; font-size: 14px;">These medicines have already expired and should be removed immediately</p>
-                </div>
-                <table style="width: 100%; border-collapse: collapse; background: white; border: 1px solid #e5e7eb; border-radius: 8px;">
-                    <thead>
-                        <tr style="background: #f9fafb;">
-                            <th style="padding: 12px; text-align: left; border-bottom: 2px solid #e5e7eb; font-size: 14px; color: #374151;">Medicine Name</th>
-                            <th style="padding: 12px; text-align: left; border-bottom: 2px solid #e5e7eb; font-size: 14px; color: #374151;">Quantity</th>
-                            <th style="padding: 12px; text-align: left; border-bottom: 2px solid #e5e7eb; font-size: 14px; color: #374151;">Expired Date</th>
-                            <th style="padding: 12px; text-align: left; border-bottom: 2px solid #e5e7eb; font-size: 14px; color: #374151;">Days Overdue</th>
-                        </tr>
-                    </thead>
-                    <tbody>{expired_rows}</tbody>
-                </table>
-            </div>"""
     
     # EXPIRING IN 30 DAYS
     if alerts['expiring_30_days']:
@@ -207,37 +152,6 @@ def create_email_html(alerts):
                         </tr>
                     </thead>
                     <tbody>{expiring_rows}</tbody>
-                </table>
-            </div>"""
-    
-    # EXPIRING IN 60 DAYS
-    if alerts['expiring_60_days']:
-        expiring60_rows = ""
-        for item in alerts['expiring_60_days']:
-            expiring60_rows += f"""
-                    <tr>
-                        <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; color: #374151;"><strong>{item['medicine_name']}</strong></td>
-                        <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; color: #374151;"><span style="display: inline-block; padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: bold; background: #dbeafe; color: #2563eb;">{item['quantity']} units</span></td>
-                        <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; color: #374151;">{item['expiry_date']}</td>
-                        <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; color: #374151;"><span style="display: inline-block; padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: bold; background: #dbeafe; color: #2563eb;">{item['days_until_expiry']} days</span></td>
-                    </tr>"""
-        alert_sections += f"""
-            <!-- Expiring 60 Days Section -->
-            <div style="margin-bottom: 30px;">
-                <div style="background: #dbeafe; padding: 15px; border-left: 4px solid #2563eb; margin-bottom: 15px;">
-                    <h3 style="margin: 0; color: #2563eb; font-size: 18px;">📅 EXPIRING IN 60 DAYS</h3>
-                    <p style="margin: 5px 0 0 0; color: #666; font-size: 14px;">These medicines will expire within 60 days. Monitor usage and plan accordingly</p>
-                </div>
-                <table style="width: 100%; border-collapse: collapse; background: white; border: 1px solid #e5e7eb; border-radius: 8px;">
-                    <thead>
-                        <tr style="background: #f9fafb;">
-                            <th style="padding: 12px; text-align: left; border-bottom: 2px solid #e5e7eb; font-size: 14px; color: #374151;">Medicine Name</th>
-                            <th style="padding: 12px; text-align: left; border-bottom: 2px solid #e5e7eb; font-size: 14px; color: #374151;">Quantity</th>
-                            <th style="padding: 12px; text-align: left; border-bottom: 2px solid #e5e7eb; font-size: 14px; color: #374151;">Expiry Date</th>
-                            <th style="padding: 12px; text-align: left; border-bottom: 2px solid #e5e7eb; font-size: 14px; color: #374151;">Days Until</th>
-                        </tr>
-                    </thead>
-                    <tbody>{expiring60_rows}</tbody>
                 </table>
             </div>"""
     
@@ -301,17 +215,9 @@ def create_email_html(alerts):
             <div style="background-color: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 20px; margin-bottom: 25px;">
                 <h3 style="margin: 0 0 15px 0; color: #dc2626; font-size: 18px;">� Alert Summary</h3>
                 <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px;">
-                    <div style="background: white; padding: 15px; border-radius: 6px; border-left: 3px solid #dc2626;">
-                        <p style="font-size: 32px; font-weight: bold; color: #dc2626; margin: 0;">{len(alerts['expired'])}</p>
-                        <p style="color: #666; font-size: 14px; margin: 5px 0 0 0;">Expired Medicines</p>
-                    </div>
                     <div style="background: white; padding: 15px; border-radius: 6px; border-left: 3px solid #f59e0b;">
                         <p style="font-size: 32px; font-weight: bold; color: #d97706; margin: 0;">{len(alerts['expiring_30_days'])}</p>
                         <p style="color: #666; font-size: 14px; margin: 5px 0 0 0;">Expiring in 30 Days</p>
-                    </div>
-                    <div style="background: white; padding: 15px; border-radius: 6px; border-left: 3px solid #2563eb;">
-                        <p style="font-size: 32px; font-weight: bold; color: #2563eb; margin: 0;">{len(alerts['expiring_60_days'])}</p>
-                        <p style="color: #666; font-size: 14px; margin: 5px 0 0 0;">Expiring in 60 Days</p>
                     </div>
                     <div style="background: white; padding: 15px; border-radius: 6px; border-left: 3px solid #f59e0b;">
                         <p style="font-size: 32px; font-weight: bold; color: #d97706; margin: 0;">{len(alerts['low_stock'])}</p>
@@ -381,9 +287,7 @@ def send_inventory_notification_email(to_emails):
     
     # Check if there are any alerts
     total_alerts = (
-        len(alerts['expired']) + 
         len(alerts['expiring_30_days']) + 
-        len(alerts['expiring_60_days']) + 
         len(alerts['low_stock'])
     )
     
@@ -421,9 +325,7 @@ def send_inventory_notification_email(to_emails):
         
         print(f"✅ Inventory notification email sent successfully to {len(to_emails)} recipient(s)")
         print(f"   📊 Total alerts: {total_alerts}")
-        print(f"   🚨 Expired: {len(alerts['expired'])}")
         print(f"   ⚠️  Expiring in 30 days: {len(alerts['expiring_30_days'])}")
-        print(f"   📅 Expiring in 60 days: {len(alerts['expiring_60_days'])}")
         print(f"   📦 Low stock: {len(alerts['low_stock'])}")
         
         return True

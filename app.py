@@ -2277,6 +2277,8 @@ def init_db():
             patient_identifier VARCHAR(50),                    -- e.g. student_number or employee_id
             full_name VARCHAR(100),
             priority VARCHAR(2) NOT NULL DEFAULT 'P3',         -- P1 emergency, P2 urgent, P3 routine, P4 admin
+            priority_reason VARCHAR(255),
+            priority_source VARCHAR(30) NOT NULL DEFAULT 'system',
             status VARCHAR(20) NOT NULL DEFAULT 'waiting',     -- waiting, called, in_consultation, completed, cancelled, no_show
             chief_complaint VARCHAR(255),
             severity_score TINYINT,
@@ -2305,6 +2307,16 @@ def init_db():
         conn.commit()
     except Exception as e:
         print(f"Note: Could not modify chief_complaint column in consultation_tickets (may already be compatible): {e}")
+
+    try:
+        ensure_consultation_ticket_priority_columns(conn)
+    except Exception as e:
+        print(f"Note: Could not ensure consultation ticket priority columns during init: {e}")
+
+    try:
+        ensure_patients_unified_priority_columns(conn)
+    except Exception as e:
+        print(f"Note: Could not ensure patients_unified priority columns during init: {e}")
     
     # Add sample clinic events data if table is empty
     try:
@@ -2450,6 +2462,14 @@ def init_db():
         if not cursor.fetchone():
             cursor.execute('ALTER TABLE teaching ADD COLUMN contact_number VARCHAR(20)')
             print("âœ… Added contact_number column to teaching table")
+    except Exception as e:
+        print(f"Note: {e}")
+
+    try:
+        cursor.execute("SHOW COLUMNS FROM teaching LIKE 'position'")
+        if not cursor.fetchone():
+            cursor.execute('ALTER TABLE teaching ADD COLUMN position VARCHAR(50)')
+            print("âœ… Added position column to teaching table")
     except Exception as e:
         print(f"Note: {e}")
 
@@ -6519,6 +6539,285 @@ def api_students():
 
 PRIORITY_LEVELS = {'P1', 'P2', 'P3', 'P4'}
 STATUS_VALUES = {'waiting', 'called', 'in_consultation', 'completed', 'cancelled', 'no_show'}
+PRIORITY_RANK = {'P1': 1, 'P2': 2, 'P3': 3, 'P4': 4}
+
+
+def _to_bool(value) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return value != 0
+    if isinstance(value, str):
+        return value.strip().lower() in {'1', 'true', 'yes', 'y', 'on'}
+    return False
+
+
+def _safe_int(value):
+    try:
+        if value is None or value == '':
+            return None
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _compute_age_from_birthdate(birthdate):
+    if not birthdate:
+        return None
+
+    dt = None
+    if isinstance(birthdate, datetime):
+        dt = birthdate.date()
+    else:
+        try:
+            dt = datetime.strptime(str(birthdate), '%Y-%m-%d').date()
+        except Exception:
+            return None
+
+    today = datetime.now().date()
+    return today.year - dt.year - ((today.month, today.day) < (dt.month, dt.day))
+
+
+def normalize_patient_role_for_unified(patient_type: str):
+    role = (patient_type or '').strip().lower()
+    mapping = {
+        'student': 'Student',
+        'students': 'Student',
+        'teaching_staff': 'Teaching Staff',
+        'teaching staff': 'Teaching Staff',
+        'teaching': 'Teaching Staff',
+        'non_teaching_staff': 'Non-Teaching Staff',
+        'non teaching staff': 'Non-Teaching Staff',
+        'non_teaching': 'Non-Teaching Staff',
+        'dean': 'Dean',
+        'deans': 'Dean',
+        'visitor': 'Visitor',
+        'visitors': 'Visitor',
+    }
+    return mapping.get(role)
+
+
+def ensure_patients_unified_priority_columns(conn) -> bool:
+    cursor = conn.cursor()
+    try:
+        cursor.execute("SHOW TABLES LIKE 'patients_unified'")
+        if not cursor.fetchone():
+            return False
+
+        cursor.execute("SHOW COLUMNS FROM patients_unified LIKE 'is_pwd'")
+        if not cursor.fetchone():
+            cursor.execute(
+                "ALTER TABLE patients_unified ADD COLUMN is_pwd TINYINT(1) NOT NULL DEFAULT 0 AFTER age"
+            )
+
+        cursor.execute("SHOW COLUMNS FROM patients_unified LIKE 'is_senior_citizen'")
+        if not cursor.fetchone():
+            cursor.execute(
+                "ALTER TABLE patients_unified ADD COLUMN is_senior_citizen TINYINT(1) NOT NULL DEFAULT 0 AFTER is_pwd"
+            )
+
+        try:
+            cursor.execute("CREATE INDEX idx_patients_priority_flags ON patients_unified (is_pwd, is_senior_citizen)")
+        except Exception:
+            pass
+
+        conn.commit()
+        return True
+    except Exception as e:
+        print(f"Note: Could not ensure patients_unified priority columns: {e}")
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+        return False
+    finally:
+        try:
+            cursor.close()
+        except Exception:
+            pass
+
+
+def ensure_consultation_ticket_priority_columns(conn):
+    cursor = conn.cursor()
+    try:
+        cursor.execute("SHOW COLUMNS FROM consultation_tickets LIKE 'priority_reason'")
+        if not cursor.fetchone():
+            cursor.execute(
+                "ALTER TABLE consultation_tickets ADD COLUMN priority_reason VARCHAR(255) NULL AFTER priority"
+            )
+
+        cursor.execute("SHOW COLUMNS FROM consultation_tickets LIKE 'priority_source'")
+        if not cursor.fetchone():
+            cursor.execute(
+                "ALTER TABLE consultation_tickets ADD COLUMN priority_source VARCHAR(30) NOT NULL DEFAULT 'system' AFTER priority_reason"
+            )
+
+        conn.commit()
+    except Exception as e:
+        print(f"Note: Could not ensure consultation_tickets priority metadata columns: {e}")
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+    finally:
+        try:
+            cursor.close()
+        except Exception:
+            pass
+
+
+def get_patient_priority_profile(conn, patient_type: str, patient_identifier: str):
+    profile = {
+        'age': None,
+        'is_pwd': False,
+        'is_senior_citizen': False,
+        'source': 'default',
+    }
+
+    identifier = (patient_identifier or '').strip()
+    if not identifier:
+        return profile
+
+    role = normalize_patient_role_for_unified(patient_type)
+    ensure_patients_unified_priority_columns(conn)
+
+    cursor = conn.cursor(dictionary=True)
+    try:
+        row = None
+        if role:
+            cursor.execute(
+                """
+                SELECT age, birthdate,
+                       COALESCE(is_pwd, 0) AS is_pwd,
+                       COALESCE(is_senior_citizen, 0) AS is_senior_citizen
+                FROM patients_unified
+                WHERE role = %s AND identifier = %s
+                LIMIT 1
+                """,
+                (role, identifier),
+            )
+            row = cursor.fetchone()
+
+        if not row:
+            cursor.execute(
+                """
+                SELECT age, birthdate,
+                       COALESCE(is_pwd, 0) AS is_pwd,
+                       COALESCE(is_senior_citizen, 0) AS is_senior_citizen
+                FROM patients_unified
+                WHERE identifier = %s
+                LIMIT 1
+                """,
+                (identifier,),
+            )
+            row = cursor.fetchone()
+
+        if row:
+            age = _safe_int(row.get('age'))
+            if age is None:
+                age = _compute_age_from_birthdate(row.get('birthdate'))
+
+            profile['age'] = age
+            profile['is_pwd'] = _to_bool(row.get('is_pwd'))
+            profile['is_senior_citizen'] = _to_bool(row.get('is_senior_citizen')) or (age is not None and age >= 60)
+            profile['source'] = 'patients_unified'
+            return profile
+
+        return profile
+    except Exception as e:
+        print(f"Note: Could not resolve patient priority profile for {identifier}: {e}")
+        return profile
+    finally:
+        try:
+            cursor.close()
+        except Exception:
+            pass
+
+
+def resolve_consultation_ticket_priority(
+    conn,
+    patient_type: str,
+    patient_identifier: str,
+    chief_complaint: str,
+    triage_notes: str,
+    severity_score,
+    illness_classification_final: str,
+    requested_priority: str,
+):
+    normalized_illness = (illness_classification_final or '').strip().lower()
+    if normalized_illness == 'major':
+        return {
+            'bypass_queue': True,
+            'priority': 'P1',
+            'reason': 'Major case classification requires immediate care outside normal queue.',
+            'source': 'triage',
+        }
+
+    triage_blob = f"{chief_complaint or ''} {triage_notes or ''}".lower()
+    emergency_keywords = [
+        'nahimatay',
+        'unconscious',
+        'passed out',
+        'hindi humihinga',
+        'seizure',
+        'severe bleeding',
+        'chest pain',
+        'heart attack',
+        'stroke',
+    ]
+    if any(keyword in triage_blob for keyword in emergency_keywords):
+        return {
+            'bypass_queue': True,
+            'priority': 'P1',
+            'reason': 'Emergency symptoms detected. Route directly for immediate clinical response.',
+            'source': 'triage',
+        }
+
+    profile = get_patient_priority_profile(conn, patient_type, patient_identifier)
+    priority = 'P3'
+    reasons = []
+    priority_source = 'system'
+
+    if severity_score is not None:
+        if severity_score >= 8:
+            priority = 'P1'
+            reasons.append('High severity score')
+            priority_source = 'triage'
+        elif severity_score >= 5:
+            priority = 'P2'
+            reasons.append('Moderate severity score')
+            priority_source = 'triage'
+
+    if profile.get('is_pwd'):
+        if PRIORITY_RANK.get(priority, 99) > PRIORITY_RANK['P2']:
+            priority = 'P2'
+        reasons.append('PWD patient priority lane')
+        priority_source = 'patient_profile'
+
+    if profile.get('is_senior_citizen'):
+        if PRIORITY_RANK.get(priority, 99) > PRIORITY_RANK['P2']:
+            priority = 'P2'
+        reasons.append('Senior citizen priority lane')
+        priority_source = 'patient_profile'
+
+    requested = (requested_priority or '').strip().upper()
+    if requested in PRIORITY_LEVELS and PRIORITY_RANK.get(requested, 99) < PRIORITY_RANK.get(priority, 99):
+        priority = requested
+        reasons.append('Manual elevated priority request')
+        priority_source = 'manual'
+
+    if not reasons:
+        reasons.append('Routine queue')
+
+    reason_text = '; '.join(dict.fromkeys(reasons))
+    return {
+        'bypass_queue': False,
+        'priority': priority,
+        'reason': reason_text,
+        'source': priority_source,
+        'is_pwd': bool(profile.get('is_pwd')),
+        'is_senior_citizen': bool(profile.get('is_senior_citizen')),
+    }
 
 
 def priority_order_case_expr(alias: str = "priority") -> str:
@@ -6707,6 +7006,8 @@ def create_consultation_ticket():
 
     requested_priority = (data.get('priority') or '').upper().strip()
     priority = 'P3'
+    priority_reason = 'Routine queue'
+    priority_source = 'system'
 
     severity_score = data.get('severity_score')
     if severity_score is not None:
@@ -6736,6 +7037,8 @@ def create_consultation_ticket():
                     patient_identifier VARCHAR(50),
                     full_name VARCHAR(100),
                     priority VARCHAR(2) NOT NULL DEFAULT 'P3',
+                    priority_reason VARCHAR(255),
+                    priority_source VARCHAR(30) NOT NULL DEFAULT 'system',
                     status VARCHAR(20) NOT NULL DEFAULT 'waiting',
                     chief_complaint VARCHAR(255),
                     severity_score TINYINT,
@@ -6765,6 +7068,8 @@ def create_consultation_ticket():
                         patient_identifier VARCHAR(50),
                         full_name VARCHAR(100),
                         priority VARCHAR(2) NOT NULL DEFAULT 'P3',
+                        priority_reason VARCHAR(255),
+                        priority_source VARCHAR(30) NOT NULL DEFAULT 'system',
                         status VARCHAR(20) NOT NULL DEFAULT 'waiting',
                         chief_complaint VARCHAR(255),
                         severity_score TINYINT,
@@ -6798,6 +7103,9 @@ def create_consultation_ticket():
             conn.commit()
         except Exception:
             pass
+
+        ensure_consultation_ticket_priority_columns(conn)
+        ensure_patients_unified_priority_columns(conn)
         
         # Ensure daily_ticket_counter table exists
         try:
@@ -6819,6 +7127,33 @@ def create_consultation_ticket():
             msg = str(counter_err).lower()
             if 'tablespace' not in msg and '1813' not in msg:
                 raise
+
+        triage_resolution = resolve_consultation_ticket_priority(
+            conn=conn,
+            patient_type=patient_type,
+            patient_identifier=patient_identifier,
+            chief_complaint=chief_complaint,
+            triage_notes=triage_notes,
+            severity_score=severity_score,
+            illness_classification_final=illness_classification_final,
+            requested_priority=requested_priority,
+        )
+
+        if triage_resolution.get('bypass_queue'):
+            conn.rollback()
+            return jsonify(
+                {
+                    'success': False,
+                    'error': triage_resolution.get('reason') or 'Please proceed directly to the clinic for urgent handling.',
+                    'bypass_queue': True,
+                    'priority': triage_resolution.get('priority') or 'P1',
+                    'priority_reason': triage_resolution.get('reason') or 'Emergency bypass',
+                }
+            ), 409
+
+        priority = triage_resolution.get('priority') or priority
+        priority_reason = triage_resolution.get('reason') or priority_reason
+        priority_source = triage_resolution.get('source') or priority_source
         
         # Check rate limit first (one ticket per user per day)
         can_generate, rate_limit_message = check_user_ticket_rate_limit(conn, patient_identifier)
@@ -6847,12 +7182,12 @@ def create_consultation_ticket():
             INSERT INTO consultation_tickets (
                 ticket_number,
                 patient_type, patient_identifier, full_name,
-                priority, status, chief_complaint,
+                priority, priority_reason, priority_source, status, chief_complaint,
                 severity_score, triage_notes, vitals, arrival_time
             ) VALUES (
                 %s,
                 %s, %s, %s,
-                %s, %s, %s,
+                %s, %s, %s, %s, %s,
                 %s, %s, %s, NOW()
             )
             ''',
@@ -6862,6 +7197,8 @@ def create_consultation_ticket():
                 patient_identifier,
                 full_name,
                 priority,
+                priority_reason,
+                priority_source,
                 'waiting',
                 chief_complaint,
                 severity_score,
@@ -6882,6 +7219,8 @@ def create_consultation_ticket():
                     'patient_identifier': patient_identifier,
                     'full_name': full_name,
                     'priority': priority,
+                    'priority_reason': priority_reason,
+                    'priority_source': priority_source,
                     'status': 'waiting',
                     'chief_complaint': chief_complaint,
                     'severity_score': severity_score,
@@ -6997,7 +7336,17 @@ def api_patient_queue_status():
                     break
 
         called_list = [r.get('ticket_number') for r in rows if r.get('status') == 'called'][:12]
-        waiting_list = [r.get('ticket_number') for r in rows if r.get('status') == 'waiting'][:12]
+        waiting_rows = [r for r in rows if r.get('status') == 'waiting']
+        waiting_priority_lane_rows = [
+            r for r in waiting_rows if (r.get('priority') or '').upper() in {'P1', 'P2'}
+        ]
+        waiting_regular_rows = [
+            r for r in waiting_rows if (r.get('priority') or '').upper() not in {'P1', 'P2'}
+        ]
+
+        waiting_list = [r.get('ticket_number') for r in waiting_rows][:12]
+        waiting_priority_lane_list = [r.get('ticket_number') for r in waiting_priority_lane_rows][:12]
+        waiting_regular_list = [r.get('ticket_number') for r in waiting_regular_rows][:12]
 
         return jsonify(
             {
@@ -7016,7 +7365,11 @@ def api_patient_queue_status():
                     'next_to_call': next_to_call.get('ticket_number') if next_to_call else None,
                     'called': called_list,
                     'waiting': waiting_list,
-                    'total_waiting': len([r for r in rows if r.get('status') == 'waiting']),
+                    'waiting_priority_lane': waiting_priority_lane_list,
+                    'waiting_regular': waiting_regular_list,
+                    'total_waiting': len(waiting_rows),
+                    'total_waiting_priority_lane': len(waiting_priority_lane_rows),
+                    'total_waiting_regular': len(waiting_regular_rows),
                     'total_called': len([r for r in rows if r.get('status') == 'called']),
                 },
             }
@@ -7054,12 +7407,13 @@ def list_consultation_tickets():
 
     try:
         cursor = conn.cursor(dictionary=True)
+        ensure_consultation_ticket_priority_columns(conn)
         placeholders = ','.join(['%s'] * len(statuses))
         order_expr = priority_order_case_expr('priority')
         query = f"""
             SELECT
                 id, ticket_number, patient_type, patient_identifier, full_name,
-                priority, status, chief_complaint,
+                priority, priority_reason, priority_source, status, chief_complaint,
                 severity_score, triage_notes, vitals,
                 arrival_time, called_at, completed_at
             FROM consultation_tickets
@@ -7084,6 +7438,8 @@ def list_consultation_tickets():
                     'patient_identifier': row['patient_identifier'],
                     'full_name': row['full_name'],
                     'priority': row['priority'],
+                    'priority_reason': row.get('priority_reason'),
+                    'priority_source': row.get('priority_source') or 'system',
                     'status': row['status'],
                     'chief_complaint': row['chief_complaint'],
                     'severity_score': row['severity_score'],
@@ -7116,6 +7472,7 @@ def update_consultation_ticket(ticket_id: int):
 
     fields = []
     params = []
+    priority_reason_input = data.get('priority_reason')
 
     new_priority = data.get('priority')
     if new_priority:
@@ -7123,6 +7480,19 @@ def update_consultation_ticket(ticket_id: int):
         if new_priority in PRIORITY_LEVELS:
             fields.append('priority = %s')
             params.append(new_priority)
+            fields.append('priority_source = %s')
+            params.append('manual')
+
+            reason_text = (priority_reason_input or '').strip()
+            if not reason_text:
+                reason_text = 'Manual staff override'
+            fields.append('priority_reason = %s')
+            params.append(reason_text[:255])
+
+    elif priority_reason_input is not None:
+        reason_text = (priority_reason_input or '').strip()
+        fields.append('priority_reason = %s')
+        params.append(reason_text[:255] if reason_text else None)
 
     new_status = data.get('status')
     if new_status:
@@ -7164,6 +7534,7 @@ def update_consultation_ticket(ticket_id: int):
         return jsonify({'error': 'Database connection failed'}), 500
 
     try:
+        ensure_consultation_ticket_priority_columns(conn)
         conn.autocommit = False
         cursor = conn.cursor(dictionary=True)
 
@@ -7333,10 +7704,27 @@ def api_all_patients():
     all_patients = []
 
     try:
-        cursor.execute('''
+        ensure_patients_unified_priority_columns(conn)
+
+        has_is_pwd_col = False
+        has_is_senior_col = False
+        try:
+            cursor.execute("SHOW COLUMNS FROM patients_unified LIKE 'is_pwd'")
+            has_is_pwd_col = cursor.fetchone() is not None
+            cursor.execute("SHOW COLUMNS FROM patients_unified LIKE 'is_senior_citizen'")
+            has_is_senior_col = cursor.fetchone() is not None
+        except Exception:
+            pass
+
+        is_pwd_expr = "COALESCE(is_pwd, 0)" if has_is_pwd_col else "0"
+        is_senior_expr = "COALESCE(is_senior_citizen, 0)" if has_is_senior_col else "0"
+
+        cursor.execute(f'''
             SELECT patient_id, role, source_id, identifier, first_name, middle_name, last_name, suffix,
                    gender, age, birthdate, email, contact_number,
                    department, course, level, position,
+                   {is_pwd_expr} AS is_pwd,
+                   {is_senior_expr} AS is_senior_citizen,
                    blood_type, allergies, medical_conditions,
                    emergency_contact_name, emergency_contact_relationship, emergency_contact_number, emergency_contact_email,
                    is_active
@@ -7542,6 +7930,11 @@ def api_all_patients():
                 suffix = r.get('suffix') or ''
                 full_name = f"{first} {middle + ' ' if middle else ''}{last}{' ' + suffix if suffix else ''}".strip()
 
+            age_value = _safe_int(r.get('age'))
+            inferred_senior = age_value is not None and age_value >= 60
+            is_pwd = _to_bool(r.get('is_pwd'))
+            is_senior = _to_bool(r.get('is_senior_citizen')) or inferred_senior
+
             all_patients.append({
                 'id': legacy_id,
                 'patient_id': r.get('patient_id'),
@@ -7570,6 +7963,8 @@ def api_all_patients():
                 'emergency_contact_relationship': r.get('emergency_contact_relationship') or 'N/A',
                 'emergency_contact_number': r.get('emergency_contact_number') or 'N/A',
                 'emergency_contact_email': r.get('emergency_contact_email') or 'N/A',
+                'is_pwd': is_pwd,
+                'is_senior_citizen': is_senior,
                 'role': role
             })
 
@@ -15992,6 +16387,32 @@ def api_teaching_medical_records(teaching_id):
         
         cursor = conn.cursor()
         ticket_number = generate_unique_ticket_number(conn)
+
+        try:
+            schema_updates = [
+                ("medical_history", "ALTER TABLE teaching_medical_records ADD COLUMN medical_history TEXT AFTER chief_complaint"),
+                ("food_allergies", "ALTER TABLE teaching_medical_records ADD COLUMN food_allergies TEXT AFTER diagnosis"),
+                ("medicine_allergies", "ALTER TABLE teaching_medical_records ADD COLUMN medicine_allergies TEXT AFTER food_allergies"),
+                ("fever_duration", "ALTER TABLE teaching_medical_records ADD COLUMN fever_duration VARCHAR(50) AFTER medicine_allergies"),
+                ("current_medication", "ALTER TABLE teaching_medical_records ADD COLUMN current_medication TEXT AFTER fever_duration"),
+                ("medication_schedule", "ALTER TABLE teaching_medical_records ADD COLUMN medication_schedule TEXT AFTER current_medication"),
+                ("symptoms", "ALTER TABLE teaching_medical_records ADD COLUMN symptoms TEXT AFTER vital_signs"),
+                ("dental_procedure", "ALTER TABLE teaching_medical_records ADD COLUMN dental_procedure TEXT AFTER prescribed_medicine"),
+                ("procedure_notes", "ALTER TABLE teaching_medical_records ADD COLUMN procedure_notes TEXT AFTER dental_procedure"),
+                ("special_instructions", "ALTER TABLE teaching_medical_records ADD COLUMN special_instructions TEXT AFTER follow_up_date"),
+                ("notes", "ALTER TABLE teaching_medical_records ADD COLUMN notes TEXT AFTER special_instructions"),
+                ("staff_name", "ALTER TABLE teaching_medical_records ADD COLUMN staff_name VARCHAR(100) AFTER notes"),
+                ("will_stay_in_clinic", "ALTER TABLE teaching_medical_records ADD COLUMN will_stay_in_clinic BOOLEAN DEFAULT FALSE AFTER created_by"),
+                ("stay_reason", "ALTER TABLE teaching_medical_records ADD COLUMN stay_reason TEXT AFTER will_stay_in_clinic"),
+                ("checkout_notes", "ALTER TABLE teaching_medical_records ADD COLUMN checkout_notes TEXT AFTER actual_checkout_time"),
+            ]
+
+            for col_name, alter_sql in schema_updates:
+                cursor.execute(f"SHOW COLUMNS FROM teaching_medical_records LIKE '{col_name}'")
+                if not cursor.fetchone():
+                    cursor.execute(alter_sql)
+        except Exception as e:
+            print(f"Note: Could not ensure teaching_medical_records schema is up to date: {e}")
         
         # Extract numeric ID from teaching_id (remove 'T' prefix if present)
         numeric_teaching_id = teaching_id.replace('T', '') if teaching_id.startswith('T') else teaching_id
@@ -16015,7 +16436,7 @@ def api_teaching_medical_records(teaching_id):
                    t.first_name, t.last_name, t.email, t.faculty_id, t.position, t.specialization,
                    u.first_name as doctor_first_name, u.last_name as doctor_last_name
             FROM teaching_medical_records tmr
-            INNER JOIN teaching t ON tmr.teaching_id = t.id
+            LEFT JOIN teaching t ON tmr.teaching_id = t.id
             LEFT JOIN users u ON tmr.created_by = u.id
             WHERE tmr.teaching_id = %s
             ORDER BY tmr.visit_date DESC, tmr.visit_time DESC
@@ -16053,7 +16474,7 @@ def api_teaching_medical_records(teaching_id):
             record = {
                 'id': r[0],
                 'teaching_id': r[1],
-                'visit_date': r[2].strftime('%Y-%m-%d') if r[2] else None,
+                'visit_date': r[2].strftime('%Y-%m-%d') if hasattr(r[2], 'strftime') else str(r[2]) if r[2] else None,
                 'visit_time': visit_time,
                 'chief_complaint': r[4] or '',
                 'medical_history': r[5] or '',
@@ -16067,7 +16488,7 @@ def api_teaching_medical_records(teaching_id):
                 'prescribed_medicine': r[13] or '',
                 'dental_procedure': r[14] or '',
                 'procedure_notes': r[15] or '',
-                'follow_up_date': r[16].strftime('%Y-%m-%d') if r[16] else (r[16] or ''),
+                'follow_up_date': r[16].strftime('%Y-%m-%d') if hasattr(r[16], 'strftime') else str(r[16]) if r[16] else None,
                 'special_instructions': r[17] or '',
                 'notes': r[18] or '',
                 'staff_name': r[19] or '',
@@ -16080,14 +16501,14 @@ def api_teaching_medical_records(teaching_id):
                 'illness_classification_override_reason': r[26],
                 'endorsement_required': bool(r[27]) if r[27] is not None else False,
                 'endorsement_status': r[28],
-                'endorsed_at': r[29].strftime('%Y-%m-%d %H:%M:%S') if r[29] else None,
+                'endorsed_at': r[29].strftime('%Y-%m-%d %H:%M:%S') if hasattr(r[29], 'strftime') else str(r[29]) if r[29] else None,
                 'will_stay_in_clinic': bool(r[30]) if r[30] is not None else False,
                 'stay_reason': r[31] or '',
                 'stay_status': r[32] or 'none',
-                'actual_checkout_time': r[33].strftime('%Y-%m-%d %H:%M:%S') if r[33] else None,
+                'actual_checkout_time': r[33].strftime('%Y-%m-%d %H:%M:%S') if hasattr(r[33], 'strftime') else str(r[33]) if r[33] else None,
                 'checkout_notes': r[34] or '',
-                'admission_time': r[35].strftime('%Y-%m-%d %H:%M:%S') if r[35] else None,
-                'discharge_time': r[36].strftime('%Y-%m-%d %H:%M:%S') if r[36] else None,
+                'admission_time': r[35].strftime('%Y-%m-%d %H:%M:%S') if hasattr(r[35], 'strftime') else str(r[35]) if r[35] else None,
+                'discharge_time': r[36].strftime('%Y-%m-%d %H:%M:%S') if hasattr(r[36], 'strftime') else str(r[36]) if r[36] else None,
                 'discharge_notes': r[37] or '',
                 'patient_name': f"{r[38]} {r[39]}" if r[38] and r[39] else '',
                 'email': r[40] or '',
@@ -16209,8 +16630,8 @@ def api_add_teaching_medical_record():
             ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         ''', (
             teaching_id,
-            data.get('visit_date'),
-            data.get('visit_time'),
+            data.get('visit_date') or datetime.now().strftime('%Y-%m-%d'),
+            data.get('visit_time') or datetime.now().strftime('%H:%M:%S'),
             data.get('chief_complaint', ''),
             data.get('medical_history', ''),
             data.get('food_allergies', ''),
@@ -18387,6 +18808,111 @@ def update_patient_status(patient_id):
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
 
+
+@app.route('/api/patients/<int:patient_pk>/priority-flags', methods=['PUT'])
+def update_patient_priority_flags(patient_pk: int):
+    """Update priority lane flags (PWD / senior citizen) for a unified patient profile."""
+    if 'user_id' not in session:
+        return jsonify({'error': 'Authentication required'}), 401
+
+    role = (session.get('role') or '').strip().lower()
+    if role not in {'staff', 'nurse', 'admin', 'it_staff'}:
+        return jsonify({'error': 'Staff access required'}), 403
+
+    data = request.get_json() or {}
+    is_pwd = 1 if _to_bool(data.get('is_pwd')) else 0
+    is_senior_citizen = 1 if _to_bool(data.get('is_senior_citizen')) else 0
+
+    conn = DatabaseConfig.get_connection()
+    if not conn:
+        return jsonify({'error': 'Database connection failed'}), 500
+
+    cursor = None
+    raw_cursor = None
+    try:
+        ensure_patients_unified_priority_columns(conn)
+
+        conn.autocommit = False
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute(
+            """
+            SELECT patient_id, role, source_id, identifier
+            FROM patients_unified
+            WHERE patient_id = %s
+            FOR UPDATE
+            """,
+            (patient_pk,),
+        )
+        patient_row = cursor.fetchone()
+        if not patient_row:
+            conn.rollback()
+            return jsonify({'error': 'Patient not found'}), 404
+
+        cursor.execute(
+            """
+            UPDATE patients_unified
+            SET is_pwd = %s,
+                is_senior_citizen = %s,
+                updated_at = NOW()
+            WHERE patient_id = %s
+            """,
+            (is_pwd, is_senior_citizen, patient_pk),
+        )
+
+        # Keep legacy student flag in sync when available.
+        patient_role = (patient_row.get('role') or '').strip()
+        if patient_role == 'Student':
+            try:
+                raw_cursor = conn.cursor()
+                raw_cursor.execute("SHOW COLUMNS FROM students LIKE 'std_PWD'")
+                if raw_cursor.fetchone():
+                    source_id = patient_row.get('source_id')
+                    identifier = patient_row.get('identifier')
+
+                    if source_id is not None:
+                        raw_cursor.execute(
+                            "UPDATE students SET std_PWD = %s WHERE id = %s",
+                            (is_pwd, source_id),
+                        )
+                    if identifier:
+                        raw_cursor.execute(
+                            "UPDATE students SET std_PWD = %s WHERE student_number = %s",
+                            (is_pwd, identifier),
+                        )
+            except Exception as sync_error:
+                print(f"Note: Could not sync students.std_PWD from priority flag update: {sync_error}")
+
+        conn.commit()
+        return jsonify(
+            {
+                'success': True,
+                'patient_id': patient_pk,
+                'is_pwd': bool(is_pwd),
+                'is_senior_citizen': bool(is_senior_citizen),
+                'message': 'Priority lane flags updated successfully.',
+            }
+        ), 200
+    except Exception as e:
+        print(f"Error updating patient priority flags for {patient_pk}: {e}")
+        traceback.print_exc()
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+        return jsonify({'error': 'Failed to update patient priority flags'}), 500
+    finally:
+        try:
+            if raw_cursor:
+                raw_cursor.close()
+        except Exception:
+            pass
+        try:
+            if cursor:
+                cursor.close()
+            conn.close()
+        except Exception:
+            pass
+
 @app.route('/api/patients/<patient_id>', methods=['DELETE'])
 def delete_patient(patient_id):
     """Permanently delete a patient from the database"""
@@ -19094,9 +19620,7 @@ def check_inventory_alerts():
         
         # Calculate totals
         total_alerts = (
-            len(alerts['expired']) + 
             len(alerts['expiring_30_days']) + 
-            len(alerts['expiring_60_days']) + 
             len(alerts['low_stock'])
         )
         
@@ -19105,9 +19629,7 @@ def check_inventory_alerts():
             'total_alerts': total_alerts,
             'alerts': alerts,
             'summary': {
-                'expired': len(alerts['expired']),
                 'expiring_30_days': len(alerts['expiring_30_days']),
-                'expiring_60_days': len(alerts['expiring_60_days']),
                 'low_stock': len(alerts['low_stock'])
             }
         }), 200
@@ -19181,9 +19703,7 @@ def schedule_inventory_notification():
         
         # Check if there are any alerts
         total_alerts = (
-            len(alerts['expired']) + 
             len(alerts['expiring_30_days']) + 
-            len(alerts['expiring_60_days']) + 
             len(alerts['low_stock'])
         )
         

@@ -704,6 +704,13 @@
                                         </div>
                                     </div>
 
+                                    <select x-model="selectedCategory" @change="currentMedicinePage = 1" class="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white text-gray-900">
+                                        <option value="">All Categories</option>
+                                        <template x-for="category in medicineCategoryOptions" :key="`medicine-filter-${category}`">
+                                            <option :value="category" x-text="category"></option>
+                                        </template>
+                                    </select>
+
                                     <div class="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2">
                                         <input type="date"
                                                x-model="expiryDateFrom"
@@ -1494,19 +1501,9 @@
                                 <select x-model="editingMedicine.category" required
                                         class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
                                     <option value="">Select Category</option>
-                                    <option value="Antibiotic">Antibiotic</option>
-                                    <option value="Pain Reliever">Pain Reliever</option>
-                                    <option value="Vitamins">Vitamins</option>
-                                    <option value="Cardiovascular">Cardiovascular</option>
-                                    <option value="Respiratory">Respiratory</option>
-                                    <option value="Diabetes">Diabetes</option>
-                                    <option value="Emergency">Emergency</option>
-                                    <option value="NSAID">NSAID</option>
-                                    <option value="Antihistamine">Antihistamine</option>
-                                    <option value="Antidiarrheal">Antidiarrheal</option>
-                                    <option value="Antiseptic">Antiseptic</option>
-                                    <option value="Analgesic">Analgesic</option>
-                                    <option value="Other">Other</option>
+                                    <template x-for="category in medicineCategoryOptions" :key="`edit-medicine-${category}`">
+                                        <option :value="category" x-text="category"></option>
+                                    </template>
                                 </select>
                             </div>
                         </div>
@@ -1671,14 +1668,9 @@
                                 <select x-model="newMedicine.category" required
                                         class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
                                     <option value="">Select Category</option>
-                                    <option value="Pain Reliever">Pain Reliever</option>
-                                    <option value="Antibiotic">Antibiotic</option>
-                                    <option value="Vitamins">Vitamins</option>
-                                    <option value="Cardiovascular">Cardiovascular</option>
-                                    <option value="Respiratory">Respiratory</option>
-                                    <option value="Diabetes">Diabetes</option>
-                                    <option value="Emergency">Emergency</option>
-                                    <option value="Other">Other</option>
+                                    <template x-for="category in medicineCategoryOptions" :key="`add-medicine-${category}`">
+                                        <option :value="category" x-text="category"></option>
+                                    </template>
                                 </select>
                             </div>
                             <div>
@@ -1900,6 +1892,31 @@
                     return this.filteredMedicines.slice(start, start + perPage);
                 },
 
+                get medicineCategoryOptions() {
+                    const defaultCategories = [
+                        'Pain Reliever',
+                        'Antibiotic',
+                        'Vitamins',
+                        'Cardiovascular',
+                        'Respiratory',
+                        'Diabetes',
+                        'Emergency',
+                        'NSAID',
+                        'Antihistamine',
+                        'Antidiarrheal',
+                        'Antiseptic',
+                        'Analgesic',
+                        'Frequently Used / Requested',
+                        'Other'
+                    ];
+
+                    const dynamicCategories = (this.medicines || [])
+                        .map(medicine => medicine.category)
+                        .filter(category => !!category);
+
+                    return [...new Set([...defaultCategories, ...dynamicCategories])];
+                },
+
                 get filteredMedicines() {
                     return this.medicines.filter(medicine => {
                         const hasExpiryRangeFilter = !!this.expiryDateFrom || !!this.expiryDateTo;
@@ -2003,12 +2020,16 @@
                             if (searchBy === 'name') return matchesPrefixQuery(medicine.name);
                             if (searchBy === 'brand') return matchesPrefixQuery(medicine.brand_name);
                             if (searchBy === 'generic') return matchesPrefixQuery(medicine.generic_name);
-                            if (searchBy === 'category') return matchesPrefixQuery(medicine.category);
+                            if (searchBy === 'category') {
+                                return matchesPrefixQuery(medicine.category) || matchesPrefixQuery(medicine.base_category);
+                            }
                             return true;
                         })();
                         
                         // Category filter
-                        const matchesCategory = !this.selectedCategory || medicine.category === this.selectedCategory;
+                        const matchesCategory = !this.selectedCategory ||
+                                              medicine.category === this.selectedCategory ||
+                                              medicine.base_category === this.selectedCategory;
                         
                         // Status filter
                         const matchesStatus = !this.selectedStatus || medicine.status === this.selectedStatus;
@@ -2241,6 +2262,103 @@
                         this.currentMedicinePage = 1;
                     }, 200);
                 },
+
+                toNumeric(value) {
+                    const parsed = Number(value);
+                    return Number.isFinite(parsed) ? parsed : 0;
+                },
+
+                shouldAutoTagFrequentlyUsed(medicine) {
+                    if (!medicine) {
+                        return {
+                            isTagged: false,
+                            score: 0,
+                            reasons: []
+                        };
+                    }
+
+                    const reasons = [];
+                    const combinedText = `${medicine.name || ''} ${medicine.generic_name || ''} ${medicine.brand_name || ''}`.toLowerCase();
+
+                    const explicitFlag = medicine.is_frequently_used_requested === true ||
+                                        medicine.is_frequently_used === true ||
+                                        medicine.frequently_requested === true;
+
+                    if (explicitFlag) {
+                        reasons.push('explicit-flag');
+                    }
+
+                    const demandCounters = [
+                        medicine.request_count,
+                        medicine.usage_count,
+                        medicine.dispensed_count,
+                        medicine.total_dispensed,
+                        medicine.times_requested
+                    ]
+                        .map(value => this.toNumeric(value))
+                        .filter(value => value > 0);
+
+                    const maxDemandCounter = demandCounters.length > 0 ? Math.max(...demandCounters) : 0;
+                    let score = 0;
+
+                    if (maxDemandCounter >= 15) {
+                        score += 3;
+                        reasons.push('high-request-count');
+                    } else if (maxDemandCounter >= 8) {
+                        score += 2;
+                        reasons.push('medium-request-count');
+                    }
+
+                    const minStockLevel = Math.max(1, this.toNumeric(medicine.min_stock_level || medicine.min_stock || 10));
+                    const quantity = Math.max(0, this.toNumeric(medicine.quantity));
+
+                    if (quantity <= minStockLevel) {
+                        score += 2;
+                        reasons.push('low-stock-pressure');
+                    } else if (quantity <= Math.ceil(minStockLevel * 1.5)) {
+                        score += 1;
+                        reasons.push('near-low-stock');
+                    }
+
+                    const availableBatchCount = this.toNumeric(medicine.available_batch_count);
+                    const totalBatchCount = Array.isArray(medicine.batches) ? medicine.batches.length : 0;
+
+                    if (availableBatchCount >= 2 || totalBatchCount >= 3) {
+                        score += 1;
+                        reasons.push('recurring-restock-pattern');
+                    }
+
+                    const commonDemandPattern = /paracetamol|biogesic|ibuprofen|mefenamic|cetirizine|loratadine|amoxicillin|ascorbic|vitamin c|multivitamin|ors|oral rehydration/.test(combinedText);
+                    if (commonDemandPattern) {
+                        score += 1;
+                        reasons.push('common-demand-medicine');
+                    }
+
+                    const isTagged = explicitFlag || score >= 3;
+
+                    return {
+                        isTagged,
+                        score,
+                        reasons
+                    };
+                },
+
+                applyAutoTaggingToMedicines(medicines) {
+                    return (medicines || []).map(medicine => {
+                        const baseCategory = medicine.base_category || medicine.category || 'Uncategorized';
+                        const taggingResult = this.shouldAutoTagFrequentlyUsed(medicine);
+
+                        return {
+                            ...medicine,
+                            base_category: baseCategory,
+                            is_auto_tagged_frequent: taggingResult.isTagged,
+                            auto_tag_score: taggingResult.score,
+                            auto_tag_reasons: taggingResult.reasons,
+                            category: taggingResult.isTagged ? 'Frequently Used / Requested' : baseCategory
+                        };
+                    });
+                },
+
                 // Batch Management Functions
                 addBatchRow() {
                     const today = new Date().toISOString().split('T')[0];
@@ -2381,22 +2499,28 @@
                             console.log('📅 Sample expiry dates:', medicines.slice(0, 3).map(m => ({name: m.name, expiry: m.expiry_date})));
                             console.log('🧬 Generic names check:', medicines.slice(0, 3).map(m => ({name: m.name, generic: m.generic_name})));
                             
-                            this.medicines = medicines.map(medicine => {
+                            const mappedMedicines = medicines.map(medicine => {
                                 const mappedMedicine = {
                                     id: medicine.id,
                                     name: medicine.name || medicine.medicine_name || 'Unknown Medicine',
                                     generic_name: medicine.generic_name || null,
                                     brand_name: medicine.brand_name || '',
+                                    base_category: medicine.category || 'Uncategorized',
                                     category: medicine.category || 'Uncategorized',
                                     quantity: medicine.quantity || 0,
                                     unit: medicine.dosage_form || 'units',
-                                    min_stock_level: 10,
+                                    min_stock_level: this.toNumeric(medicine.min_stock_level || medicine.min_stock || 10) || 10,
                                     acquired: medicine.acquired || medicine.date_added || new Date().toISOString(),
                                     expiry_date: medicine.expiry_date || '',
                                     latest_batch_arrival_date: medicine.latest_batch_arrival_date || null,
                                     earliest_batch_expiry_date: medicine.earliest_batch_expiry_date || null,
                                     strength: medicine.strength || '',
                                     status: medicine.status || 'Available',
+                                    available_batch_count: this.toNumeric(medicine.available_batch_count),
+                                    request_count: this.toNumeric(medicine.request_count || medicine.times_requested),
+                                    usage_count: this.toNumeric(medicine.usage_count || medicine.total_dispensed || medicine.dispensed_count),
+                                    dispensed_count: this.toNumeric(medicine.dispensed_count),
+                                    is_frequently_used_requested: !!(medicine.is_frequently_used_requested || medicine.is_frequently_used || medicine.frequently_requested),
                                     batches: medicine.batches || []
                                 };
                                 
@@ -2412,6 +2536,10 @@
                                 
                                 return mappedMedicine;
                             });
+
+                            this.medicines = this.applyAutoTaggingToMedicines(mappedMedicines);
+                            const autoTaggedCount = this.medicines.filter(m => m.is_auto_tagged_frequent).length;
+                            console.log('🏷️ Auto-tagged as frequently used/requested:', autoTaggedCount);
                             
                             console.log('Processed medicines:', this.medicines);
                             console.log('🧬 Mapped generic names:', this.medicines.slice(0, 5).map(m => ({
@@ -2598,7 +2726,7 @@
                     this.editingMedicine = {
                         id: medicine.id,
                         name: medicine.name,
-                        category: medicine.category || '',
+                        category: medicine.base_category || medicine.category || '',
                         quantity: medicine.quantity || 0,
                         unit: unit,
                         minStock: medicine.min_stock_level || 10,

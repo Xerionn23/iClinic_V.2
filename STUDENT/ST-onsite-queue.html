@@ -82,7 +82,19 @@
     ticketResult: null,
     ticketError: null,
 
-    queueStatus: { success: false, board: { now_in_consultation: null, next_to_start: null, next_to_call: null, called: [], waiting: [] }, my: { has_ticket: false, ticket_number: null, status: null, position_in_active: null } },
+    queueStatus: {
+        success: false,
+        board: {
+            now_in_consultation: null,
+            next_to_start: null,
+            next_to_call: null,
+            called: [],
+            waiting: [],
+            waiting_priority_lane: [],
+            waiting_regular: []
+        },
+        my: { has_ticket: false, ticket_number: null, status: null, position_in_active: null }
+    },
     queueStatusError: null,
     queueLastUpdated: null,
     isLoadingQueueStatus: false,
@@ -253,7 +265,19 @@
                 if (showErrors) {
                     this.queueStatusError = payload.error || 'Unable to load queue status.';
                 }
-                this.queueStatus = { success: false, board: { now_in_consultation: null, next_to_start: null, next_to_call: null, called: [], waiting: [] }, my: { has_ticket: false, ticket_number: null, status: null, position_in_active: null } };
+                this.queueStatus = {
+                    success: false,
+                    board: {
+                        now_in_consultation: null,
+                        next_to_start: null,
+                        next_to_call: null,
+                        called: [],
+                        waiting: [],
+                        waiting_priority_lane: [],
+                        waiting_regular: []
+                    },
+                    my: { has_ticket: false, ticket_number: null, status: null, position_in_active: null }
+                };
                 return;
             }
             this.queueStatusError = null;
@@ -270,6 +294,8 @@
                     next_to_call: null,
                     called: [],
                     waiting: [],
+                    waiting_priority_lane: [],
+                    waiting_regular: [],
                     ...(payload && payload.board ? payload.board : {})
                 },
                 my: {
@@ -305,7 +331,19 @@
             if (showErrors) {
                 this.queueStatusError = 'Network error. Unable to load queue status.';
             }
-            this.queueStatus = { success: false, board: { now_in_consultation: null, next_to_start: null, next_to_call: null, called: [], waiting: [] }, my: { has_ticket: false, ticket_number: null, status: null, position_in_active: null } };
+            this.queueStatus = {
+                success: false,
+                board: {
+                    now_in_consultation: null,
+                    next_to_start: null,
+                    next_to_call: null,
+                    called: [],
+                    waiting: [],
+                    waiting_priority_lane: [],
+                    waiting_regular: []
+                },
+                my: { has_ticket: false, ticket_number: null, status: null, position_in_active: null }
+            };
         } finally {
             this.isLoadingQueueStatus = false;
         }
@@ -600,7 +638,7 @@
                         </div>
                     </div>
 
-                    <div x-show="queueStatus && queueStatus.success" class="mt-4 grid grid-cols-1 lg:grid-cols-2 gap-4">
+                    <div x-show="queueStatus && queueStatus.success" class="mt-4 grid grid-cols-1 lg:grid-cols-3 gap-4">
                         <div class="rounded-xl border border-gray-200 p-4 bg-white">
                             <div class="text-xs font-semibold text-gray-700 uppercase">Called</div>
                             <div class="mt-2 grid grid-cols-4 sm:grid-cols-6 gap-2">
@@ -611,13 +649,29 @@
                             </div>
                         </div>
 
-                        <div class="rounded-xl border border-gray-200 p-4 bg-white">
-                            <div class="text-xs font-semibold text-gray-700 uppercase">Waiting</div>
+                        <div class="rounded-xl border border-orange-200 p-4 bg-orange-50">
+                            <div class="flex items-center justify-between gap-2">
+                                <div class="text-xs font-semibold text-orange-800 uppercase">Priority Lane Waiting (PWD/Senior)</div>
+                                <div class="text-[11px] font-semibold text-orange-700" x-text="queueStatus.board.total_waiting_priority_lane ?? ((queueStatus.board.waiting_priority_lane || []).length)"></div>
+                            </div>
                             <div class="mt-2 grid grid-cols-4 sm:grid-cols-6 gap-2">
-                                <template x-for="num in (queueStatus.board.waiting || [])" :key="'waiting_' + num">
+                                <template x-for="num in (queueStatus.board.waiting_priority_lane || [])" :key="'waiting_priority_' + num">
+                                    <div class="text-center text-sm font-bold text-orange-800 bg-white border border-orange-200 rounded-lg py-2" x-text="'#' + num"></div>
+                                </template>
+                                <div x-show="(queueStatus.board.waiting_priority_lane || []).length === 0" class="col-span-full text-sm text-orange-700">No priority lane waiting tickets</div>
+                            </div>
+                        </div>
+
+                        <div class="rounded-xl border border-gray-200 p-4 bg-white">
+                            <div class="flex items-center justify-between gap-2">
+                                <div class="text-xs font-semibold text-gray-700 uppercase">Regular Waiting</div>
+                                <div class="text-[11px] font-semibold text-gray-600" x-text="queueStatus.board.total_waiting_regular ?? ((queueStatus.board.waiting_regular || []).length)"></div>
+                            </div>
+                            <div class="mt-2 grid grid-cols-4 sm:grid-cols-6 gap-2">
+                                <template x-for="num in (queueStatus.board.waiting_regular || [])" :key="'waiting_regular_' + num">
                                     <div class="text-center text-sm font-bold text-gray-700 bg-gray-50 border border-gray-200 rounded-lg py-2" x-text="'#' + num"></div>
                                 </template>
-                                <div x-show="(queueStatus.board.waiting || []).length === 0" class="col-span-full text-sm text-gray-400">No waiting tickets</div>
+                                <div x-show="(queueStatus.board.waiting_regular || []).length === 0" class="col-span-full text-sm text-gray-400">No regular waiting tickets</div>
                             </div>
                         </div>
                     </div>

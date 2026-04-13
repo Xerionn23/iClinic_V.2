@@ -501,6 +501,11 @@
                 loading: false,
                 loadingPatients: false,
                 loadingPatientRecords: false,
+                savingPriorityFlags: false,
+                priorityFlagsForm: {
+                    is_pwd: false,
+                    is_senior_citizen: false
+                },
                 addingRecord: false,
                 addingVisitor: false,
                 majorCaseActions: {
@@ -856,67 +861,77 @@
                             const students = Array.isArray(data) ? data : (data.patients || []);
                             
                             // Transform students data to match patients format
-                            this.patients = students.map(student => ({
-                                id: student.id,
-                                name: student.name,
-                                identifier: student.identifier,
-                                role: student.role,
-                                age: student.age,
-                                department: student.department,
-                                contact: student.contact || student.contact_num || 'N/A',
-                                email: student.email || 'N/A',
-                                course: student.course,
-                                level: student.level,
-                                gender: student.gender,
-                                status: student.status,
-                                position: student.position,
-                                specialization: student.specialization,
-                                college: student.college,
-                                // Additional student information
-                                surname: student.surname,
-                                firstname: student.firstname,
-                                middlename: student.middlename,
-                                suffix: student.suffix,
-                                birthdate: student.birthdate,
-                                civil_status: student.civil_status,
-                                citizenship: student.citizenship,
-                                religion: student.religion,
-                                address: student.address,
-                                father_name: student.father_name,
-                                father_age: student.father_age,
-                                father_occupation: student.father_occupation,
-                                father_contact: student.father_contact,
-                                father_email: student.father_email,
-                                father_education: student.father_education,
-                                mother_name: student.mother_name,
-                                mother_age: student.mother_age,
-                                mother_occupation: student.mother_occupation,
-                                mother_contact: student.mother_contact,
-                                mother_email: student.mother_email,
-                                mother_education: student.mother_education,
-                                last_school: student.last_school,
-                                last_school_type: student.last_school_type,
-                                last_school_address: student.last_school_address,
-                                academic_strand: student.academic_strand,
-                                pwd: student.pwd,
-                                course_choice1: student.course_choice1,
-                                course_choice2: student.course_choice2,
-                                course_choice3: student.course_choice3,
-                                picture: student.picture,
-                                paying: student.paying,
-                                curriculum: student.curriculum,
-                                // Emergency Contact Information
-                                emergency_contact_name: student.emergency_contact_name || 'N/A',
-                                emergency_contact_relationship: student.emergency_contact_relationship || 'N/A',
-                                emergency_contact_number: student.emergency_contact_number || 'N/A',
-                                blood_type: student.blood_type || 'N/A',
-                                allergies: student.allergies || 'None',
-                                medical_conditions: student.medical_conditions || 'None',
-                                medicalHistory: [],
-                                clinicVisits: [],
-                                prescriptions: [],
-                                labResults: []
-                            }));
+                            this.patients = students.map(student => {
+                                const ageNumber = Number(student.age);
+                                const inferredSenior = Number.isFinite(ageNumber) && ageNumber >= 60;
+                                const isPwd = Boolean(student.is_pwd);
+                                const isSenior = Boolean(student.is_senior_citizen) || inferredSenior;
+
+                                return {
+                                    id: student.id,
+                                    patient_id: student.patient_id,
+                                    name: student.name,
+                                    identifier: student.identifier,
+                                    role: student.role,
+                                    age: student.age,
+                                    department: student.department,
+                                    contact: student.contact || student.contact_num || 'N/A',
+                                    email: student.email || 'N/A',
+                                    course: student.course,
+                                    level: student.level,
+                                    gender: student.gender,
+                                    status: student.status,
+                                    position: student.position,
+                                    specialization: student.specialization,
+                                    college: student.college,
+                                    is_pwd: isPwd,
+                                    is_senior_citizen: isSenior,
+                                    pwd: isPwd,
+                                    // Additional student information
+                                    surname: student.surname,
+                                    firstname: student.firstname,
+                                    middlename: student.middlename,
+                                    suffix: student.suffix,
+                                    birthdate: student.birthdate,
+                                    civil_status: student.civil_status,
+                                    citizenship: student.citizenship,
+                                    religion: student.religion,
+                                    address: student.address,
+                                    father_name: student.father_name,
+                                    father_age: student.father_age,
+                                    father_occupation: student.father_occupation,
+                                    father_contact: student.father_contact,
+                                    father_email: student.father_email,
+                                    father_education: student.father_education,
+                                    mother_name: student.mother_name,
+                                    mother_age: student.mother_age,
+                                    mother_occupation: student.mother_occupation,
+                                    mother_contact: student.mother_contact,
+                                    mother_email: student.mother_email,
+                                    mother_education: student.mother_education,
+                                    last_school: student.last_school,
+                                    last_school_type: student.last_school_type,
+                                    last_school_address: student.last_school_address,
+                                    academic_strand: student.academic_strand,
+                                    course_choice1: student.course_choice1,
+                                    course_choice2: student.course_choice2,
+                                    course_choice3: student.course_choice3,
+                                    picture: student.picture,
+                                    paying: student.paying,
+                                    curriculum: student.curriculum,
+                                    // Emergency Contact Information
+                                    emergency_contact_name: student.emergency_contact_name || 'N/A',
+                                    emergency_contact_relationship: student.emergency_contact_relationship || 'N/A',
+                                    emergency_contact_number: student.emergency_contact_number || 'N/A',
+                                    blood_type: student.blood_type || 'N/A',
+                                    allergies: student.allergies || 'None',
+                                    medical_conditions: student.medical_conditions || 'None',
+                                    medicalHistory: [],
+                                    clinicVisits: [],
+                                    prescriptions: [],
+                                    labResults: []
+                                };
+                            });
                             
                             this.filteredPatients = this.patients;
                         } else {
@@ -1058,9 +1073,75 @@
                         return identifier + ' • ' + course;
                     }
                 },
+
+                setPriorityFlagsFormFromPatient(patient) {
+                    this.priorityFlagsForm = {
+                        is_pwd: Boolean(patient && patient.is_pwd),
+                        is_senior_citizen: Boolean(patient && patient.is_senior_citizen),
+                    };
+                },
+
+                async savePriorityFlags() {
+                    if (!this.selectedPatient) {
+                        this.showError('Please select a patient first');
+                        return;
+                    }
+
+                    if (!this.selectedPatient.patient_id) {
+                        this.showError('Unable to save priority flags: missing patient profile ID.');
+                        return;
+                    }
+
+                    try {
+                        this.savingPriorityFlags = true;
+                        const response = await fetch(`/api/patients/${this.selectedPatient.patient_id}/priority-flags`, {
+                            method: 'PUT',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({
+                                is_pwd: Boolean(this.priorityFlagsForm.is_pwd),
+                                is_senior_citizen: Boolean(this.priorityFlagsForm.is_senior_citizen)
+                            })
+                        });
+
+                        const payload = await response.json().catch(() => ({}));
+                        if (!response.ok || payload.error) {
+                            this.showError(payload.error || 'Failed to update priority flags.');
+                            return;
+                        }
+
+                        const updatedPwd = Boolean(payload.is_pwd);
+                        const updatedSenior = Boolean(payload.is_senior_citizen);
+
+                        this.selectedPatient.is_pwd = updatedPwd;
+                        this.selectedPatient.is_senior_citizen = updatedSenior;
+                        this.selectedPatient.pwd = updatedPwd;
+
+                        this.patients = this.patients.map(patient => {
+                            if (patient.patient_id === this.selectedPatient.patient_id) {
+                                return {
+                                    ...patient,
+                                    is_pwd: updatedPwd,
+                                    is_senior_citizen: updatedSenior,
+                                    pwd: updatedPwd,
+                                };
+                            }
+                            return patient;
+                        });
+                        this.filterPatients();
+                        this.showSuccess(payload.message || 'Priority lane flags updated.');
+                    } catch (error) {
+                        console.error('Error saving priority flags:', error);
+                        this.showError('Network error while saving priority flags.');
+                    } finally {
+                        this.savingPriorityFlags = false;
+                    }
+                },
                 
                 async selectPatient(patient) {
                     this.selectedPatient = patient;
+                    this.setPriorityFlagsFormFromPatient(patient);
                     this.activeRecordTab = 'history';
                     this.loadingPatientRecords = true;
                     
@@ -3313,6 +3394,12 @@
                                                           }">
                                                         <span x-text="patient.role" class="truncate"></span>
                                                     </span>
+                                                    <span x-show="patient.is_pwd" class="inline-flex items-center px-2 sm:px-2.5 py-0.5 sm:py-1 text-xs font-medium rounded-full bg-rose-100 text-rose-700 border border-rose-200">
+                                                        PWD
+                                                    </span>
+                                                    <span x-show="patient.is_senior_citizen" class="inline-flex items-center px-2 sm:px-2.5 py-0.5 sm:py-1 text-xs font-medium rounded-full bg-orange-100 text-orange-700 border border-orange-200">
+                                                        Senior
+                                                    </span>
                                                 </div>
                                             </div>
                                             <!-- Arrow Icon -->
@@ -3383,6 +3470,14 @@
                                             <div class="min-w-0 flex-1">
                                                 <h2 class="text-sm sm:text-base md:text-lg lg:text-xl font-bold text-white truncate" x-text="selectedPatient ? selectedPatient.name : ''"></h2>
                                                 <p class="text-blue-100 text-[10px] sm:text-xs md:text-sm mt-0.5 sm:mt-1 truncate" x-text="getPatientSubtitle()"></p>
+                                                <div class="mt-1 flex flex-wrap gap-1 sm:gap-1.5">
+                                                    <span x-show="selectedPatient && selectedPatient.is_pwd" class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-semibold bg-rose-100 text-rose-700 border border-rose-200">
+                                                        PWD Priority
+                                                    </span>
+                                                    <span x-show="selectedPatient && selectedPatient.is_senior_citizen" class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-semibold bg-orange-100 text-orange-700 border border-orange-200">
+                                                        Senior Priority
+                                                    </span>
+                                                </div>
                                             </div>
                                         </div>
                                         <button @click="selectedPatient = null" class="w-7 h-7 sm:w-8 sm:h-8 md:w-10 md:h-10 bg-white bg-opacity-20 hover:bg-opacity-30 backdrop-blur rounded-lg sm:rounded-xl flex items-center justify-center transition-all hover:scale-110 flex-shrink-0 ml-1 sm:ml-2 touch-target">
@@ -3460,6 +3555,41 @@
                                             <span class="text-[10px] sm:text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Gender</span>
                                             <span class="text-xs sm:text-sm font-bold text-gray-800" x-text="selectedPatient && selectedPatient.gender ? selectedPatient.gender : 'N/A'"></span>
                                         </div>
+                                    </div>
+                                </div>
+
+                                <div class="bg-white p-3 sm:p-4 rounded-lg sm:rounded-xl md:rounded-2xl shadow-sm border border-gray-100 mb-3 sm:mb-4 md:mb-6" x-show="selectedPatient">
+                                    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-3">
+                                        <div>
+                                            <h4 class="text-sm sm:text-base font-bold text-gray-900">Priority Lane Setup</h4>
+                                            <p class="text-xs text-gray-500 mt-0.5">Set if this patient should be recognized as PWD or Senior Citizen during queue ticket creation.</p>
+                                        </div>
+                                        <button
+                                            @click="savePriorityFlags()"
+                                            :disabled="savingPriorityFlags"
+                                            :class="savingPriorityFlags ? 'bg-blue-300 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'"
+                                            class="px-3 py-2 rounded-lg text-xs sm:text-sm font-semibold text-white transition-colors touch-target">
+                                            <span x-show="!savingPriorityFlags">Save Priority Flags</span>
+                                            <span x-show="savingPriorityFlags">Saving...</span>
+                                        </button>
+                                    </div>
+
+                                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
+                                        <label class="flex items-center gap-3 p-3 rounded-lg border border-rose-200 bg-rose-50 cursor-pointer">
+                                            <input type="checkbox" x-model="priorityFlagsForm.is_pwd" class="w-4 h-4 text-rose-600 rounded border-rose-300 focus:ring-rose-500">
+                                            <div>
+                                                <div class="text-sm font-semibold text-rose-800">PWD Priority</div>
+                                                <div class="text-xs text-rose-700">Patient will be routed to priority lane (P2 minimum).</div>
+                                            </div>
+                                        </label>
+
+                                        <label class="flex items-center gap-3 p-3 rounded-lg border border-orange-200 bg-orange-50 cursor-pointer">
+                                            <input type="checkbox" x-model="priorityFlagsForm.is_senior_citizen" class="w-4 h-4 text-orange-600 rounded border-orange-300 focus:ring-orange-500">
+                                            <div>
+                                                <div class="text-sm font-semibold text-orange-800">Senior Citizen Priority</div>
+                                                <div class="text-xs text-orange-700">Patient will be routed to priority lane (P2 minimum).</div>
+                                            </div>
+                                        </label>
                                     </div>
                                 </div>
 

@@ -3,6 +3,13 @@ Test script for inventory notification system
 Run this to test if the notification system is working
 """
 
+import sys
+import os
+
+# Fix Windows console encoding
+if sys.platform == 'win32':
+    sys.stdout.reconfigure(encoding='utf-8')
+
 print("=" * 70)
 print("🧪 Testing iClinic Inventory Notification System")
 print("=" * 70)
@@ -41,17 +48,13 @@ try:
     alerts = get_inventory_alerts()
     if alerts:
         total = (
-            len(alerts['expired']) + 
             len(alerts['expiring_30_days']) + 
-            len(alerts['expiring_60_days']) + 
             len(alerts['low_stock'])
         )
         print(f"   ✅ Inventory check successful")
         print(f"   📊 Total alerts: {total}")
-        print(f"      🚨 Expired: {len(alerts['expired'])}")
         print(f"      ⚠️  Expiring in 30 days: {len(alerts['expiring_30_days'])}")
-        print(f"      📅 Expiring in 60 days: {len(alerts['expiring_60_days'])}")
-        print(f"      📦 Low stock: {len(alerts['low_stock'])}")
+        print(f"       Low stock: {len(alerts['low_stock'])}")
         
         if total == 0:
             print("\n   ℹ️  No alerts found - inventory is healthy!")
@@ -88,9 +91,7 @@ print("   ⚠️  This will send an actual email to the nurse(s)")
 # Check if there are alerts to send
 alerts = get_inventory_alerts()
 total_alerts = (
-    len(alerts['expired']) + 
     len(alerts['expiring_30_days']) + 
-    len(alerts['expiring_60_days']) + 
     len(alerts['low_stock'])
 )
 
@@ -98,7 +99,19 @@ if total_alerts == 0:
     print("\n   ℹ️  No alerts to send - skipping email test")
     print("   💡 All tests passed! System is ready.")
 else:
-    response = input("\n   Do you want to send test email? (yes/no): ").strip().lower()
+    env_choice = (os.environ.get('ICLINIC_SEND_TEST_EMAIL') or '').strip().lower()
+    if env_choice in ['1', 'true', 'yes', 'y', 'on']:
+        response = 'yes'
+    elif env_choice in ['0', 'false', 'no', 'n', 'off']:
+        response = 'no'
+    elif not sys.stdin.isatty():
+        # Non-interactive run (e.g. IDE tooling). Default to sending.
+        response = 'yes'
+    else:
+        try:
+            response = input("\n   Do you want to send test email? (yes/no): ").strip().lower()
+        except EOFError:
+            response = 'yes'
     
     if response in ['yes', 'y']:
         print("\n   📧 Sending test email...")

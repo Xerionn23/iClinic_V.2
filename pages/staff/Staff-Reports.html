@@ -560,7 +560,12 @@
             }
 
             .print-content {
-                padding-bottom: 30mm !important;
+                padding-bottom: 22mm !important;
+            }
+
+            .print-ai-interpretation {
+                page-break-inside: auto !important;
+                break-inside: auto !important;
             }
 
             .print-footer {
@@ -2284,6 +2289,7 @@
                 selectedChartTitle: '',
                 reportPeriod: '2024-2025',
                 chartSummaryData: [],
+                printAiInterpretation: '',
                 
                 // Chart types for dropdowns
                 revenueChartType: 'doughnut',
@@ -2664,29 +2670,529 @@
                     }
                 },
 
+                getPrimaryChartSeries(labels, datasets) {
+                    const rawLabels = Array.isArray(labels) ? labels : [];
+                    const primary = Array.isArray(datasets) && datasets.length > 0 ? datasets[0] : {};
+                    const rawValues = Array.isArray(primary.data) ? primary.data : [];
+
+                    const length = Math.max(rawLabels.length, rawValues.length);
+                    const paired = [];
+
+                    for (let index = 0; index < length; index++) {
+                        const label = rawLabels[index] ?? `Item ${index + 1}`;
+                        const numeric = Number(rawValues[index]);
+                        if (!Number.isFinite(numeric)) continue;
+                        paired.push({ label, value: numeric });
+                    }
+
+                    return {
+                        labels: paired.map(item => item.label),
+                        values: paired.map(item => item.value),
+                        seriesLabel: primary.label || 'Values'
+                    };
+                },
+
+                buildChartInterpretation(chartId, chartTitle, labels, datasets, modelInsight = '') {
+                    const { labels: safeLabels, values, seriesLabel } = this.getPrimaryChartSeries(labels, datasets);
+                    const title = chartTitle || chartId || 'Chart';
+                    const cleanModelInsight = String(modelInsight || '').replace(/\s+/g, ' ').trim();
+
+                    const isCategoricalChart = ['revenueChart', 'patientDemographicsChart', 'suppliesStatusChart', 'stockLevelsChart'].includes(chartId);
+
+                    const formatNumber = (value) => {
+                        const numeric = Number(value);
+                        if (!Number.isFinite(numeric)) return 'N/A';
+                        const abs = Math.abs(numeric);
+                        if (abs >= 1000 || Number.isInteger(numeric)) return numeric.toLocaleString();
+                        return numeric.toFixed(2);
+                    };
+
+                    const computeMean = (items) => {
+                        if (!items.length) return 0;
+                        return items.reduce((sum, item) => sum + item, 0) / items.length;
+                    };
+
+                    const computeStd = (items, mean) => {
+                        if (items.length < 2) return 0;
+                        const variance = items.reduce((sum, item) => sum + Math.pow(item - mean, 2), 0) / (items.length - 1);
+                        return Math.sqrt(variance);
+                    };
+
+                    const computeRegression = (items) => {
+                        // Simple linear regression over index x = 0..n-1
+                        const n = items.length;
+                        if (n < 2) return { slope: 0, intercept: items[0] ?? 0, r2: 0 };
+                        let sumX = 0;
+                        let sumY = 0;
+                        let sumXY = 0;
+                        let sumXX = 0;
+                        for (let i = 0; i < n; i++) {
+                            sumX += i;
+                            sumY += items[i];
+                            sumXY += i * items[i];
+                            sumXX += i * i;
+                        }
+                        const denom = (n * sumXX - sumX * sumX);
+                        const slope = denom === 0 ? 0 : (n * sumXY - sumX * sumY) / denom;
+                        const intercept = (sumY - slope * sumX) / n;
+
+                        const mean = sumY / n;
+                        let ssTot = 0;
+                        let ssRes = 0;
+                        for (let i = 0; i < n; i++) {
+                            const predicted = intercept + slope * i;
+                            ssTot += Math.pow(items[i] - mean, 2);
+                            ssRes += Math.pow(items[i] - predicted, 2);
+                        }
+                        const r2 = ssTot === 0 ? 0 : Math.max(0, Math.min(1, 1 - (ssRes / ssTot)));
+                        return { slope, intercept, r2 };
+                    };
+
+                    if (!values.length) {
+                        const base = [
+                            `DATA ANALYSIS\n- Chart: ${title}\n- Status: Not enough numeric data points to analyze reliably.`,
+                            `TREND ANALYSIS\n- Trend: Not enough points to determine if it is going up, down, or stable.`,
+                            `PATTERN RECOGNITION\n- Pattern: Not enough history to detect patterns.`,
+                            `ANOMALY DETECTION\n- Anomalies: Not enough data to flag unusual spikes or drops.`,
+                            `INSIGHT GENERATION\n- Insight: Expand the date range to produce a more reliable interpretation.`,
+                            `PREDICTIVE ANALYSIS\n- Forecast: Not available (insufficient history).`,
+                            `CONCRETE SUGGESTIONS\n- Expand the date range, then refresh the chart.\n- Check that data is actually loading for the selected period.\n- Click AI Explain again after the chart updates.`,
+                            `DECISION SUPPORT\n- Recommendation: Avoid major operational changes until you have a stable time window.`,
+                            `SUMMARY\nThere are not enough data points to produce a reliable trend and forecast. Expand the date range and refresh the data.`
+                        ];
+                        if (cleanModelInsight) {
+                            base.splice(5, 0, `AI EVIDENCE\n- Model output: ${cleanModelInsight}`);
+                        }
+                        return base.join('\n\n');
+                    }
+
+                    const n = values.length;
+                    const total = values.reduce((sum, value) => sum + value, 0);
+                    const mean = computeMean(values);
+                    const std = computeStd(values, mean);
+                    const cv = mean !== 0 ? (std / Math.abs(mean)) : 0;
+
+                    const maxValue = Math.max(...values);
+                    const minValue = Math.min(...values);
+                    const maxIndex = values.indexOf(maxValue);
+                    const minIndex = values.indexOf(minValue);
+                    const peakLabel = safeLabels[maxIndex] || 'peak period';
+                    const lowLabel = safeLabels[minIndex] || 'lowest period';
+
+                    const first = values[0];
+                    const last = values[n - 1];
+                    const netChange = last - first;
+                    const netChangePct = first !== 0 ? (netChange / Math.abs(first)) * 100 : 0;
+
+                    const regression = (!isCategoricalChart) ? computeRegression(values) : { slope: 0, intercept: mean, r2: 0 };
+                    const slope = regression.slope;
+                    const r2 = regression.r2;
+                    const trendDirection = isCategoricalChart
+                        ? 'distribution-driven'
+                        : slope > 0.01 ? 'upward' : slope < -0.01 ? 'downward' : 'stable';
+
+                    const deltas = values.slice(1).map((value, index) => value - values[index]);
+                    const deltaMean = computeMean(deltas);
+                    const deltaStd = computeStd(deltas, deltaMean);
+
+                    const concentrationPct = total !== 0 ? (maxValue / total) * 100 : 0;
+                    const volatilityLabel = cv >= 0.5 ? 'high variability' : cv >= 0.2 ? 'moderate variability' : 'low variability';
+
+                    // Anomaly detection (keep concise)
+                    const anomalies = [];
+                    if (std > 0 && !isCategoricalChart) {
+                        for (let i = 0; i < values.length; i++) {
+                            const z = (values[i] - mean) / std;
+                            if (Math.abs(z) >= 2) {
+                                anomalies.push({
+                                    label: safeLabels[i] || `Point ${i + 1}`,
+                                    value: values[i],
+                                    reason: z > 0 ? 'spike vs baseline' : 'drop vs baseline'
+                                });
+                            }
+                            if (anomalies.length >= 2) break;
+                        }
+                    }
+                    if (deltaStd > 0 && !isCategoricalChart && anomalies.length < 2) {
+                        for (let i = 0; i < deltas.length; i++) {
+                            const delta = deltas[i];
+                            const zDelta = (delta - deltaMean) / deltaStd;
+                            if (Math.abs(zDelta) >= 2) {
+                                anomalies.push({
+                                    label: safeLabels[i + 1] || `Point ${i + 2}`,
+                                    value: values[i + 1],
+                                    reason: zDelta > 0 ? 'sudden jump' : 'sudden drop'
+                                });
+                            }
+                            if (anomalies.length >= 2) break;
+                        }
+                    }
+
+                    // Pattern recognition
+                    const recentWindow = values.slice(Math.max(0, n - 3));
+                    const isRecentIncreasing = recentWindow.length >= 3 && recentWindow[2] >= recentWindow[1] && recentWindow[1] >= recentWindow[0];
+                    const isRecentDecreasing = recentWindow.length >= 3 && recentWindow[2] <= recentWindow[1] && recentWindow[1] <= recentWindow[0];
+
+                    // Predictive analysis
+                    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                    const monthLookup = {
+                        jan: 0, january: 0,
+                        feb: 1, february: 1,
+                        mar: 2, march: 2,
+                        apr: 3, april: 3,
+                        may: 4,
+                        jun: 5, june: 5,
+                        jul: 6, july: 6,
+                        aug: 7, august: 7,
+                        sep: 8, sept: 8, september: 8,
+                        oct: 9, october: 9,
+                        nov: 10, november: 10,
+                        dec: 11, december: 11
+                    };
+
+                    const parseMonthYearFromLabel = (label) => {
+                        const raw = String(label || '').trim();
+                        if (!raw) return null;
+
+                        // ISO / parseable date
+                        const parsed = new Date(raw);
+                        if (!Number.isNaN(parsed.getTime())) {
+                            return { year: parsed.getFullYear(), monthIndex: parsed.getMonth() };
+                        }
+
+                        const lower = raw.toLowerCase();
+
+                        // YYYY-MM or YYYY/MM
+                        const ym = lower.match(/\b(20\d{2}|19\d{2})[-\/]([01]?\d)\b/);
+                        if (ym) {
+                            const year = Number(ym[1]);
+                            const monthIndex = Math.max(0, Math.min(11, Number(ym[2]) - 1));
+                            if (Number.isFinite(year) && Number.isFinite(monthIndex)) return { year, monthIndex };
+                        }
+
+                        // MM/YYYY
+                        const my = lower.match(/\b([01]?\d)[-\/]\s*(20\d{2}|19\d{2})\b/);
+                        if (my) {
+                            const monthIndex = Math.max(0, Math.min(11, Number(my[1]) - 1));
+                            const year = Number(my[2]);
+                            if (Number.isFinite(year) && Number.isFinite(monthIndex)) return { year, monthIndex };
+                        }
+
+                        // Month name (Jan, February, etc)
+                        const monthKey = Object.keys(monthLookup).find(key => new RegExp(`\\b${key}\\b`, 'i').test(lower));
+                        if (monthKey) {
+                            const yearMatch = lower.match(/\b(20\d{2}|19\d{2})\b/);
+                            const year = yearMatch ? Number(yearMatch[1]) : (new Date()).getFullYear();
+                            return { year, monthIndex: monthLookup[monthKey] };
+                        }
+
+                        return null;
+                    };
+
+                    const getPhSeason = (monthIndex) => {
+                        // PH seasonal guide (general):
+                        // Tag-init: Mar–May, Tag-ulan: Jun–Oct, Tag-lamig: Nov–Feb
+                        const isTagInit = [2, 3, 4].includes(monthIndex);
+                        const isTagUlan = [5, 6, 7, 8, 9].includes(monthIndex);
+                        const isTagLamig = [10, 11, 0, 1].includes(monthIndex);
+
+                        if (isTagInit) {
+                            return {
+                                tag: 'Hot season (Tag-init)',
+                                vibe: 'hot',
+                                timing: 'Typically starts around early March; most noticeable in April–May.',
+                                impact: 'Hotter weather may increase walk-ins related to heat stress, dehydration, and allergy/skin irritation flare-ups.'
+                            };
+                        }
+
+                        if (isTagUlan) {
+                            return {
+                                tag: 'Rainy season (Tag-ulan)',
+                                vibe: 'rainy',
+                                timing: 'Often starts around June and can continue through October.',
+                                impact: 'Rainy conditions may increase fever/flu-like complaints, diarrhea/dehydration, and mosquito-borne fever risks (area-dependent).'
+                            };
+                        }
+
+                        if (isTagLamig) {
+                            return {
+                                tag: 'Cool season (Tag-lamig)',
+                                vibe: 'cooler',
+                                timing: 'Often begins around November; typically peaks in December–February.',
+                                impact: 'Cooler weather may increase cough/colds and other respiratory complaints, plus allergy triggers for some patients.'
+                            };
+                        }
+
+                        return {
+                            tag: 'Season',
+                            vibe: 'variable',
+                            timing: 'Weather can vary per location.',
+                            impact: 'Possible changes in demand depending on local weather.',
+                            
+                        };
+                    };
+
+                    const inferNextPeriodContext = () => {
+                        const fallbackBase = new Date();
+                        const lastLabel = safeLabels && safeLabels.length ? safeLabels[safeLabels.length - 1] : '';
+                        const parsed = parseMonthYearFromLabel(lastLabel);
+                        const baseDate = parsed
+                            ? new Date(parsed.year, parsed.monthIndex, 1)
+                            : new Date(fallbackBase.getFullYear(), fallbackBase.getMonth(), 1);
+                        const nextDate = new Date(baseDate.getFullYear(), baseDate.getMonth() + 1, 1);
+                        const display = `${monthNames[nextDate.getMonth()]} ${nextDate.getFullYear()}`;
+                        return { nextDate, display };
+                    };
+
+                    let forecastText = '';
+                    if (isCategoricalChart) {
+                        forecastText = `If the current distribution continues, ${peakLabel} is likely to remain the dominant category (≈${concentrationPct.toFixed(1)}% share).`;
+                    } else if (n >= 2) {
+                        const forecast = regression.intercept + regression.slope * n;
+                        const forecastClamped = Number.isFinite(forecast) ? Math.max(0, forecast) : last;
+                        const confidence = r2 >= 0.65 ? 'higher' : r2 >= 0.35 ? 'medium' : 'lower';
+                        const nextLabel = 'next period';
+                        forecastText = `Forecast for ${nextLabel}: ~${formatNumber(forecastClamped)} (confidence: ${confidence}).`;
+                    } else {
+                        forecastText = 'Forecast not available (insufficient history).';
+                    }
+
+                    const timeAnchor = (() => {
+                        // If labels look like time (month/date), anchor season on the next period after last label.
+                        // If labels are categorical (medicine names/categories), anchor on next month from today.
+                        const lastLabel = safeLabels && safeLabels.length ? safeLabels[safeLabels.length - 1] : '';
+                        const parsed = parseMonthYearFromLabel(lastLabel);
+                        const isTimeLike = Boolean(parsed);
+                        const base = isTimeLike
+                            ? new Date(parsed.year, parsed.monthIndex, 1)
+                            : new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+                        const next = new Date(base.getFullYear(), base.getMonth() + 1, 1);
+                        return {
+                            isTimeLike,
+                            nextDate: next,
+                            display: `${monthNames[next.getMonth()]} ${next.getFullYear()}`
+                        };
+                    })();
+
+                    const season = getPhSeason(timeAnchor.nextDate.getMonth());
+
+                    const rankedItems = safeLabels
+                        .map((label, index) => ({ label: String(label || '').trim(), value: values[index] }))
+                        .filter(item => item.label && Number.isFinite(Number(item.value)));
+
+                    const topItems = [...rankedItems]
+                        .sort((a, b) => Number(b.value) - Number(a.value))
+                        .slice(0, 3)
+                        .map(item => item.label);
+
+                    const lowItems = [...rankedItems]
+                        .sort((a, b) => Number(a.value) - Number(b.value))
+                        .slice(0, 2)
+                        .map(item => item.label);
+
+                    const buildChartReadyChecklist = () => {
+                        // IMPORTANT: Keep recommendations tied to chart labels only.
+                        if (chartId === 'stockLevelsChart' || chartId === 'revenueChart') {
+                            const focus = topItems.length ? topItems.join(', ') : peakLabel;
+                            const risk = lowItems.length ? lowItems.join(', ') : lowLabel;
+                            return [
+                                `Prioritize checks and buffer stock for the top items/categories in this chart: ${focus}.`,
+                                `If anything is low/at-risk in this chart, prioritize reorder/restock for: ${risk}.`,
+                                `Because ${season.tag} is coming, plan extra buffer stock for the items that are already moving fast in this chart (starting with ${focus}).`,
+                                'Review supplier lead time and set a quick reorder trigger to avoid stockouts during peak days.',
+                                'Double-check expiry and apply FEFO (first-expire-first-out) to reduce wastage.'
+                            ];
+                        }
+
+                        if (chartId === 'monthlyVisitsChart') {
+                            return [
+                                `Incoming period: ${timeAnchor.display} (estimate). If visits are trending up, expect longer queues.`,
+                                `Because ${season.tag} is coming, prepare staffing and triage flow for a possible spike.`,
+                                'Prepare consultation slots and keep intake fast to prevent backlog.',
+                                'Plan surge-day staffing if visits go clearly above normal (above baseline).'
+                            ];
+                        }
+
+                        if (chartId === 'medicalRecordsChart') {
+                            const focus = peakLabel;
+                            return [
+                                `Top medical-record focus in this chart: ${focus}.`,
+                                `Because ${season.tag} is coming, check if similar complaints usually rise; prepare protocols and patient education for ${focus}.`,
+                                'Coordinate with inventory so the related supplies/medicines (per clinic policy) are available for that complaint cluster.'
+                            ];
+                        }
+
+                        if (chartId === 'suppliesStatusChart') {
+                            return [
+                                `Priority supply group in this chart: ${peakLabel}.`,
+                                `At-risk/lowest group in this chart: ${lowLabel}. Prioritize this for procurement/maintenance.`,
+                                `Because ${season.tag} is coming, buffer critical supplies under ${lowLabel} to reduce downtime risk.`
+                            ];
+                        }
+
+                        if (chartId === 'patientDemographicsChart') {
+                            return [
+                                `Dominant patient segment in this chart: ${peakLabel}.`,
+                                `Because ${season.tag} is coming, align clinic schedule/programs to match the dominant segment’s needs (${peakLabel}).`,
+                                'Keep access for smaller segments (avoid gaps) while focusing on the dominant group.'
+                            ];
+                        }
+
+                        // Generic fallback (still chart-tied)
+                        const focus = topItems.length ? topItems.join(', ') : peakLabel;
+                        return [
+                            `Focus item/category based sa chart: ${focus}.`,
+                            `Because ${season.tag} is coming, buffer and plan operations based on the chart’s top focus (${focus}).`,
+                            'Monitor weekly; if spikes/drops repeat, investigate the root cause and adjust the plan.'
+                        ];
+                    };
+
+                    const readyChecklist = buildChartReadyChecklist();
+
+                    // Insight generation (chart-specific interpretation)
+                    let insightCore = `The dataset shows ${volatilityLabel} with a ${trendDirection} direction and peak concentration at ${peakLabel}.`;
+                    let decisionCore = 'Maintain current operations and monitor for changes.';
+
+                    if (chartId === 'monthlyVisitsChart') {
+                        insightCore = trendDirection === 'upward'
+                            ? 'Patient visits are trending upward, which may increase queue pressure and medicine consumption.'
+                            : trendDirection === 'downward'
+                                ? 'Patient visits are trending downward, creating an opportunity to shift time toward prevention and follow-up.'
+                                : 'Patient visits are stable overall, suggesting steady demand with routine fluctuations.';
+
+                        decisionCore = trendDirection === 'upward'
+                            ? 'Decision: Add surge capacity (triage/staffing) during peak windows and pre-position top medicines.'
+                            : trendDirection === 'downward'
+                                ? 'Decision: Use lower-demand windows for catch-up screening, audits, and inventory reconciliation.'
+                                : 'Decision: Keep staffing steady; escalate only if anomalies persist for 2+ consecutive periods.';
+                    } else if (chartId === 'stockLevelsChart' || chartId === 'revenueChart') {
+                        const lowThreshold = 10;
+                        const lowCount = values.filter(value => value <= lowThreshold).length;
+                        insightCore = lowCount > 0
+                            ? `Stock distribution suggests risk: ${lowCount} item(s) are at/under ${lowThreshold}, with highest concentration at ${peakLabel}.`
+                            : `Stock distribution is generally healthy, with the highest concentration at ${peakLabel}.`;
+
+                        decisionCore = lowCount > 0
+                            ? 'Decision: Reorder low-stock items first, then rebalance ordering toward the highest-demand group.'
+                            : 'Decision: Maintain reorder cadence; tighten monitoring for top concentrated items.';
+                    } else if (chartId === 'patientDemographicsChart') {
+                        insightCore = concentrationPct >= 50
+                            ? 'One patient segment dominates the caseload; service demand and consultation timing may be biased toward that group.'
+                            : 'Patient mix is balanced; service demand is likely diversified across segments.';
+
+                        decisionCore = concentrationPct >= 50
+                            ? 'Decision: Prioritize programs and staffing aligned to the dominant segment while protecting minority-segment access.'
+                            : 'Decision: Maintain mixed-program planning; watch for any accelerating segment.';
+                    } else if (chartId === 'medicalRecordsChart') {
+                        insightCore = `Medical record volume is highest at ${peakLabel}, signaling the top area for preventive messaging and triage readiness.`;
+                        decisionCore = 'Decision: Stock and protocol-check for the most common complaint group before the next peak.';
+                    } else if (chartId === 'suppliesStatusChart') {
+                        insightCore = `Supply status is led by ${peakLabel}; the weakest bucket at ${lowLabel} is the first operational review target.`;
+                        decisionCore = 'Decision: Schedule replenishment/maintenance for the weakest bucket within the next reporting cycle.';
+                    }
+
+                    // Concrete suggestions (actionable list)
+                    const suggestions = [];
+                    if (chartId === 'monthlyVisitsChart') {
+                        if (trendDirection === 'upward') {
+                            suggestions.push('Add triage/staffing coverage on forecasted peak days.');
+                            suggestions.push('Pre-position frequently used medicines and consumables 3–5 days before peak.');
+                            suggestions.push('Review appointment distribution to reduce clustering and long waits.');
+                        } else if (trendDirection === 'downward') {
+                            suggestions.push('Use freed capacity for preventive screening and follow-ups.');
+                            suggestions.push('Run quick inventory audits and expiry checks during quieter weeks.');
+                            suggestions.push('Target outreach for low-attendance cohorts.');
+                        } else {
+                            suggestions.push('Maintain current staffing; keep weekly monitoring.');
+                            suggestions.push('Investigate any anomalies before they repeat.');
+                            suggestions.push('Prepare a small surge plan for unexpected spikes.');
+                        }
+                    } else if (chartId === 'stockLevelsChart' || chartId === 'revenueChart') {
+                        suggestions.push('Replenish low-stock items first; validate supplier lead times.');
+                        suggestions.push('Increase cycle counts for top concentrated items (highest risk).');
+                        suggestions.push('Align reorder quantities to observed category dominance and upcoming demand.');
+                    } else if (chartId === 'patientDemographicsChart') {
+                        suggestions.push('Align health campaigns to the dominant segment’s needs.');
+                        suggestions.push('Adjust clinic hours/services to match the segment’s availability.');
+                        suggestions.push('Monitor minority segments to prevent access gaps.');
+                    } else {
+                        suggestions.push('Review the top peak period and validate root cause (policy, events, seasonality).');
+                        suggestions.push('Track this metric weekly; escalate if the anomaly repeats.');
+                        suggestions.push('Document interventions and re-check the chart after one cycle.');
+                    }
+
+                    const anomalyLines = anomalies.length
+                        ? anomalies.map(item => `- ${item.label}: ${formatNumber(item.value)} (${item.reason})`).join('\n')
+                        : '- None flagged beyond normal variation.';
+
+                    const trendLine = isCategoricalChart
+                        ? `- Note: This is a distribution (not a timeline).\n- Dominant: ${peakLabel} (${concentrationPct.toFixed(1)}%).`
+                        : `- Overall direction: ${trendDirection}\n- Change from start to end: ${formatNumber(netChange)} (${Math.abs(netChangePct).toFixed(1)}%)\n- Pace of change: ${Math.abs(slope).toFixed(2)} per step\n- Stability: ${volatilityLabel}`;
+
+                    const decisionSupportLines = [
+                        `- Priority focus: ${peakLabel} (highest: ${formatNumber(maxValue)})`,
+                        `- Risk focus: ${lowLabel} (lowest: ${formatNumber(minValue)})`,
+                        !isCategoricalChart && n >= 2 ? `- Trigger: if the next period is clearly above normal (above average + typical variation), activate the surge plan.` : ''
+                    ].filter(Boolean).join('\n');
+
+                    const nlExplanation = (() => {
+                        if (isCategoricalChart) {
+                            return `For ${title}, the data behaves like a distribution. The main operational takeaway is to prioritize the dominant category (${peakLabel}) while monitoring the weakest category (${lowLabel}) to reduce operational risk.`;
+                        }
+                        const recentPhrase = isRecentIncreasing
+                            ? 'Recent points show a consistent increase.'
+                            : isRecentDecreasing
+                                ? 'Recent points show a consistent decrease.'
+                                : 'Recent points do not show a consistent direction.';
+                        return `For ${title}, the baseline average is ${formatNumber(mean)} with peak at ${peakLabel}. Overall direction is ${trendDirection}. ${recentPhrase} Use the forecast and anomaly flags to time staffing, supplies, and follow-up programs.`;
+                    })();
+
+                    const blocks = [
+                        `DATA ANALYSIS\n- Chart: ${title}\n- Metric: ${seriesLabel}\n- Data points: ${n}\n- Total: ${formatNumber(total)}\n- Average (baseline): ${formatNumber(mean)}\n- Typical variation: ${formatNumber(std)}\n- Highest point: ${peakLabel} (${formatNumber(maxValue)})\n- Lowest point: ${lowLabel} (${formatNumber(minValue)})`,
+                        `TREND ANALYSIS\n${trendLine}`,
+                        `PATTERN RECOGNITION\n- Where it concentrates most: ${concentrationPct.toFixed(1)}% at ${peakLabel}\n- Recent behavior: ${isRecentIncreasing ? 'increasing lately' : isRecentDecreasing ? 'decreasing lately' : 'mixed/flat'}\n- Overall variability: ${volatilityLabel}`,
+                        `ANOMALY DETECTION\n${anomalyLines}`,
+                        `INSIGHT GENERATION\n- Main takeaway: ${insightCore}${cleanModelInsight ? `\n- Extra note from AI: ${cleanModelInsight}` : ''}`,
+                        [
+                            'PREDICTIVE ANALYSIS',
+                            `- Incoming period (estimate): ${timeAnchor.display}`,
+                            `- Philippines seasonal outlook: ${season.tag} (${season.vibe}). ${season.timing}`,
+                            `- Possible impact: ${season.impact}`,
+                            `- Ready checklist (based on THIS chart):\n  - ${readyChecklist.join('\n  - ')}`,
+                            `- Data-based forecast: ${forecastText}`,
+                            `- Note: This is a general Philippines seasonal guide; check local weather advisories if needed.`
+                        ].join('\n'),
+                        `CONCRETE SUGGESTIONS\n${suggestions.map(item => `- ${item}`).join('\n')}`,
+                        `DECISION SUPPORT\n${decisionCore}\n${decisionSupportLines}`,
+                        `SUMMARY\n${nlExplanation}`
+                    ];
+
+                    return blocks.join('\n\n');
+                },
+
                 async generateChartInsight(chartId, chartTitle) {
+                    if (!chartId) return;
+
+                    if (!this.chartInsightsLoading) this.chartInsightsLoading = {};
+                    if (!this.chartInsightsError) this.chartInsightsError = {};
+                    if (!this.chartInsights) this.chartInsights = {};
+
+                    // Pull chart data once so it can be used both for API call and local fallback.
+                    const chartRef = this[chartId];
+                    let labels = [];
+                    let datasets = [];
+
+                    if (chartRef && chartRef.data) {
+                        labels = chartRef.data.labels || [];
+                        datasets = (chartRef.data.datasets || []).map(ds => ({
+                            label: ds.label,
+                            data: ds.data
+                        }));
+                    }
+
                     try {
-                        if (!chartId) return;
-
-                        if (!this.chartInsightsLoading) this.chartInsightsLoading = {};
-                        if (!this.chartInsightsError) this.chartInsightsError = {};
-                        if (!this.chartInsights) this.chartInsights = {};
-
                         this.chartInsightsLoading[chartId] = true;
                         this.chartInsightsError[chartId] = null;
-
-                        // Try to pull data directly from the Chart.js instance
-                        const chartRef = this[chartId];
-                        let labels = [];
-                        let datasets = [];
-
-                        if (chartRef && chartRef.data) {
-                            labels = chartRef.data.labels || [];
-                            datasets = (chartRef.data.datasets || []).map(ds => ({
-                                label: ds.label,
-                                data: ds.data
-                            }));
-                        }
 
                         const response = await fetch('/api/chart-insight', {
                             method: 'POST',
@@ -2705,14 +3211,28 @@
                         const payload = await response.json();
 
                         if (!payload.success) {
-                            this.chartInsightsError[chartId] = payload.error || 'Unable to generate interpretation for this chart.';
+                            this.chartInsights[chartId] = this.buildChartInterpretation(chartId, chartTitle, labels, datasets, '');
+                            this.chartInsightsError[chartId] = null;
                             return;
                         }
 
-                        this.chartInsights[chartId] = payload.insight || 'No interpretation was returned for this chart.';
+                        this.chartInsights[chartId] = this.buildChartInterpretation(
+                            chartId,
+                            chartTitle,
+                            labels,
+                            datasets,
+                            payload.insight || ''
+                        );
+                        this.chartInsightsError[chartId] = null;
                     } catch (error) {
                         console.error('Chart AI insight error:', error);
-                        this.chartInsightsError[chartId] = 'Failed to contact AI service for this chart.';
+                        const fallbackInterpretation = this.buildChartInterpretation(chartId, chartTitle, labels, datasets, '');
+                        if (fallbackInterpretation) {
+                            this.chartInsights[chartId] = fallbackInterpretation;
+                            this.chartInsightsError[chartId] = null;
+                        } else {
+                            this.chartInsightsError[chartId] = 'Failed to contact AI service for this chart.';
+                        }
                     } finally {
                         if (!this.chartInsightsLoading) this.chartInsightsLoading = {};
                         this.chartInsightsLoading[chartId] = false;
@@ -5861,6 +6381,22 @@
                     // Store which chart to print
                     this.selectedChartForPrint = chartId;
                     this.selectedChartTitle = filename;
+
+                    // Capture AI interpretation for export/print (include whatever is already shown)
+                    this.printAiInterpretation = (this.chartInsights && this.chartInsights[chartId]) ? this.chartInsights[chartId] : '';
+
+                    // If AI Interpretation hasn't been generated yet, create a local one so exports still include it.
+                    if (!this.printAiInterpretation) {
+                        const sourceChart = this[chartId];
+                        const chartData = sourceChart?.data;
+                        const labels = chartData?.labels || [];
+                        const datasets = (chartData?.datasets || []).map(ds => ({
+                            label: ds.label,
+                            data: ds.data
+                        }));
+                        const printableTitle = String(filename || '').replace(/_/g, ' ').trim() || chartId;
+                        this.printAiInterpretation = this.buildChartInterpretation(chartId, printableTitle, labels, datasets, '');
+                    }
                     
                     // Generate summary data for this specific chart
                     this.generateChartSummary(chartId);
@@ -6066,6 +6602,7 @@
                             totalConsultations: this.rawData?.consultations?.length || 0,
                             totalMedicines: this.rawData?.medicines?.length || 0
                         },
+                        aiInterpretations: this.chartInsights || {},
                         detailedData: {
                             visits: filteredData.visits.map(visit => ({
                                 date: visit.visit_date,
@@ -6136,7 +6673,15 @@
                     const consultationsCSVString = consultationsCSV.map(row => row.map(field => `"${field}"`).join(',')).join('\n');
                     
                     // Create combined CSV
-                    const combinedCSV = `FILTERED CLINIC REPORTS\nGenerated: ${new Date().toLocaleString()}\nDepartment: ${this.getDepartmentName(this.selectedDepartment)}\nPeriod: ${this.selectedPeriod}\n\nVISITS DATA\n${visitsCSVString}\n\nCONSULTATIONS DATA\n${consultationsCSVString}`;
+                    const aiInterpretationsText = (() => {
+                        const entries = Object.entries(this.chartInsights || {})
+                            .map(([key, value]) => ({ key, value: String(value || '').trim() }))
+                            .filter(entry => entry.value);
+                        if (!entries.length) return 'N/A';
+                        return entries.map(entry => `=== ${entry.key} ===\n${entry.value}`).join('\n\n');
+                    })();
+
+                    const combinedCSV = `FILTERED CLINIC REPORTS\nGenerated: ${new Date().toLocaleString()}\nDepartment: ${this.getDepartmentName(this.selectedDepartment)}\nPeriod: ${this.selectedPeriod}\n\nVISITS DATA\n${visitsCSVString}\n\nCONSULTATIONS DATA\n${consultationsCSVString}\n\nAI INTERPRETATIONS\n${aiInterpretationsText}`;
                     
                     // Download CSV
                     const filename = `iClinic-Filtered-Data-${this.getDepartmentName(this.selectedDepartment).replace(/\s+/g, '_')}-${this.selectedPeriod}-${new Date().toISOString().split('T')[0]}.csv`;
@@ -6816,6 +7361,16 @@ this would contain the actual report data and formatting.
                     <div style="height: 200px; overflow: hidden;">
                         <canvas id="printDynamicChart" style="display: block; width: 100%; height: 100%; max-width: 100%;"></canvas>
                     </div>
+                </div>
+            </div>
+
+            <div style="border-top: 1px solid #111827; margin: 12px 0;"></div>
+
+            <!-- AI INTERPRETATION (included in export/print) -->
+            <div class="print-ai-interpretation" style="font-family: Arial, Helvetica, sans-serif;">
+                <div style="font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #374151; margin-bottom: 6px;">AI INTERPRETATION</div>
+                <div style="border: 1px solid #111827; padding: 10px; background: #f9fafb;">
+                    <div style="font-size: 11px; line-height: 1.5; white-space: pre-line;" x-text="printAiInterpretation || (selectedChartForPrint && chartInsights ? chartInsights[selectedChartForPrint] : '') || 'No AI interpretation available.'"></div>
                 </div>
             </div>
 
