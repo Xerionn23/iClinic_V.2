@@ -8,6 +8,7 @@ Sends email alerts to nurses about medicine inventory status:
 """
 
 import smtplib
+import os
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from datetime import datetime, timedelta
@@ -21,6 +22,13 @@ EMAIL_CONFIG = {
     'password': 'xtsweijcxsntwhld',
     'from_name': 'iClinic Inventory System'
 }
+
+
+def _get_public_base_url() -> str:
+    base = (os.environ.get('ICLINIC_PUBLIC_BASE_URL') or '').strip()
+    if base:
+        return base.rstrip('/')
+    return 'http://127.0.0.1:5000'
 
 def get_inventory_alerts():
     """
@@ -111,6 +119,8 @@ def get_inventory_alerts():
 
 def create_email_html(alerts):
     """Create HTML email content with all alerts - standardized format"""
+
+    base_url = _get_public_base_url()
     
     # Count total alerts
     total_alerts = (
@@ -242,7 +252,7 @@ def create_email_html(alerts):
             
             <!-- Button -->
             <div style="text-align: center; margin: 30px 0;">
-                <a href="http://127.0.0.1:5000" 
+                <a href="{base_url}" 
                    style="display: inline-block; background-color: #2563eb; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; font-weight: 500;">
                     View Inventory Dashboard
                 </a>
@@ -252,7 +262,7 @@ def create_email_html(alerts):
                 If the button doesn't work, copy and paste this link into your browser:
             </p>
             <p style="margin: 0;">
-                <a href="http://127.0.0.1:5000" style="color: #2563eb; font-size: 13px; word-break: break-all;">http://127.0.0.1:5000</a>
+                <a href="{base_url}" style="color: #2563eb; font-size: 13px; word-break: break-all;">{base_url}</a>
             </p>
         </div>
         

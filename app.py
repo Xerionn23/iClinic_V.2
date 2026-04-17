@@ -510,8 +510,8 @@ def _send_clinic_event_notifications_background(event_payload: dict):
         badge_bg = badge_bg_map.get((event_type or '').strip().lower(), '#E5E7EB')
         badge_text = badge_text_map.get((event_type or '').strip().lower(), '#111827')
 
-        iclinic_url = (os.environ.get('ICLINIC_BASE_URL') or '').strip()
-        view_url = f"{iclinic_url}/appointments" if iclinic_url else ''
+        base_url = _get_public_base_url()
+        view_url = f"{base_url}/appointments" if base_url else ''
 
         html_content = f"""
         <!doctype html>
@@ -5428,7 +5428,8 @@ def request_account():
         conn.close()
         
         # Send verification email
-        verification_link = f"{request.url_root}complete-registration?token={verification_token}"
+        base_url = _get_public_base_url()
+        verification_link = f"{base_url}/complete-registration?token={verification_token}"
         
         # Get role display name
         role_names = {
