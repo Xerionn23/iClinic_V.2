@@ -45,8 +45,20 @@
     <link href="/assets/css/libs/inter-font.css" rel="stylesheet">
     
     <style>
-        * {
+        *, *::before, *::after {
+            box-sizing: border-box;
             font-family: 'Inter', sans-serif;
+        }
+
+        html, body {
+            width: 100%;
+            max-width: 100%;
+            overflow-x: hidden;
+        }
+
+        img, video, canvas {
+            max-width: 100%;
+            height: auto;
         }
         
         /* Smooth transitions for all interactive elements */
@@ -206,9 +218,31 @@
         }
         
         /* Desktop - restore normal height */
-        @media (min-width: 768px) {
+        @media (min-width: 1280px) {
             .patient-list-scroll {
                 max-height: calc(100dvh - 260px);
+            }
+        }
+
+        /* Tablet landscape / small laptops (768px - 1279px): keep stacked layout to avoid cramped panels */
+        @media (min-width: 768px) and (max-width: 1279px) {
+            .two-panel-layout {
+                flex-direction: column;
+                min-height: calc(100dvh - 80px);
+                height: auto;
+            }
+            .patient-list-panel {
+                width: 100%;
+                height: 42vh;
+                border-right: none;
+                border-bottom: 1px solid #e5e7eb;
+            }
+            .patient-details-panel {
+                width: 100%;
+                height: 58vh;
+            }
+            .patient-list-scroll {
+                max-height: calc(42vh - 140px);
             }
         }
 
@@ -234,14 +268,14 @@
             }
         }
 
-        /* Large Devices (768px+) */
-        @media (min-width: 768px) {
+        /* Large Devices (1280px+) */
+        @media (min-width: 1280px) {
             .two-panel-layout {
                 flex-direction: row;
                 height: calc(100dvh - 200px);
             }
             .patient-list-panel {
-                width: 400px;
+                width: clamp(320px, 35vw, 400px) !important;
                 height: 100%;
                 border-right: 1px solid #e5e7eb;
                 border-bottom: none;
@@ -252,13 +286,63 @@
             }
         }
 
+        /* COMPACT UI (tablet/desktop) — reduces oversized spacing while staying responsive */
+        @media (min-width: 768px) {
+            .staff-patients-page {
+                font-size: 14px;
+            }
+
+            .staff-patients-page .patients-page-header-inner {
+                padding-top: 0.75rem !important;
+                padding-bottom: 0.75rem !important;
+            }
+
+            .staff-patients-page .patients-page-header h1 {
+                font-size: 1.5rem !important;
+            }
+
+            .staff-patients-page .patients-search-header {
+                padding: 0.75rem !important;
+            }
+
+            .staff-patients-page .filter-pill {
+                padding: 0.375rem 0.75rem;
+            }
+
+            .staff-patients-page .patient-card {
+                padding: 0.75rem !important;
+            }
+
+            .staff-patients-page .patient-info-card {
+                padding: 0.75rem !important;
+            }
+
+            .staff-patients-page .selected-patient-hero-inner {
+                padding: 0.875rem 1rem !important;
+            }
+
+            .staff-patients-page .medical-records-table th,
+            .staff-patients-page .medical-records-table td {
+                padding-top: 0.5rem !important;
+                padding-bottom: 0.5rem !important;
+                padding-left: 0.5rem !important;
+                padding-right: 0.5rem !important;
+            }
+
+            /* Keep touch targets usable on mobile; slightly smaller on desktop */
+            .staff-patients-page .touch-target {
+                min-height: 40px;
+                min-width: 40px;
+            }
+        }
+
         /* ENHANCED MOBILE OVERLAY SYSTEM */
         
 
         /* RESPONSIVE TABLE SYSTEM */
         .medical-records-table {
-            min-width: 320px;
             width: 100%;
+            max-width: 100%;
             table-layout: auto;
         }
 
@@ -279,7 +363,6 @@
         @media (max-width: 374px) {
             .medical-records-table {
                 font-size: 0.75rem;
-                min-width: 300px;
             }
             .medical-records-table th,
             .medical-records-table td {
@@ -299,7 +382,6 @@
         @media (min-width: 375px) and (max-width: 640px) {
             .medical-records-table {
                 font-size: 0.8125rem;
-                min-width: 600px;
             }
             .medical-records-table th,
             .medical-records-table td {
@@ -310,18 +392,14 @@
         @media (min-width: 641px) and (max-width: 767px) {
             .medical-records-table {
                 font-size: 0.875rem;
-                min-width: 800px;
             }
             .medical-records-table th,
             .medical-records-table td {
                 padding: 0.5rem;
             }
         }
-        
+
         @media (min-width: 768px) {
-            .medical-records-table {
-                min-width: 1000px;
-            }
             .medical-records-table th,
             .medical-records-table td {
                 padding: 0.625rem;
@@ -502,9 +580,11 @@
                 loadingPatients: false,
                 loadingPatientRecords: false,
                 savingPriorityFlags: false,
+                priorityFlagsNeedsResave: false,
                 priorityFlagsForm: {
                     is_pwd: false,
-                    is_senior_citizen: false
+                    is_senior_citizen: false,
+                    is_pregnant: false
                 },
                 addingRecord: false,
                 addingVisitor: false,
@@ -514,8 +594,33 @@
                     patient_id: null
                 },
 
+                // Server-rendered staff identity (used in printed referral forms)
+                currentStaffName: "{{ user.first_name }} {{ user.last_name }}",
+                currentStaffPosition: "{{ user.position }}",
+
                 majorCaseNotifySending: false,
                 majorCaseNotifyCooldownUntil: 0,
+
+                // XRAY Review Log (separate from medical records)
+                xrayReviews: [],
+                loadingXrayReviews: false,
+                showXrayHistory: false,
+                showAddXrayReviewModal: false,
+                addingXrayReview: false,
+                newXrayReview: {
+                    result: 'normal',
+                    findings: '',
+                    recommendation: ''
+                },
+                showXrayNotifyConfirmModal: false,
+                pendingXrayNotifyReviewId: null,
+                xrayNotifySending: false,
+                xrayNotifyCooldownUntil: 0,
+
+                // Bulk XRAY Normal (for mass screening cohorts)
+                showBulkXrayNormalModal: false,
+                bulkXrayForceNewCycle: false,
+                bulkXraySending: false,
 
                 refreshIcons() {
                     // Use the safe Feather icons initialization
@@ -866,6 +971,7 @@
                                 const inferredSenior = Number.isFinite(ageNumber) && ageNumber >= 60;
                                 const isPwd = Boolean(student.is_pwd);
                                 const isSenior = Boolean(student.is_senior_citizen) || inferredSenior;
+                                const isPregnant = Boolean(student.is_pregnant);
 
                                 return {
                                     id: student.id,
@@ -886,6 +992,7 @@
                                     college: student.college,
                                     is_pwd: isPwd,
                                     is_senior_citizen: isSenior,
+                                    is_pregnant: isPregnant,
                                     pwd: isPwd,
                                     // Additional student information
                                     surname: student.surname,
@@ -1078,17 +1185,23 @@
                     this.priorityFlagsForm = {
                         is_pwd: Boolean(patient && patient.is_pwd),
                         is_senior_citizen: Boolean(patient && patient.is_senior_citizen),
+                        is_pregnant: Boolean(patient && patient.is_pregnant),
                     };
                 },
 
-                async savePriorityFlags() {
+                async savePriorityFlags(silent = false) {
                     if (!this.selectedPatient) {
-                        this.showError('Please select a patient first');
+                        if (!silent) this.showError('Please select a patient first');
                         return;
                     }
 
                     if (!this.selectedPatient.patient_id) {
                         this.showError('Unable to save priority flags: missing patient profile ID.');
+                        return;
+                    }
+
+                    if (this.savingPriorityFlags) {
+                        this.priorityFlagsNeedsResave = true;
                         return;
                     }
 
@@ -1101,7 +1214,8 @@
                             },
                             body: JSON.stringify({
                                 is_pwd: Boolean(this.priorityFlagsForm.is_pwd),
-                                is_senior_citizen: Boolean(this.priorityFlagsForm.is_senior_citizen)
+                                is_senior_citizen: Boolean(this.priorityFlagsForm.is_senior_citizen),
+                                is_pregnant: Boolean(this.priorityFlagsForm.is_pregnant)
                             })
                         });
 
@@ -1113,9 +1227,11 @@
 
                         const updatedPwd = Boolean(payload.is_pwd);
                         const updatedSenior = Boolean(payload.is_senior_citizen);
+                        const updatedPregnant = Boolean(payload.is_pregnant);
 
                         this.selectedPatient.is_pwd = updatedPwd;
                         this.selectedPatient.is_senior_citizen = updatedSenior;
+                        this.selectedPatient.is_pregnant = updatedPregnant;
                         this.selectedPatient.pwd = updatedPwd;
 
                         this.patients = this.patients.map(patient => {
@@ -1124,18 +1240,26 @@
                                     ...patient,
                                     is_pwd: updatedPwd,
                                     is_senior_citizen: updatedSenior,
+                                    is_pregnant: updatedPregnant,
                                     pwd: updatedPwd,
                                 };
                             }
                             return patient;
                         });
                         this.filterPatients();
-                        this.showSuccess(payload.message || 'Priority lane flags updated.');
+                        if (!silent) {
+                            this.showSuccess(payload.message || 'Priority lane flags updated.');
+                        }
                     } catch (error) {
                         console.error('Error saving priority flags:', error);
                         this.showError('Network error while saving priority flags.');
                     } finally {
                         this.savingPriorityFlags = false;
+
+                        if (this.priorityFlagsNeedsResave) {
+                            this.priorityFlagsNeedsResave = false;
+                            await this.savePriorityFlags(true);
+                        }
                     }
                 },
                 
@@ -1148,11 +1272,323 @@
                     // Load patient's medical records
                     await this.loadPatientRecords(patient.id);
                     this.loadingPatientRecords = false;
+
+                    // Load patient's XRAY reviews
+                    await this.loadXrayReviews();
                     
                     // Re-initialize Feather icons after patient selection
                     this.$nextTick(() => {
                         this.refreshIcons();
                     });
+                },
+
+                resetNewXrayReviewForm() {
+                    this.newXrayReview = {
+                        result: 'normal',
+                        findings: '',
+                        recommendation: ''
+                    };
+                },
+
+                openAddXrayReviewModal() {
+                    this.resetNewXrayReviewForm();
+                    this.showAddXrayReviewModal = true;
+                    this.$nextTick(() => {
+                        this.refreshIcons();
+                    });
+                },
+
+                async loadXrayReviews() {
+                    if (!this.selectedPatient || !this.selectedPatient.patient_id) {
+                        this.xrayReviews = [];
+                        this.showXrayHistory = false;
+                        return;
+                    }
+
+                    this.loadingXrayReviews = true;
+                    try {
+                        const patientId = this.selectedPatient.patient_id;
+                        const role = this.selectedPatient.role || '';
+                        const response = await fetch(`/api/xray-reviews?patient_id=${encodeURIComponent(patientId)}&role=${encodeURIComponent(role)}`);
+                        const payload = await response.json().catch(() => ({}));
+
+                        if (!response.ok || payload.error) {
+                            this.xrayReviews = [];
+                            this.showError(payload.error || 'Failed to load XRAY reviews');
+                            return;
+                        }
+
+                        this.xrayReviews = Array.isArray(payload.reviews) ? payload.reviews : [];
+                        // XRAY is typically 1–2 times (1st year / OJT): show latest by default
+                        this.showXrayHistory = false;
+                    } catch (e) {
+                        console.error('Error loading XRAY reviews:', e);
+                        this.xrayReviews = [];
+                        this.showError('Network error while loading XRAY reviews');
+                    } finally {
+                        this.loadingXrayReviews = false;
+                        this.$nextTick(() => this.refreshIcons());
+                    }
+                },
+
+                getBulkXrayNormalTargets() {
+                    const list = Array.isArray(this.filteredPatients) ? this.filteredPatients : [];
+                    const targets = [];
+                    const seen = new Set();
+                    for (const p of list) {
+                        const pid = p && p.patient_id;
+                        const role = p && p.role;
+                        if (!pid || !role) continue;
+                        const key = `${pid}::${role}`;
+                        if (seen.has(key)) continue;
+                        seen.add(key);
+                        targets.push({ patient_id: pid, role });
+                    }
+                    return targets;
+                },
+
+                openBulkXrayNormalModal() {
+                    const targets = this.getBulkXrayNormalTargets();
+                    if (!targets.length) {
+                        this.showError('No patients to update in the current list.');
+                        return;
+                    }
+                    this.bulkXrayForceNewCycle = false;
+                    this.showBulkXrayNormalModal = true;
+                    this.$nextTick(() => this.refreshIcons());
+                },
+
+                closeBulkXrayNormalModal() {
+                    if (this.bulkXraySending) return;
+                    this.showBulkXrayNormalModal = false;
+                },
+
+                async confirmBulkXrayNormalNow() {
+                    const targets = this.getBulkXrayNormalTargets();
+                    if (!targets.length) {
+                        this.showError('No patients to update in the current list.');
+                        return;
+                    }
+
+                    try {
+                        if (this.bulkXraySending) return;
+                        this.bulkXraySending = true;
+
+                        const response = await fetch('/api/xray-reviews/bulk-normal', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                patients: targets,
+                                force_new_cycle: Boolean(this.bulkXrayForceNewCycle),
+                            })
+                        });
+
+                        const payload = await response.json().catch(() => ({}));
+                        if (!response.ok || payload.error) {
+                            this.showError(payload.error || 'Failed to bulk mark X-ray as Normal');
+                            return;
+                        }
+
+                        const inserted = Number(payload.inserted || 0);
+                        const skipped = Number(payload.skipped || 0);
+                        const invalid = Number(payload.invalid_input || 0);
+
+                        this.showBulkXrayNormalModal = false;
+                        this.showSuccess(`Bulk update done: ${inserted} marked Normal, ${skipped} skipped${invalid ? `, ${invalid} invalid` : ''}.`);
+
+                        // Refresh the selected patient's XRAY status if they were affected
+                        if (this.selectedPatient) {
+                            await this.loadXrayReviews();
+                        }
+                    } catch (e) {
+                        console.error('Bulk XRAY Normal error:', e);
+                        this.showError('Network error while bulk marking X-ray Normal');
+                    } finally {
+                        this.bulkXraySending = false;
+                    }
+                },
+
+                async quickMarkXrayNormal() {
+                    if (!this.selectedPatient) {
+                        this.showError('Please select a patient first');
+                        return;
+                    }
+                    if (!this.selectedPatient.patient_id) {
+                        this.showError('Unable to add XRAY review: missing patient profile ID.');
+                        return;
+                    }
+
+                    // Prevent “spam” normal logs: if latest is already Normal, don't add another
+                    try {
+                        if (!this.loadingXrayReviews && (!this.xrayReviews || this.xrayReviews.length === 0)) {
+                            await this.loadXrayReviews();
+                        }
+                    } catch (e) {
+                        // non-blocking; proceed to create if needed
+                    }
+
+                    try {
+                        const latest = (this.xrayReviews && this.xrayReviews.length) ? this.xrayReviews[0] : null;
+                        if (latest && (String(latest.result || '').toLowerCase() === 'normal')) {
+                            const when = latest.reviewed_at ? this.formatDateTime(latest.reviewed_at) : 'recently';
+                            this.showSuccess(`Already marked as Normal (${when})`);
+                            return;
+                        }
+                    } catch (e) {
+                        // ignore
+                    }
+
+                    try {
+                        if (this.addingXrayReview) return;
+                        this.addingXrayReview = true;
+
+                        const response = await fetch('/api/xray-reviews', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                patient_id: this.selectedPatient.patient_id,
+                                role: this.selectedPatient.role,
+                                result: 'normal',
+                                findings: '',
+                                recommendation: ''
+                            })
+                        });
+
+                        const data = await response.json().catch(() => ({}));
+                        if (!response.ok || data.error) {
+                            this.showError(data.error || 'Failed to mark XRAY as Normal');
+                            return;
+                        }
+
+                        await this.loadXrayReviews();
+                        this.showSuccess('XRAY marked as Normal');
+                    } catch (e) {
+                        console.error('Error quick marking XRAY normal:', e);
+                        this.showError('Network error while saving XRAY review');
+                    } finally {
+                        this.addingXrayReview = false;
+                    }
+                },
+
+                openXrayNotifyConfirm(review) {
+                    if (!review || !review.id) {
+                        this.showError('Unable to notify: missing XRAY review ID.');
+                        return;
+                    }
+                    this.pendingXrayNotifyReviewId = review.id;
+                    this.showXrayNotifyConfirmModal = true;
+                },
+
+                cancelXrayNotifyConfirm() {
+                    this.showXrayNotifyConfirmModal = false;
+                    this.pendingXrayNotifyReviewId = null;
+                },
+
+                async confirmXrayNotifyNow() {
+                    const reviewId = this.pendingXrayNotifyReviewId;
+                    if (!reviewId) {
+                        this.showError('Unable to notify: missing XRAY review ID.');
+                        return;
+                    }
+                    await this.notifyGuardianXrayNow(reviewId);
+                },
+
+                async notifyGuardianXrayNow(reviewId) {
+                    try {
+                        if (this.xrayNotifySending) {
+                            return;
+                        }
+
+                        const now = Date.now();
+                        if (this.xrayNotifyCooldownUntil && now < this.xrayNotifyCooldownUntil) {
+                            const secondsLeft = Math.ceil((this.xrayNotifyCooldownUntil - now) / 1000);
+                            this.showError(`Please wait ${secondsLeft}s before sending another notification.`);
+                            return;
+                        }
+
+                        this.xrayNotifySending = true;
+                        const response = await fetch(`/api/xray-reviews/${reviewId}/notify-guardian`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' }
+                        });
+                        const data = await response.json().catch(() => ({}));
+
+                        if (!response.ok || data.error) {
+                            this.showError(data.error || data.message || 'Failed to notify guardian');
+                            return;
+                        }
+
+                        this.showSuccess(data.message || 'Guardian notified successfully');
+                        this.showXrayNotifyConfirmModal = false;
+                        this.pendingXrayNotifyReviewId = null;
+
+                        await this.loadXrayReviews();
+                    } catch (e) {
+                        console.error('XRAY notify error:', e);
+                        this.showError('Network error while notifying guardian.');
+                    } finally {
+                        this.xrayNotifySending = false;
+                        this.xrayNotifyCooldownUntil = Date.now() + 15000;
+                    }
+                },
+
+                async createXrayReview() {
+                    if (!this.selectedPatient) {
+                        this.showError('Please select a patient first');
+                        return;
+                    }
+                    if (!this.selectedPatient.patient_id) {
+                        this.showError('Unable to add XRAY review: missing patient profile ID.');
+                        return;
+                    }
+
+                    const result = (this.newXrayReview?.result || '').trim().toLowerCase();
+                    if (!['normal', 'abnormal'].includes(result)) {
+                        this.showError("Please select XRAY result: Normal or Abnormal.");
+                        return;
+                    }
+
+                    try {
+                        if (this.addingXrayReview) return;
+                        this.addingXrayReview = true;
+
+                        const response = await fetch('/api/xray-reviews', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                patient_id: this.selectedPatient.patient_id,
+                                role: this.selectedPatient.role,
+                                result: result,
+                                findings: this.newXrayReview.findings,
+                                recommendation: this.newXrayReview.recommendation
+                            })
+                        });
+
+                        const data = await response.json().catch(() => ({}));
+                        if (!response.ok || data.error) {
+                            this.showError(data.error || 'Failed to create XRAY review');
+                            return;
+                        }
+
+                        const createdId = data?.review?.id;
+
+                        this.showAddXrayReviewModal = false;
+                        this.resetNewXrayReviewForm();
+                        await this.loadXrayReviews();
+
+                        // If abnormal, ask for confirmation to send SMS (prevents accidental sending)
+                        if (result === 'abnormal' && createdId) {
+                            this.pendingXrayNotifyReviewId = createdId;
+                            this.showXrayNotifyConfirmModal = true;
+                        } else {
+                            this.showSuccess('XRAY review saved successfully');
+                        }
+                    } catch (e) {
+                        console.error('Error creating XRAY review:', e);
+                        this.showError('Network error while saving XRAY review');
+                    } finally {
+                        this.addingXrayReview = false;
+                    }
                 },
 
                 async loadPatientRecords(patientId) {
@@ -1331,6 +1767,22 @@
                     if (!dateTimeString) return 'N/A';
                     const date = new Date(dateTimeString);
                     return date.toLocaleTimeString('en-US', {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        hour12: true
+                    });
+                },
+
+                formatDateTime(dateTimeString) {
+                    if (!dateTimeString) return 'N/A';
+                    const date = new Date(dateTimeString);
+                    if (!date || Number.isNaN(date.getTime())) {
+                        return String(dateTimeString);
+                    }
+                    return date.toLocaleString('en-US', {
+                        month: 'short',
+                        day: 'numeric',
+                        year: 'numeric',
                         hour: '2-digit',
                         minute: '2-digit',
                         hour12: true
@@ -1714,7 +2166,7 @@
                             })
                         });
 
-                        const data = await response.json();
+                        const data = await response.json().catch(() => ({}));
 
                         if (!response.ok) {
                             this.showError(data.error || data.message || 'Failed to endorse record');
@@ -1723,10 +2175,34 @@
 
                         this.showSuccess(data.message || 'Record endorsed successfully');
                         this.showEndorseNowModal = false;
+
+                        // Refresh records so we have the most accurate info for printing
+                        if (this.selectedPatient && this.selectedPatient.id) {
+                            await this.loadPatientRecords(this.selectedPatient.id);
+                        }
+
+                        // Keep actions but clear stale IDs to avoid reusing the last record unintentionally
+                        this.majorCaseActions = { record_id: null, role: null, patient_id: null };
                     } catch (e) {
                         console.error('Endorse error:', e);
                         this.showError('Network error while endorsing.');
                     }
+                },
+
+                isRecordEndorsed(record) {
+                    return (record && record.endorsement_status ? String(record.endorsement_status) : '').toLowerCase() === 'endorsed';
+                },
+
+                isRecordMajor(record) {
+                    if (record && record.endorsement_required === true) {
+                        return true;
+                    }
+                    const v = record && (record.illness_classification_final || record.illness_classification) ? String(record.illness_classification_final || record.illness_classification) : '';
+                    return v.toLowerCase() === 'major';
+                },
+
+                isMajorEndorsedRecord(record) {
+                    return this.isRecordMajor(record) && this.isRecordEndorsed(record);
                 },
 
                 async notifyGuardianMajorCaseNow() {
@@ -2666,6 +3142,499 @@
                     }
                 },
 
+                                // Referral Form (Endorse to Hospital)
+                                escapeHtml(value) {
+                                        const str = (value === null || value === undefined) ? '' : String(value);
+                                        return str
+                                                .replace(/&/g, '&amp;')
+                                                .replace(/</g, '&lt;')
+                                                .replace(/>/g, '&gt;')
+                                                .replace(/"/g, '&quot;')
+                                                .replace(/'/g, '&#39;');
+                                },
+
+                                findMedicalRecordById(recordId) {
+                                        const records = (this.selectedPatient && Array.isArray(this.selectedPatient.medical_records))
+                                                ? this.selectedPatient.medical_records
+                                                : [];
+                                        return records.find(r => String(r && r.id) === String(recordId)) || null;
+                                },
+
+                                getReferralCourseSection(patient) {
+                                        if (!patient) return '';
+                                        const role = patient.role || '';
+                                        if (role === 'Student') {
+                                                const course = patient.course || '';
+                                                const level = patient.level || '';
+                                                return [course, level].filter(Boolean).join(' - ');
+                                        }
+                                        if (role === 'Teaching Staff' || role === 'Non-Teaching Staff') {
+                                                const position = (patient.position && patient.position !== 'N/A') ? patient.position : '';
+                                                return position || patient.department || '';
+                                        }
+                                        if (role === 'Dean') {
+                                                return patient.college || patient.department || '';
+                                        }
+                                        return '';
+                                },
+
+                                formatReferralDateTime(record) {
+                                        const dateStr = record && record.visit_date
+                                                ? this.formatDate(record.visit_date)
+                                                : this.getCurrentDate();
+                                        const timeStr = record && record.visit_time
+                                                ? this.formatTime12Hour(record.visit_time)
+                                                : new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+                                        return `${dateStr} ${timeStr}`;
+                                },
+
+                                buildReferralFormHtml(record, patient) {
+                                        const safe = (v) => this.escapeHtml(v);
+
+                                    const filled = (value) => {
+                                        const str = (value === null || value === undefined) ? '' : String(value);
+                                        return str.trim() ? str : 'N/A';
+                                    };
+
+                                    const extractFacility = (text) => {
+                                        const s = (text === null || text === undefined) ? '' : String(text);
+                                        const trimmed = s.trim();
+                                        if (!trimmed) return '';
+
+                                        const patterns = [
+                                            /referred\s*to\s*[:\-]\s*(.+)/i,
+                                            /hospital\s*[:\-]\s*(.+)/i,
+                                            /facility\s*[:\-]\s*(.+)/i,
+                                            /endorsed\s*to\s*[:\-]\s*(.+)/i,
+                                        ];
+                                        for (const re of patterns) {
+                                            const match = trimmed.match(re);
+                                            if (match && match[1]) {
+                                                const val = String(match[1]).trim();
+                                                if (val) return val;
+                                            }
+                                        }
+
+                                        return trimmed;
+                                    };
+
+                                    const patientName = filled(patient?.name || record?.patient_name);
+                                    const age = filled(patient?.age);
+                                    const sex = filled(patient?.gender);
+                                    const address = filled(patient?.address);
+                                    const courseSection = filled(this.getReferralCourseSection(patient));
+                                    const contact = filled(patient?.contact || patient?.contact_num);
+
+                                    const referralDateTime = filled(this.formatReferralDateTime(record));
+                                    const chiefComplaint = filled(record?.chief_complaint);
+                                    const history = filled(record?.medical_history);
+
+                                    const bpRaw = record?.blood_pressure || ((record?.blood_pressure_systolic && record?.blood_pressure_diastolic)
+                                        ? `${record.blood_pressure_systolic}/${record.blood_pressure_diastolic}`
+                                        : '');
+                                    const bp = filled(bpRaw);
+                                    const pr = filled(record?.pulse_rate);
+                                    const rr = filled(record?.respiratory_rate);
+                                    const temp = filled(record?.temperature);
+                                    const spo2 = filled(record?.spo2 || record?.spO2);
+
+                                    const physicalExam = filled(record?.symptoms);
+                                    const initialManagementRaw = [record?.treatment, record?.prescribed_medicine].filter(Boolean).join('\n');
+                                    const initialManagement = filled(initialManagementRaw);
+                                    const remarks = filled(record?.notes);
+
+                                    const referredTo = filled(
+                                        extractFacility(record?.referred_to || record?.referred_to_hospital || record?.hospital || record?.facility) ||
+                                        extractFacility(record?.special_instructions) ||
+                                        extractFacility(record?.treatment) ||
+                                        extractFacility(record?.notes)
+                                    );
+
+                                        const rawStaffName = (this.currentStaffName || '').trim();
+                                        const rawStaffPosition = (this.currentStaffPosition || '').trim();
+                                        const jinjaMarker = '{' + '{';
+                                        const staffName = filled(rawStaffName.includes(jinjaMarker) ? '' : rawStaffName);
+                                        const staffPosition = filled(rawStaffPosition.includes(jinjaMarker) ? '' : rawStaffPosition);
+
+                                        // Major case endorsement implies urgent hospital referral
+                                        const reasonEmergency = true;
+                                        const reasonFurtherEval = false;
+                                        const reasonDiag = false;
+                                        const reasonSpecialist = false;
+
+                                        const checkbox = (checked) => `<span class="cbtext">[${checked ? 'x' : ' '}]</span>`;
+
+                                        return `
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Referral Form</title>
+    <style>
+        @page { size: A4; margin: 14mm 12mm; }
+        html, body { padding: 0; margin: 0; }
+        body { font-family: Arial, sans-serif; color: #000; font-size: 12px; line-height: 1.25; }
+        .page { width: 100%; }
+        .title { text-align: center; font-weight: 800; font-size: 20px; letter-spacing: 1px; margin: 0 0 4px; color: #1e40af; }
+        .rule { border-top: 1px solid #1e40af; margin: 4px 0 10px; }
+        .sectionTitle { font-weight: 700; margin: 6px 0 2px; }
+        .row { display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: flex-end; margin: 4px 0; }
+        .field { display: inline-flex; gap: 6px; align-items: flex-end; }
+        .label { white-space: nowrap; }
+        .uLabel { text-decoration: underline; }
+        .line { display: inline-flex; align-items: flex-end; border-bottom: 1px solid #000; min-width: 120px; padding: 0 2px 2px; height: 14px; }
+        .line.s { min-width: 70px; }
+        .line.m { min-width: 140px; }
+        .line.l { min-width: 280px; flex: 1 1 auto; }
+        .line.xl { min-width: 520px; flex: 1 1 auto; }
+        .lineBlock { border-bottom: 1px solid #000; min-height: 14px; padding: 0 2px 2px; margin: 4px 0; }
+        .choices { margin: 4px 0 0; }
+        .choice { display: flex; gap: 8px; align-items: baseline; margin: 2px 0; }
+        .cbtext { white-space: pre; font-family: Arial, sans-serif; }
+        .vitals { margin-top: 2px; }
+        .vital { display: flex; gap: 8px; align-items: baseline; margin: 2px 0; }
+        .indent { padding-left: 18px; }
+        @media print {
+            body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        }
+    </style>
+</head>
+<body>
+    <div class="page">
+        <div class="title">REFERRAL FORM</div>
+        <div class="rule"></div>
+
+        <div>
+            <div class="sectionTitle">Patient Information</div>
+            <div class="row">
+                <div class="field" style="flex: 1 1 auto;"><span class="label">Name:</span> <span class="line l">${safe(patientName)}</span></div>
+                <div class="field"><span class="label">Age:</span> <span class="line s">${safe(age)}</span></div>
+                <div class="field"><span class="label">Sex:</span> <span class="line s">${safe(sex)}</span></div>
+            </div>
+            <div class="row">
+                <div class="field" style="flex: 1 1 auto;"><span class="label">Address:</span> <span class="line l">${safe(address)}</span></div>
+                <div class="field" style="flex: 1 1 auto;"><span class="label"><span class="uLabel">Course and Section</span>:</span> <span class="line m">${safe(courseSection)}</span></div>
+            </div>
+            <div class="row">
+                <div class="field"><span class="label">Contact No.:</span> <span class="line m">${safe(contact)}</span></div>
+            </div>
+
+            <div class="row" style="margin-top: 10px;">
+                <div class="field" style="flex: 1 1 auto;"><span class="label">Date &amp; Time of Referral:</span> <span class="line l">${safe(referralDateTime)}</span></div>
+            </div>
+
+            <div class="row" style="margin-top: 10px;">
+                <div class="field" style="flex: 1 1 auto;"><span class="label">Chief Complaint:</span> <span class="line xl">${safe(chiefComplaint)}</span></div>
+            </div>
+
+            <div class="sectionTitle" style="margin-top: 10px;">History of Present Illness:</div>
+            <div class="lineBlock">${safe(history)}</div>
+            <div class="lineBlock"></div>
+
+            <div class="sectionTitle" style="margin-top: 10px;">Vital Signs:</div>
+            <div class="vitals indent">
+                <div class="vital"><span>BP:</span> <span class="line s">${safe(bp)}</span> <span>mmHg</span></div>
+                <div class="vital"><span>PR:</span> <span class="line s">${safe(pr)}</span> <span>bpm</span></div>
+                <div class="vital"><span>RR:</span> <span class="line s">${safe(rr)}</span> <span>cpm</span></div>
+                <div class="vital"><span>Temp:</span> <span class="line s">${safe(temp)}</span> <span>°C</span></div>
+                <div class="vital"><span>SpO₂:</span> <span class="line s">${safe(spo2)}</span> <span>%</span></div>
+            </div>
+
+            <div class="sectionTitle" style="margin-top: 10px;">Physical Examination Findings:</div>
+            <div class="lineBlock">${safe(physicalExam)}</div>
+            <div class="lineBlock"></div>
+
+            <div class="sectionTitle" style="margin-top: 10px;">Initial Management Given:</div>
+            <div class="lineBlock">${safe(initialManagement).replace(/\n/g, ' ')}</div>
+            <div class="lineBlock"></div>
+
+            <div class="sectionTitle" style="margin-top: 10px;">Reason for Referral:</div>
+            <div class="choices indent">
+                <div class="choice">${checkbox(reasonFurtherEval)} <span>Further evaluation</span></div>
+                <div class="choice">${checkbox(reasonDiag)} <span>Diagnostic tests</span></div>
+                <div class="choice">${checkbox(reasonSpecialist)} <span>Specialist management</span></div>
+                <div class="choice">${checkbox(reasonEmergency)} <span>Emergency care</span></div>
+                <div class="choice">${checkbox(false)} <span>Others:</span> <span class="line l">${safe(remarks)}</span></div>
+            </div>
+
+            <div class="row" style="margin-top: 10px;">
+                <div class="field" style="flex: 1 1 auto;"><span class="label">Referred To (Hospital/Facility):</span> <span class="line xl">${safe(referredTo)}</span></div>
+            </div>
+
+            <div class="sectionTitle" style="margin-top: 10px;">Accompanied By:</div>
+            <div class="choices indent">
+                <div class="choice">${checkbox(false)} <span>Relative</span></div>
+                <div class="choice">${checkbox(true)} <span>Staff</span></div>
+                <div class="choice">${checkbox(false)} <span>Ambulance</span></div>
+                <div class="choice">${checkbox(false)} <span>Others:</span> <span class="line l"></span></div>
+            </div>
+
+            <div class="sectionTitle" style="margin-top: 10px;">Referring Personnel:</div>
+            <div class="row indent">
+                <div class="field" style="flex: 1 1 auto;"><span class="label">Name:</span> <span class="line l">${safe(staffName)}</span></div>
+            </div>
+            <div class="row indent">
+                <div class="field" style="flex: 1 1 auto;"><span class="label">Position:</span> <span class="line l">${safe(staffPosition)}</span></div>
+            </div>
+            <div class="row indent">
+                <div class="field" style="flex: 1 1 auto;"><span class="label">Signature:</span> <span class="line l"></span></div>
+            </div>
+
+            <div class="row" style="margin-top: 10px;">
+                <div class="field" style="flex: 1 1 auto;"><span class="label">Remarks:</span> <span class="line xl">${safe(remarks)}</span></div>
+            </div>
+        </div>
+    </div>
+
+</body>
+</html>
+                                        `.trim();
+                                },
+
+                                                                buildAcknowledgementLetterHtml(record, patient, reason) {
+                                    const patientName = (patient && patient.name) ? String(patient.name) : (record && record.patient_name ? String(record.patient_name) : '[Name patient]');
+                                    const visitDateTime = record ? this.formatVisitDateTime(record) : '[Visit Date] at [TIME]';
+                                    const issuedDate = this.getCurrentDate();
+                                    const purpose = reason || 'medical consultation and healthcare services';
+                                    const staffName = (this.currentStaffName || '').trim();
+                                    const staffPosition = (this.currentStaffPosition || '').trim();
+                                    const docId = `NC-${(record && record.id) ? record.id : '000'}-${new Date().getFullYear()}`;
+                                    const baseHref = new URL('../../', window.location.href).href;
+
+                                    const safe = (v) => this.escapeHtml(v);
+
+                                                                        return `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <base href="${safe(baseHref)}" />
+  <title>Medical Acknowledgement Letter</title>
+  <style>
+        @page { size: A4; margin: 20mm 20mm 12mm 20mm; }
+    * { box-sizing: border-box; }
+    body { margin: 0; padding: 0; font-family: Arial, sans-serif; color: #000; background: white; }
+    html, body { font-size: 12px; line-height: 1.5; }
+    .container { width: 100%; max-width: 800px; margin: 0 auto; padding: 0; }
+    .letterhead { text-align: center; margin-bottom: 20px; padding-bottom: 12px; border-bottom: 2px solid #000; }
+        .letterhead-table { width: 100%; border-collapse: collapse; margin: 0 auto; }
+        .letterhead-table td { vertical-align: middle; }
+        .logo-cell { width: 60px; text-align: center; }
+        .logo { width: 56px; height: 56px; object-fit: contain; display: inline-block; }
+    .school-info { text-align: center; }
+    .school-info h1 { margin: 0; font-size: 16px; font-weight: bold; }
+        .school-info p { margin: 2px 0; font-size: 11px; text-align: center; }
+    .title { text-align: center; font-size: 14px; font-weight: bold; margin: 16px 0 12px 0; }
+    .content { margin: 12px 0; }
+        .content p { margin: 0 0 10px 0; text-align: justify; font-size: 12px; }
+        .signature-section { margin-top: 32px; width: 200px; margin-left: auto; text-align: right; }
+        .signature-line { width: 100%; margin: 0 0 4px auto; border-bottom: 1px solid #000; height: 20px; }
+        .signature-name { text-align: right; margin: 4px 0 0 0; font-weight: bold; font-size: 12px; }
+        .signature-position { text-align: right; margin: 2px 0; font-size: 11px; }
+        .footer { position: fixed; left: 0; right: 0; bottom: 0; font-size: 10px; line-height: 1.25; font-style: italic; }
+        .footer-inner { width: 100%; max-width: 800px; margin: 0 auto; }
+        .footer-row { display: flex; justify-content: space-between; align-items: baseline; gap: 18px; width: 100%; }
+        .footer-left { flex: 1 1 60%; text-align: left; }
+        .footer-right { flex: 0 0 auto; text-align: right; white-space: nowrap; }
+    @media print { body { margin: 0; padding: 0; } }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- Letterhead -->
+    <div class="letterhead">
+            <table class="letterhead-table">
+                <tr>
+                    <td class="logo-cell"><img class="logo" src="/assets/img/norzagaray_college_seal.png" alt="Norzagaray College" /></td>
+                    <td>
+                        <div class="school-info">
+                            <h1>NORZAGARAY COLLEGE</h1>
+                            <p>Municipal Compound</p>
+                            <p>Brgy. Poblacion, Norzagaray, Bulacan</p>
+                            <p>Email: norzagaraycollege2007@gmail.com</p>
+                        </div>
+                    </td>
+                    <td class="logo-cell"><img class="logo" src="/assets/img/Bagong_Pilipinas_logo.png" alt="Bagong Pilipinas" /></td>
+                </tr>
+            </table>
+    </div>
+
+    <!-- Title -->
+    <div class="title">MEDICAL ACKNOWLEDGEMENT LETTER</div>
+
+    <!-- Content -->
+    <div class="content">
+      <p>
+        This is to certify that <strong>${safe(patientName)}</strong> was present at the Norzagaray College Clinic on <strong>${safe(visitDateTime)}</strong> for <strong>${safe(purpose)}</strong>.
+      </p>
+
+      <p>
+        During the aforementioned visit, the individual received proper medical attention from our licensed healthcare professionals in accordance with established medical protocols and institutional standards. The consultation was conducted within the official operating hours of the clinic facility.
+      </p>
+
+      <p>
+        This certification is issued upon official request and may be used for academic, administrative, or other legitimate purposes as deemed necessary by the concerned parties. The information contained herein is true and accurate to the best of our knowledge and records.
+      </p>
+
+      <p>
+        Issued this <strong>${safe(issuedDate)}</strong> at the Norzagaray College Clinic, Norzagaray, Bulacan, Philippines, for whatever legal purpose this certification may serve.
+      </p>
+    </div>
+
+    <!-- Signature Section -->
+    <div class="signature-section">
+      <div class="signature-line"></div>
+      <p class="signature-name">${safe(staffName)}</p>
+      <p class="signature-position">${safe(staffPosition)}</p>
+    <p class="signature-position">Norzagaray College Clinic</p>
+    </div>
+
+    <!-- Footer -->
+    <div class="footer">
+            <div class="footer-inner">
+                <div class="footer-row">
+                      <div class="footer-left">This is an official document issued by Norzagaray College Clinic</div>
+                    <div class="footer-right">Generated on ${safe(issuedDate)} | Document ID: ${safe(docId)}</div>
+                </div>
+            </div>
+    </div>
+</body>
+</html>`;
+                                                                },
+
+                                                                getIsoDateForDb(value) {
+                                                                        if (!value) return null;
+                                                                        const str = String(value).trim();
+                                                                        if (!str) return null;
+                                                                        const m = str.match(/^\d{4}-\d{2}-\d{2}/);
+                                                                        if (m) return m[0];
+                                                                        const d = new Date(str);
+                                                                        if (Number.isNaN(d.getTime())) return null;
+                                                                        return d.toISOString().slice(0, 10);
+                                                                },
+
+                                                                getTimeForDbFromRecord(record) {
+                                                                        const normalize = (t) => {
+                                                                                const str = (t === null || t === undefined) ? '' : String(t).trim();
+                                                                                if (!str) return null;
+                                                                                if (/^\d{2}:\d{2}:\d{2}$/.test(str)) return str;
+                                                                                if (/^\d{2}:\d{2}$/.test(str)) return `${str}:00`;
+                                                                                return null;
+                                                                        };
+
+                                                                        if (!record) return null;
+
+                                                                        return (
+                                                                                normalize(record.visit_time) ||
+                                                                                normalize(record.time) ||
+                                                                                (record.created_at ? normalize(new Date(record.created_at).toTimeString().slice(0, 8)) : null)
+                                                                        );
+                                                                },
+
+                                                                async logAcknowledgementPrintHistory(record, patient, reason) {
+                                                                        try {
+                                                                                const patientName = (patient && patient.name)
+                                                                                        ? String(patient.name).trim()
+                                                                                        : (record && record.patient_name ? String(record.patient_name).trim() : '');
+                                                                                if (!patientName) return;
+
+                                                                                const payload = {
+                                                                                        patient_name: patientName,
+                                                                                        patient_type: (patient && patient.role) ? patient.role : 'Student',
+                                                                                        visit_date: this.getIsoDateForDb(record ? (record.visit_date || record.date) : null),
+                                                                                        visit_time: this.getTimeForDbFromRecord(record),
+                                                                                        letter_type: 'Medical Acknowledgment Letter',
+                                                                                        purpose: reason,
+                                                                                        file_format: 'PDF'
+                                                                                };
+
+                                                                                await fetch('/api/log-print-history', {
+                                                                                        method: 'POST',
+                                                                                        headers: { 'Content-Type': 'application/json' },
+                                                                                        body: JSON.stringify(payload)
+                                                                                });
+                                                                        } catch (e) {
+                                                                                console.warn('Failed to log print history:', e);
+                                                                        }
+                                                                },
+
+                                printHtmlViaHiddenIframe(html) {
+                                    try {
+                                        const iframe = document.createElement('iframe');
+                                        iframe.style.position = 'fixed';
+                                        iframe.style.right = '0';
+                                        iframe.style.bottom = '0';
+                                        iframe.style.width = '0';
+                                        iframe.style.height = '0';
+                                        iframe.style.border = '0';
+                                        iframe.style.opacity = '0';
+                                        iframe.setAttribute('aria-hidden', 'true');
+
+                                        const cleanup = () => {
+                                            try { document.body.removeChild(iframe); } catch (e) { /* ignore */ }
+                                        };
+
+                                        document.body.appendChild(iframe);
+
+                                        const doc = iframe.contentWindow && iframe.contentWindow.document;
+                                        if (!doc) {
+                                            cleanup();
+                                            this.showError('Unable to open print frame.');
+                                            return;
+                                        }
+
+                                        doc.open();
+                                        doc.write(html);
+                                        doc.close();
+
+                                        // Print shortly after content is written (keeps UX in the same page)
+                                        setTimeout(() => {
+                                            try {
+                                                const cw = iframe.contentWindow;
+                                                const fallbackTimer = setTimeout(cleanup, 15000);
+                                                if (cw) {
+                                                    try {
+                                                        cw.onafterprint = () => {
+                                                            clearTimeout(fallbackTimer);
+                                                            cleanup();
+                                                        };
+                                                    } catch (e) {
+                                                        // ignore
+                                                    }
+                                                    cw.focus();
+                                                    cw.print();
+                                                } else {
+                                                    cleanup();
+                                                }
+                                            } catch (e) {
+                                                // ignore
+                                            } finally {
+                                                // If onafterprint doesn't fire, fallback timer will cleanup.
+                                            }
+                                        }, 250);
+                                    } catch (e) {
+                                        console.error('Print iframe error:', e);
+                                        this.showError('Failed to print.');
+                                    }
+                                },
+
+                                printReferralFormToHospital(record) {
+                                    if (!this.selectedPatient) {
+                                        this.showError('Please select a patient first');
+                                        return;
+                                    }
+
+                                    if (!record) {
+                                        this.showError('Unable to print referral: record not found.');
+                                        return;
+                                    }
+
+                                    const patient = this.selectedPatient;
+                                    const html = this.buildReferralFormHtml(record, patient);
+                                    this.printHtmlViaHiddenIframe(html);
+                                },
+
                 // Print Report Functions
                 openPrintReportModal() {
                     if (!this.selectedPatient) {
@@ -2712,25 +3681,35 @@
                         this.showError('No record selected for printing');
                         return;
                     }
+
+                    if (!this.selectedPatient) {
+                        this.showError('Please select a patient first');
+                        return;
+                    }
                     
                     try {
                         this.printingCertificate = true;
-                        this.generatingPdfPreview = true;
                         this.showPrintReasonModal = false;
-                        
-                        // Show preview modal immediately with loading state
-                        this.showPdfPreviewModal = true;
-                        
-                        // Generate PDF and show preview
-                        await this.generatePdfPreview(this.selectedRecordForPrint, this.printReason);
+
+                        const record = this.selectedRecordForPrint;
+                        const patient = this.selectedPatient;
+                        const reason = this.printReason.trim();
+
+                        // Log to print history (best-effort) then print instantly
+                        this.logAcknowledgementPrintHistory(record, patient, reason);
+
+                        const html = this.buildAcknowledgementLetterHtml(record, patient, reason);
+                        this.printHtmlViaHiddenIframe(html);
+
+                        this.showSuccess('Acknowledgement letter sent to printer.');
                         
                     } catch (error) {
                         console.error('Error generating certificate:', error);
-                        this.showError('Failed to generate certificate');
-                        this.showPdfPreviewModal = false;
+                        this.showError('Failed to print acknowledgement letter');
                     } finally {
                         this.printingCertificate = false;
-                        this.generatingPdfPreview = false;
+                        this.selectedRecordForPrint = null;
+                        this.printReason = '';
                     }
                 },
 
@@ -2922,13 +3901,48 @@
                         return;
                     }
                     
-                    // Open print dialog for the PDF
-                    const printWindow = window.open(this.pdfPreviewUrl);
-                    if (printWindow) {
-                        printWindow.addEventListener('load', () => {
-                            printWindow.print();
-                        });
-                    }
+                    // Print in-place via hidden iframe (no new tab/window)
+                    const iframe = document.createElement('iframe');
+                    iframe.style.position = 'fixed';
+                    iframe.style.right = '0';
+                    iframe.style.bottom = '0';
+                    iframe.style.width = '0';
+                    iframe.style.height = '0';
+                    iframe.style.border = '0';
+                    iframe.style.opacity = '0';
+                    iframe.setAttribute('aria-hidden', 'true');
+                    iframe.src = this.pdfPreviewUrl;
+
+                    const cleanup = () => {
+                        try { document.body.removeChild(iframe); } catch (e) { /* ignore */ }
+                    };
+
+                    iframe.onload = () => {
+                        try {
+                            const cw = iframe.contentWindow;
+                            const fallbackTimer = setTimeout(cleanup, 15000);
+                            if (cw) {
+                                try {
+                                    cw.onafterprint = () => {
+                                        clearTimeout(fallbackTimer);
+                                        cleanup();
+                                    };
+                                } catch (e) {
+                                    // ignore
+                                }
+                                cw.focus();
+                                cw.print();
+                            } else {
+                                cleanup();
+                            }
+                        } catch (e) {
+                            // ignore
+                        } finally {
+                            // If onafterprint doesn't fire, fallback timer will cleanup.
+                        }
+                    };
+
+                    document.body.appendChild(iframe);
                 },
 
                 closePdfPreview() {
@@ -3048,7 +4062,7 @@
         }
     </script>
 </head>
-<body class="bg-white transition-colors duration-200 overflow-x-hidden" 
+<body class="bg-white transition-colors duration-200 overflow-x-hidden staff-patients-page" 
       x-data="{
           sidebarCollapsed: false,
           mobileMenuOpen: false,
@@ -3059,10 +4073,11 @@
               if (window.innerWidth < 768) {
                   this.sidebarCollapsed = true;
                   this.mobileMenuOpen = false;
-              } else if (window.innerWidth >= 1024) {
+              } else if (window.innerWidth >= 1280) {
                   this.sidebarCollapsed = false;
                   this.mobileMenuOpen = false;
               } else {
+                  this.sidebarCollapsed = true;
                   this.mobileMenuOpen = false;
               }
           }
@@ -3223,7 +4238,7 @@
                         <button type="button" class="md:hidden p-2 rounded-lg hover:bg-gray-100 transition-colors bg-white/90 backdrop-blur" @click="mobileMenuOpen = true">
                             <i data-feather="menu" class="w-5 h-5 text-gray-700"></i>
                         </button>
-                        <button type="button" class="hidden md:inline-flex lg:hidden p-2 rounded-lg hover:bg-gray-100 transition-colors bg-white/90 backdrop-blur" @click="sidebarCollapsed = !sidebarCollapsed">
+                        <button type="button" class="hidden md:inline-flex xl:hidden p-2 rounded-lg hover:bg-gray-100 transition-colors bg-white/90 backdrop-blur" @click="sidebarCollapsed = !sidebarCollapsed">
                             <i data-feather="sidebar" class="w-5 h-5 text-gray-700"></i>
                         </button>
                     </div>
@@ -3231,15 +4246,15 @@
             </header>
             
             <!-- Patients Directory Section -->
-            <main class="flex-1 min-h-0 overflow-hidden bg-gray-50 p-4 sm:p-6 flex flex-col md:overflow-y-auto">
+            <main class="flex-1 min-h-0 overflow-x-hidden overflow-y-auto bg-gray-50 p-4 sm:p-6 flex flex-col">
                 <!-- Enhanced Patients Header -->
-                <div class="gradient-bg-sidebar text-white shadow-2xl relative overflow-hidden rounded-xl sm:rounded-2xl md:rounded-[2rem] ml-0 sm:ml-1 mb-4 sm:mb-6">
+                <div class="gradient-bg-sidebar text-white shadow-2xl relative overflow-hidden rounded-xl sm:rounded-2xl md:rounded-[2rem] ml-0 sm:ml-1 mb-4 sm:mb-6 patients-page-header">
                     <!-- Decorative Elements -->
                     <div class="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -translate-y-32 translate-x-32"></div>
                     <div class="absolute bottom-0 left-0 w-48 h-48 bg-yellow-400/10 rounded-full translate-y-24 -translate-x-24"></div>
                     
                     <!-- Header Content -->
-                    <div class="relative px-3 sm:px-4 md:px-6 py-3 sm:py-4 md:py-5">
+                    <div class="relative px-3 sm:px-4 md:px-6 py-3 sm:py-4 md:py-5 patients-page-header-inner">
                         <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-4">
                             <!-- Title Section -->
                             <div class="flex items-center gap-2 sm:gap-3 md:gap-4">
@@ -3294,11 +4309,11 @@
 
                 
                 <!-- ENHANCED TWO PANEL LAYOUT -->
-                <div class="flex-1 min-h-0 flex flex-col md:flex-row overflow-hidden two-panel-layout mt-2 md:mt-0">
+                <div class="flex-1 min-h-0 flex flex-col xl:flex-row overflow-hidden two-panel-layout mt-2 xl:mt-0">
                     <!-- LEFT PANEL - PATIENTS LIST -->
-                    <div class="w-full md:w-96 lg:w-[400px] border-r-0 md:border-r border-b md:border-b-0 border-gray-100 flex flex-col bg-gradient-to-b from-gray-50 to-white patient-list-panel rounded-t-xl md:rounded-t-none">
+                    <div class="w-full border-r-0 xl:border-r border-b xl:border-b-0 border-gray-100 flex flex-col bg-gradient-to-b from-gray-50 to-white patient-list-panel rounded-t-xl xl:rounded-t-none">
                         <!-- ENHANCED SEARCH HEADER -->
-                        <div class="bg-white p-3 sm:p-3 md:p-4 lg:p-6 shadow-sm rounded-t-xl md:rounded-t-none">
+                        <div class="bg-white p-3 sm:p-3 md:p-4 lg:p-6 shadow-sm rounded-t-xl md:rounded-t-none patients-search-header">
                             <div class="relative mb-2 sm:mb-3 md:mb-4">
                                 <input type="text" 
                                        placeholder="Search by name or ID..." 
@@ -3346,6 +4361,7 @@
                                     <span>Visitors</span>
                                 </button>
                             </div>
+
                         </div>
                         
                         <!-- Patients List -->
@@ -3361,7 +4377,7 @@
                                 <template x-for="patient in filteredPatients" :key="patient.id">
                                     <div @click="selectPatient(patient)" 
                                          :class="selectedPatient && selectedPatient.id === patient.id ? 
-                                                'bg-gradient-to-r from-blue-50 to-blue-100 border-blue-300 shadow-md transform scale-105' : 
+                                              'bg-gradient-to-r from-blue-50 to-blue-100 border-blue-300 shadow-md transform sm:scale-105' : 
                                                 'bg-white hover:shadow-lg hover:transform hover:scale-102 hover:border-blue-200'"
                                          class="p-3 sm:p-4 rounded-xl border border-gray-200 cursor-pointer transition-all duration-200 group card-hover patient-card"
                                          x-transition:enter="transition ease-out duration-300"
@@ -3399,6 +4415,9 @@
                                                     </span>
                                                     <span x-show="patient.is_senior_citizen" class="inline-flex items-center px-2 sm:px-2.5 py-0.5 sm:py-1 text-xs font-medium rounded-full bg-orange-100 text-orange-700 border border-orange-200">
                                                         Senior
+                                                    </span>
+                                                    <span x-show="patient.is_pregnant && (String(patient.gender || '').trim().toLowerCase() === 'female' || String(patient.gender || '').trim().toLowerCase() === 'f')" class="inline-flex items-center px-2 sm:px-2.5 py-0.5 sm:py-1 text-xs font-medium rounded-full bg-purple-100 text-purple-700 border border-purple-200">
+                                                        Pregnant
                                                     </span>
                                                 </div>
                                             </div>
@@ -3453,7 +4472,7 @@
                         <!-- Patient Details -->
                         <div x-show="selectedPatient" class="flex-1 flex flex-col mt-2 sm:mt-4 md:mt-6" x-transition>
                             <!-- Patient Header -->
-                            <div x-show="selectedPatient" class="relative overflow-hidden gradient-bg-sidebar rounded-lg sm:rounded-xl mx-2 sm:mx-0">
+                            <div x-show="selectedPatient" class="relative overflow-hidden gradient-bg-sidebar rounded-lg sm:rounded-xl mx-2 sm:mx-0 selected-patient-hero">
                                 <!-- Background Pattern -->
                                 <div class="absolute inset-0">
                                     <div class="absolute -top-24 -right-24 w-64 h-64 bg-white/5 rounded-full -translate-y-32 translate-x-32"></div>
@@ -3461,7 +4480,7 @@
                                 </div>
                                 
                                 <!-- Content -->
-                                <div class="relative p-3 sm:p-4 md:p-6">
+                                <div class="relative p-3 sm:p-4 md:p-6 selected-patient-hero-inner">
                                     <div class="flex items-center justify-between mb-2 sm:mb-3">
                                         <div class="flex items-center gap-2 sm:gap-3 md:gap-4 flex-1 min-w-0">
                                             <div class="w-10 h-10 sm:w-12 sm:h-12 md:w-14 md:h-14 lg:w-16 lg:h-16 bg-white shadow-xl rounded-xl sm:rounded-2xl flex items-center justify-center shadow-lg mb-1 sm:mb-2">
@@ -3471,11 +4490,14 @@
                                                 <h2 class="text-sm sm:text-base md:text-lg lg:text-xl font-bold text-white truncate" x-text="selectedPatient ? selectedPatient.name : ''"></h2>
                                                 <p class="text-blue-100 text-[10px] sm:text-xs md:text-sm mt-0.5 sm:mt-1 truncate" x-text="getPatientSubtitle()"></p>
                                                 <div class="mt-1 flex flex-wrap gap-1 sm:gap-1.5">
-                                                    <span x-show="selectedPatient && selectedPatient.is_pwd" class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-semibold bg-rose-100 text-rose-700 border border-rose-200">
+                                                    <span x-show="selectedPatient && priorityFlagsForm.is_pwd" class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-semibold bg-rose-100 text-rose-700 border border-rose-200">
                                                         PWD Priority
                                                     </span>
-                                                    <span x-show="selectedPatient && selectedPatient.is_senior_citizen" class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-semibold bg-orange-100 text-orange-700 border border-orange-200">
+                                                    <span x-show="selectedPatient && priorityFlagsForm.is_senior_citizen" class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-semibold bg-orange-100 text-orange-700 border border-orange-200">
                                                         Senior Priority
+                                                    </span>
+                                                    <span x-show="selectedPatient && priorityFlagsForm.is_pregnant && (String(selectedPatient.gender || '').trim().toLowerCase() === 'female' || String(selectedPatient.gender || '').trim().toLowerCase() === 'f')" class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-semibold bg-purple-100 text-purple-700 border border-purple-200">
+                                                        Pregnant Priority
                                                     </span>
                                                 </div>
                                             </div>
@@ -3500,8 +4522,51 @@
                             
                             <!-- ENHANCED PATIENT INFO CARDS -->
                             <div class="p-2 sm:p-3 md:p-4 lg:p-6">
+                                <div class="bg-white p-3 sm:p-4 rounded-lg sm:rounded-xl md:rounded-2xl shadow-sm border border-gray-100 mb-3 sm:mb-4 md:mb-6" x-show="selectedPatient">
+                                    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-3">
+                                        <div>
+                                            <h4 class="text-sm sm:text-base font-bold text-gray-900">Priority Lane Setup</h4>
+                                            <p class="text-xs text-gray-500 mt-0.5">Toggle flags to auto-save. These affect queue ticket priority (P2 minimum for priority lane).</p>
+                                        </div>
+                                        <button
+                                            @click="savePriorityFlags(false)"
+                                            :disabled="savingPriorityFlags"
+                                            :class="savingPriorityFlags ? 'bg-blue-300 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'"
+                                            class="px-3 py-2 rounded-lg text-xs sm:text-sm font-semibold text-white transition-colors touch-target">
+                                            <span x-show="!savingPriorityFlags">Save Priority Flags</span>
+                                            <span x-show="savingPriorityFlags">Saving...</span>
+                                        </button>
+                                    </div>
+
+                                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3">
+                                        <label class="flex items-center gap-3 p-3 rounded-lg border border-rose-200 bg-rose-50 cursor-pointer">
+                                            <input type="checkbox" x-model="priorityFlagsForm.is_pwd" @change.debounce.500ms="savePriorityFlags(true)" class="w-4 h-4 text-rose-600 rounded border-rose-300 focus:ring-rose-500">
+                                            <div>
+                                                <div class="text-sm font-semibold text-rose-800">PWD Priority</div>
+                                                <div class="text-xs text-rose-700">Patient will be routed to priority lane (P2 minimum).</div>
+                                            </div>
+                                        </label>
+
+                                        <label class="flex items-center gap-3 p-3 rounded-lg border border-orange-200 bg-orange-50 cursor-pointer">
+                                            <input type="checkbox" x-model="priorityFlagsForm.is_senior_citizen" @change.debounce.500ms="savePriorityFlags(true)" class="w-4 h-4 text-orange-600 rounded border-orange-300 focus:ring-orange-500">
+                                            <div>
+                                                <div class="text-sm font-semibold text-orange-800">Senior Citizen Priority</div>
+                                                <div class="text-xs text-orange-700">Patient will be routed to priority lane (P2 minimum).</div>
+                                            </div>
+                                        </label>
+
+                                        <label x-show="selectedPatient && (String(selectedPatient.gender || '').trim().toLowerCase() === 'female' || String(selectedPatient.gender || '').trim().toLowerCase() === 'f')" class="flex items-center gap-3 p-3 rounded-lg border border-purple-200 bg-purple-50 cursor-pointer">
+                                            <input type="checkbox" x-model="priorityFlagsForm.is_pregnant" @change.debounce.500ms="savePriorityFlags(true)" class="w-4 h-4 text-purple-600 rounded border-purple-300 focus:ring-purple-500">
+                                            <div>
+                                                <div class="text-sm font-semibold text-purple-800">Pregnant Priority</div>
+                                                <div class="text-xs text-purple-700">Patient will be routed to priority lane (P2 minimum).</div>
+                                            </div>
+                                        </label>
+                                    </div>
+                                </div>
+
                                 <!-- Basic Info Cards - Dynamic layout based on patient type -->
-                                <div :class="selectedPatient && selectedPatient.role === 'Visitor' ? 'grid grid-cols-2 gap-2 sm:gap-3 md:gap-4 mb-3 sm:mb-4 md:mb-6 w-full' : 'grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-3 md:gap-4 mb-3 sm:mb-4 md:mb-6'">
+                                <div :class="selectedPatient && selectedPatient.role === 'Visitor' ? 'grid grid-cols-2 gap-2 sm:gap-3 md:gap-4 mb-3 sm:mb-4 md:mb-6 w-full' : 'grid grid-cols-2 xl:grid-cols-4 gap-2 sm:gap-3 md:gap-4 mb-3 sm:mb-4 md:mb-6'">
                                     <!-- Age Card -->
                                     <div class="bg-white p-2 sm:p-3 md:p-4 rounded-lg sm:rounded-xl md:rounded-2xl shadow-sm hover:shadow-xl transition-all transform hover:scale-105 border border-gray-100 patient-info-card">
                                         <div class="flex flex-col items-center text-center">
@@ -3558,43 +4623,8 @@
                                     </div>
                                 </div>
 
-                                <div class="bg-white p-3 sm:p-4 rounded-lg sm:rounded-xl md:rounded-2xl shadow-sm border border-gray-100 mb-3 sm:mb-4 md:mb-6" x-show="selectedPatient">
-                                    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-3">
-                                        <div>
-                                            <h4 class="text-sm sm:text-base font-bold text-gray-900">Priority Lane Setup</h4>
-                                            <p class="text-xs text-gray-500 mt-0.5">Set if this patient should be recognized as PWD or Senior Citizen during queue ticket creation.</p>
-                                        </div>
-                                        <button
-                                            @click="savePriorityFlags()"
-                                            :disabled="savingPriorityFlags"
-                                            :class="savingPriorityFlags ? 'bg-blue-300 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'"
-                                            class="px-3 py-2 rounded-lg text-xs sm:text-sm font-semibold text-white transition-colors touch-target">
-                                            <span x-show="!savingPriorityFlags">Save Priority Flags</span>
-                                            <span x-show="savingPriorityFlags">Saving...</span>
-                                        </button>
-                                    </div>
-
-                                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
-                                        <label class="flex items-center gap-3 p-3 rounded-lg border border-rose-200 bg-rose-50 cursor-pointer">
-                                            <input type="checkbox" x-model="priorityFlagsForm.is_pwd" class="w-4 h-4 text-rose-600 rounded border-rose-300 focus:ring-rose-500">
-                                            <div>
-                                                <div class="text-sm font-semibold text-rose-800">PWD Priority</div>
-                                                <div class="text-xs text-rose-700">Patient will be routed to priority lane (P2 minimum).</div>
-                                            </div>
-                                        </label>
-
-                                        <label class="flex items-center gap-3 p-3 rounded-lg border border-orange-200 bg-orange-50 cursor-pointer">
-                                            <input type="checkbox" x-model="priorityFlagsForm.is_senior_citizen" class="w-4 h-4 text-orange-600 rounded border-orange-300 focus:ring-orange-500">
-                                            <div>
-                                                <div class="text-sm font-semibold text-orange-800">Senior Citizen Priority</div>
-                                                <div class="text-xs text-orange-700">Patient will be routed to priority lane (P2 minimum).</div>
-                                            </div>
-                                        </label>
-                                    </div>
-                                </div>
-
                                 <!-- EMERGENCY CONTACT CARDS -->
-                                <div x-show="selectedPatient && selectedPatient.role !== 'Visitor'" class="grid grid-cols-1 md:grid-cols-3 gap-2 sm:gap-3 md:gap-4 mb-3 sm:mb-4 md:mb-6">
+                                <div x-show="selectedPatient && selectedPatient.role !== 'Visitor'" class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2 sm:gap-3 md:gap-4 mb-3 sm:mb-4 md:mb-6">
                                     <!-- Emergency Contact Name Card -->
                                     <div class="bg-white p-2 sm:p-3 md:p-4 rounded-lg sm:rounded-xl md:rounded-2xl shadow-sm hover:shadow-xl transition-all transform hover:scale-105 border border-gray-100 patient-info-card">
                                         <div class="flex flex-col items-center text-center">
@@ -3629,6 +4659,149 @@
                                     </div>
                                 </div>
 
+                            </div>
+
+                            <!-- XRAY REVIEWS HEADER -->
+                            <div class="mx-2 sm:mx-3 md:mx-4 lg:mx-6 mb-2 sm:mb-3 md:mb-4" x-show="selectedPatient">
+                                <div class="bg-white rounded-lg sm:rounded-xl md:rounded-2xl shadow-sm border border-gray-100 p-2 sm:p-2.5 md:p-3 lg:p-4">
+                                    <div class="flex items-center justify-between gap-2">
+                                        <div class="flex items-center gap-1.5 sm:gap-2 md:gap-3 flex-1 min-w-0">
+                                            <div class="w-6 h-6 sm:w-7 sm:h-7 md:w-8 md:h-8 lg:w-10 lg:h-10 bg-gradient-to-br from-indigo-500 to-blue-600 rounded-md sm:rounded-lg md:rounded-xl flex items-center justify-center shadow-lg flex-shrink-0">
+                                                <i data-feather="aperture" class="w-3 h-3 sm:w-3.5 sm:h-3.5 md:w-4 md:h-4 lg:w-5 lg:h-5 text-white"></i>
+                                            </div>
+                                            <div class="min-w-0 flex-1">
+                                                <h3 class="text-xs sm:text-sm md:text-base lg:text-lg font-bold text-gray-900 truncate">X-ray Reviews</h3>
+                                                <p class="text-[9px] sm:text-[10px] md:text-xs text-gray-500 mt-0 sm:mt-0.5 hidden sm:block truncate">Usually 1–2 entries only (1st year / OJT). SMS confirmation for abnormal results.</p>
+                                            </div>
+                                        </div>
+                                        <div class="flex flex-wrap items-center gap-1.5 sm:gap-2 flex-shrink-0">
+                                            <span class="px-1.5 sm:px-2 md:px-3 lg:px-4 py-0.5 sm:py-1 md:py-1.5 lg:py-2 bg-gradient-to-r from-blue-50 to-indigo-50 text-blue-700 rounded-md sm:rounded-lg md:rounded-xl text-[9px] sm:text-[10px] md:text-xs lg:text-sm font-semibold border border-blue-200 whitespace-nowrap" x-text="(xrayReviews && xrayReviews.length ? xrayReviews.length : 0) + ' reviews'"></span>
+
+                                            <button x-show="xrayReviews && xrayReviews.length > 1"
+                                                    @click="showXrayHistory = !showXrayHistory; $nextTick(() => refreshIcons())"
+                                                    class="bg-gray-50 hover:bg-gray-100 text-gray-700 px-3 sm:px-4 py-2 rounded-lg font-semibold text-[10px] sm:text-xs md:text-sm border border-gray-200 shadow-sm transition-all touch-target"
+                                                    x-text="showXrayHistory ? 'Hide History' : 'Show History'"></button>
+
+                                            <button @click="openBulkXrayNormalModal()"
+                                                    :disabled="!filteredPatients || filteredPatients.length === 0"
+                                                    :class="(!filteredPatients || filteredPatients.length === 0) ? 'bg-emerald-200 cursor-not-allowed' : 'bg-emerald-600 hover:bg-emerald-700'"
+                                                    class="text-white px-3 sm:px-4 py-2 rounded-lg font-semibold text-[10px] sm:text-xs md:text-sm shadow-sm hover:shadow-md transition-all touch-target">
+                                                <span class="flex items-center gap-1.5">
+                                                    <i data-feather="check-circle" class="w-3.5 h-3.5"></i>
+                                                    <span class="hidden sm:inline">Bulk Normal</span>
+                                                    <span class="sm:hidden">Bulk</span>
+                                                    <span class="hidden md:inline" x-text="filteredPatients && filteredPatients.length ? '(' + filteredPatients.length + ')' : ''"></span>
+                                                </span>
+                                            </button>
+
+                                            <button @click="quickMarkXrayNormal()"
+                                                    :disabled="addingXrayReview || !selectedPatient"
+                                                    :class="addingXrayReview ? 'bg-emerald-300 cursor-not-allowed' : 'bg-emerald-600 hover:bg-emerald-700'"
+                                                    class="text-white px-3 sm:px-4 py-2 rounded-lg font-semibold text-[10px] sm:text-xs md:text-sm shadow-sm hover:shadow-md transition-all touch-target">
+                                                <span class="flex items-center gap-1.5">
+                                                    <i data-feather="check-circle" class="w-3.5 h-3.5"></i>
+                                                    <span class="hidden sm:inline">Quick Normal</span>
+                                                </span>
+                                            </button>
+
+                                            <button @click="openAddXrayReviewModal()"
+                                                    class="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white px-3 sm:px-4 py-2 rounded-lg font-semibold text-[10px] sm:text-xs md:text-sm shadow-sm hover:shadow-md transition-all touch-target">
+                                                <span class="flex items-center gap-1.5">
+                                                    <i data-feather="plus" class="w-3.5 h-3.5"></i>
+                                                    <span class="hidden sm:inline">Add Review</span>
+                                                </span>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- X-RAY STATUS / REVIEWS LIST -->
+                            <div class="px-2 sm:px-3 md:px-4 lg:px-6 pb-3 sm:pb-4 md:pb-6" x-show="selectedPatient">
+                                <div x-show="loadingXrayReviews" class="flex flex-col items-center justify-center py-6">
+                                    <div class="animate-spin rounded-full h-8 w-8 border-4 border-blue-200 border-t-blue-500 mb-3"></div>
+                                    <span class="text-gray-600 font-medium text-sm">Loading X-ray status...</span>
+                                </div>
+
+                                <div x-show="!loadingXrayReviews">
+                                    <template x-if="xrayReviews && xrayReviews.length > 0">
+                                        <div class="bg-white rounded-lg sm:rounded-xl md:rounded-2xl shadow-lg border border-gray-100 divide-y divide-gray-100">
+                                            <template x-for="(review, rIdx) in (showXrayHistory ? xrayReviews : (xrayReviews || []).slice(0, 1))" :key="review.id || rIdx">
+                                                <div class="p-3 sm:p-4">
+                                                    <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+                                                        <div class="min-w-0">
+                                                            <div class="flex flex-wrap items-center gap-2">
+                                                                <div class="text-sm font-bold text-gray-900" x-text="formatDateTime(review.reviewed_at)"></div>
+                                                                <div x-show="(review.result || '').toLowerCase() === 'normal'" class="inline-flex items-center gap-1 bg-emerald-50 border border-emerald-200 px-2 py-1 rounded-full">
+                                                                    <span class="text-[11px] font-semibold text-emerald-700">Normal</span>
+                                                                </div>
+                                                                <div x-show="(review.result || '').toLowerCase() === 'abnormal'" class="inline-flex items-center gap-1 bg-rose-50 border border-rose-200 px-2 py-1 rounded-full">
+                                                                    <span class="text-[11px] font-semibold text-rose-700">Abnormal</span>
+                                                                </div>
+                                                            </div>
+
+                                                            <div class="mt-1 text-[11px] text-gray-500" x-show="review.reviewed_by_name">
+                                                                <span class="font-semibold">Reviewed by:</span>
+                                                                <span x-text="review.reviewed_by_name"></span>
+                                                            </div>
+
+                                                            <div class="mt-2 text-xs text-gray-700" x-show="review.findings">
+                                                                <span class="font-semibold">Findings:</span>
+                                                                <span x-text="review.findings"></span>
+                                                            </div>
+                                                            <div class="mt-1 text-xs text-gray-700" x-show="review.recommendation">
+                                                                <span class="font-semibold">Recommendation:</span>
+                                                                <span x-text="review.recommendation"></span>
+                                                            </div>
+
+                                                            <div class="mt-2 flex flex-wrap items-center gap-2 text-xs">
+                                                                <div x-show="review.sms_notified_at && (review.sms_status || '').toLowerCase() === 'sent'" class="inline-flex items-center gap-1 bg-green-50 border border-green-200 px-2 py-1 rounded-full">
+                                                                    <span class="font-semibold text-green-700">SMS sent</span>
+                                                                    <span class="text-green-700" x-text="formatDateTime(review.sms_notified_at)"></span>
+                                                                </div>
+                                                                <div x-show="(review.sms_status || '').toLowerCase() === 'failed'" class="inline-flex items-center gap-1 bg-red-50 border border-red-200 px-2 py-1 rounded-full">
+                                                                    <span class="font-semibold text-red-700">SMS failed</span>
+                                                                    <span class="text-red-700" x-text="review.sms_error || ''"></span>
+                                                                </div>
+                                                                <div x-show="!review.sms_notified_at" class="inline-flex items-center gap-1 bg-gray-50 border border-gray-200 px-2 py-1 rounded-full">
+                                                                    <span class="font-semibold text-gray-700">Not notified</span>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+
+                                                        <div class="flex items-center gap-2 sm:justify-end flex-shrink-0">
+                                                            <button x-show="(review.result || '').toLowerCase() === 'abnormal' && (review.sms_status || '').toLowerCase() !== 'sent'"
+                                                                    @click="openXrayNotifyConfirm(review)"
+                                                                    :disabled="xrayNotifySending"
+                                                                    :class="xrayNotifySending ? 'bg-blue-300 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'"
+                                                                    class="inline-flex items-center gap-1 px-3 py-2 rounded-lg text-xs font-semibold text-white transition-colors touch-target">
+                                                                <i data-feather="message-square" class="w-3.5 h-3.5"></i>
+                                                                <span>Notify Guardian (SMS)</span>
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </template>
+                                        </div>
+                                    </template>
+
+                                    <div x-show="xrayReviews && xrayReviews.length === 0" class="flex items-center justify-center h-full">
+                                        <div class="text-center max-w-sm mx-auto py-8 px-4">
+                                            <div class="w-16 h-16 bg-gradient-to-br from-gray-100 to-gray-200 rounded-full flex items-center justify-center mx-auto mb-4">
+                                                <i data-feather="aperture" class="w-8 h-8 text-gray-400"></i>
+                                            </div>
+                                            <h3 class="text-lg font-bold text-gray-900 mb-2">No X-ray Status Yet</h3>
+                                            <p class="text-gray-500 text-sm mb-4 leading-relaxed">Typically logged once or twice (1st year / OJT). Use Quick Normal if everything is okay, or Add Review for abnormal results and optional SMS.</p>
+                                            <button @click="openAddXrayReviewModal()"
+                                                    class="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white px-4 py-2.5 rounded-xl font-medium transition-all transform hover:scale-105 shadow-lg hover:shadow-xl touch-target">
+                                                <span class="flex items-center gap-2">
+                                                    <i data-feather="plus" class="w-4 h-4"></i>
+                                                    <span>Add X-ray Review</span>
+                                                </span>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                             
                             <!-- ENHANCED MEDICAL RECORDS HEADER -->
@@ -3670,11 +4843,11 @@
                                                         <tr>
                                                             <th class="px-2 sm:px-3 md:px-4 lg:px-6 py-2 sm:py-3 md:py-4 text-left text-[10px] sm:text-xs font-bold text-gray-700 uppercase tracking-wider">Date & Time</th>
                                                             <th class="px-2 sm:px-3 md:px-4 lg:px-6 py-2 sm:py-3 md:py-4 text-left text-[10px] sm:text-xs font-bold text-gray-700 uppercase tracking-wider">Reason for Visit</th>
-                                                            <th class="px-2 sm:px-3 md:px-4 lg:px-6 py-2 sm:py-3 md:py-4 text-left text-[10px] sm:text-xs font-bold text-gray-700 uppercase tracking-wider hidden sm:table-cell">Treatment</th>
-                                                            <th class="px-2 sm:px-3 md:px-4 lg:px-6 py-2 sm:py-3 md:py-4 text-left text-[10px] sm:text-xs font-bold text-gray-700 uppercase tracking-wider hidden md:table-cell">Status</th>
-                                                            <th class="px-2 sm:px-3 md:px-4 lg:px-6 py-2 sm:py-3 md:py-4 text-left text-[10px] sm:text-xs font-bold text-gray-700 uppercase tracking-wider hidden lg:table-cell">Admission</th>
-                                                            <th class="px-2 sm:px-3 md:px-4 lg:px-6 py-2 sm:py-3 md:py-4 text-left text-[10px] sm:text-xs font-bold text-gray-700 uppercase tracking-wider hidden lg:table-cell">Discharge</th>
-                                                            <th class="px-2 sm:px-3 md:px-4 lg:px-6 py-2 sm:py-3 md:py-4 text-left text-[10px] sm:text-xs font-bold text-gray-700 uppercase tracking-wider hidden xl:table-cell">Prescription</th>
+                                                            <th class="px-2 sm:px-3 md:px-4 lg:px-6 py-2 sm:py-3 md:py-4 text-left text-[10px] sm:text-xs font-bold text-gray-700 uppercase tracking-wider hidden xl:table-cell">Treatment</th>
+                                                            <th class="px-2 sm:px-3 md:px-4 lg:px-6 py-2 sm:py-3 md:py-4 text-left text-[10px] sm:text-xs font-bold text-gray-700 uppercase tracking-wider hidden xl:table-cell">Status</th>
+                                                            <th class="px-2 sm:px-3 md:px-4 lg:px-6 py-2 sm:py-3 md:py-4 text-left text-[10px] sm:text-xs font-bold text-gray-700 uppercase tracking-wider hidden 2xl:table-cell">Admission</th>
+                                                            <th class="px-2 sm:px-3 md:px-4 lg:px-6 py-2 sm:py-3 md:py-4 text-left text-[10px] sm:text-xs font-bold text-gray-700 uppercase tracking-wider hidden 2xl:table-cell">Discharge</th>
+                                                            <th class="px-2 sm:px-3 md:px-4 lg:px-6 py-2 sm:py-3 md:py-4 text-left text-[10px] sm:text-xs font-bold text-gray-700 uppercase tracking-wider hidden 2xl:table-cell">Prescription</th>
                                                             <th class="px-2 sm:px-3 md:px-4 lg:px-6 py-2 sm:py-3 md:py-4 text-center text-[10px] sm:text-xs font-bold text-gray-700 uppercase tracking-wider">Actions</th>
                                                         </tr>
                                                     </thead>
@@ -3688,8 +4861,21 @@
                                                                             <i data-feather="clock" class="w-2.5 h-2.5 sm:w-3 sm:h-3"></i>
                                                                             <span x-text="record.time"></span>
                                                                         </div>
-                                                                        <!-- Mobile-only treatment info -->
-                                                                        <div class="sm:hidden mt-1.5 text-[10px] text-blue-600 font-medium" x-show="record.treatment" x-text="record.treatment"></div>
+                                                                        <!-- Inline treatment info (shown until xl) -->
+                                                                        <div class="xl:hidden mt-1.5 text-[10px] text-blue-600 font-medium" x-show="record.treatment" x-text="record.treatment"></div>
+
+                                                                        <!-- Inline status badges (shown until xl) -->
+                                                                        <div class="xl:hidden mt-1.5 flex flex-wrap gap-1">
+                                                                            <div x-show="(record.illness_classification_final || '').toLowerCase() === 'major'" class="inline-flex items-center gap-1 bg-rose-50 border border-rose-200 px-2 py-1 rounded-full">
+                                                                                <span class="text-[11px] font-semibold text-rose-700">Major</span>
+                                                                            </div>
+                                                                            <div x-show="(record.illness_classification_final || '').toLowerCase() === 'minor'" class="inline-flex items-center gap-1 bg-emerald-50 border border-emerald-200 px-2 py-1 rounded-full">
+                                                                                <span class="text-[11px] font-semibold text-emerald-700">Minor</span>
+                                                                            </div>
+                                                                            <div x-show="(record.endorsement_status || '').toLowerCase() === 'endorsed'" class="inline-flex items-center gap-1 bg-green-50 border border-green-200 px-2 py-1 rounded-full">
+                                                                                <span class="text-[11px] font-semibold text-green-700">Endorsed</span>
+                                                                            </div>
+                                                                        </div>
                                                                     </div>
                                                                 </td>
                                                                 <td class="px-2 sm:px-3 md:px-4 lg:px-6 py-2 sm:py-3 md:py-4">
@@ -3700,7 +4886,7 @@
                                                                             <span x-text="record.dental_procedure"></span>
                                                                         </div>
                                                                         <!-- Mobile-only prescription info -->
-                                                                        <div class="xl:hidden mt-1.5" x-show="record.prescribed_medicine">
+                                                                        <div class="2xl:hidden mt-1.5" x-show="record.prescribed_medicine">
                                                                             <div class="inline-flex items-center gap-1 bg-green-50 border border-green-200 px-1.5 py-0.5 sm:px-2 sm:py-1 rounded-lg">
                                                                                 <svg class="w-2.5 h-2.5 sm:w-3 sm:h-3 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"></path>
@@ -3710,13 +4896,13 @@
                                                                         </div>
                                                                     </div>
                                                                 </td>
-                                                                <td class="px-2 sm:px-3 md:px-4 lg:px-6 py-2 sm:py-3 md:py-4 hidden sm:table-cell">
+                                                                <td class="px-2 sm:px-3 md:px-4 lg:px-6 py-2 sm:py-3 md:py-4 hidden xl:table-cell">
                                                                     <div class="max-w-xs">
                                                                         <div class="text-[10px] sm:text-xs md:text-sm text-gray-900 font-semibold truncate" x-text="record.treatment"></div>
                                                                         <div class="text-[10px] sm:text-xs text-gray-600 mt-0.5 sm:mt-1 truncate" x-text="record.notes || 'No additional notes'"></div>
                                                                     </div>
                                                                 </td>
-                                                                <td class="px-3 sm:px-6 py-4 hidden md:table-cell">
+                                                                <td class="px-3 sm:px-6 py-4 hidden xl:table-cell">
                                                                     <div x-show="record.stay_status === 'staying'" class="inline-flex items-center gap-1 bg-green-50 border border-green-200 px-3 py-1.5 rounded-full">
                                                                         <div class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
                                                                         <span class="text-xs font-semibold text-green-700">Admitted</span>
@@ -3742,7 +4928,7 @@
                                                                         </div>
                                                                     </div>
                                                                 </td>
-                                                                <td class="px-3 sm:px-6 py-4 hidden lg:table-cell">
+                                                                <td class="px-3 sm:px-6 py-4 hidden 2xl:table-cell">
                                                                     <div x-show="record.admission_time" class="flex flex-col">
                                                                         <div class="text-sm font-semibold text-green-700" x-text="formatAdmissionDate(record.admission_time)"></div>
                                                                         <div class="text-xs text-green-600 flex items-center gap-1 mt-1">
@@ -3752,7 +4938,7 @@
                                                                     </div>
                                                                     <div x-show="!record.admission_time" class="text-xs text-gray-400 italic">Not admitted</div>
                                                                 </td>
-                                                                <td class="px-3 sm:px-6 py-4 hidden lg:table-cell">
+                                                                <td class="px-3 sm:px-6 py-4 hidden 2xl:table-cell">
                                                                     <div x-show="record.discharge_time" class="flex flex-col">
                                                                         <div class="text-sm font-semibold text-red-700" x-text="formatAdmissionDate(record.discharge_time)"></div>
                                                                         <div class="text-xs text-red-600 flex items-center gap-1 mt-1">
@@ -3763,7 +4949,7 @@
                                                                     <div x-show="!record.discharge_time && record.admission_time" class="text-xs text-orange-500 italic font-medium">Still admitted</div>
                                                                     <div x-show="!record.discharge_time && !record.admission_time" class="text-xs text-gray-400 italic">Not discharged</div>
                                                                 </td>
-                                                                <td class="px-3 sm:px-6 py-4 hidden xl:table-cell">
+                                                                <td class="px-3 sm:px-6 py-4 hidden 2xl:table-cell">
                                                                     <div x-show="record.prescribed_medicine" 
                                                                          class="inline-flex items-center gap-1 bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 px-3 py-1.5 rounded-lg">
                                                                         <svg class="w-3 h-3 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -3782,23 +4968,59 @@
                                                                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
                                                                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
                                                                             </svg>
-                                                                            <span class="hidden md:inline">View</span>
+                                                                            <span class="hidden xl:inline">View</span>
                                                                         </button>
-                                                                        <button @click="printRecordCertificate(record)" 
-                                                                                class="inline-flex items-center gap-1 px-1.5 sm:px-2 md:px-3 py-1.5 bg-green-500 hover:bg-green-600 text-white text-xs font-medium rounded-lg transition-all duration-200 shadow-sm hover:shadow-md touch-target action-button" 
-                                                                                title="Print Certificate">
-                                                                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path>
-                                                                            </svg>
-                                                                            <span class="hidden md:inline">Print</span>
-                                                                        </button>
+                                                                        <template x-if="isMajorEndorsedRecord(record)">
+                                                                            <div class="relative" x-data="{ open: false }" @click.outside="open = false">
+                                                                                <button @click.stop="open = !open" 
+                                                                                        class="inline-flex items-center gap-1 px-1.5 sm:px-2 md:px-3 py-1.5 bg-green-500 hover:bg-green-600 text-white text-xs font-medium rounded-lg transition-all duration-200 shadow-sm hover:shadow-md touch-target action-button" 
+                                                                                        title="Print Options">
+                                                                                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path>
+                                                                                    </svg>
+                                                                                    <span class="hidden xl:inline">Print</span>
+                                                                                    <svg class="w-3 h-3 opacity-90" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                                                                                    </svg>
+                                                                                </button>
+
+                                                                                <div x-show="open" x-transition
+                                                                                     class="absolute right-0 mt-1 w-48 bg-white border border-gray-200 rounded-lg shadow-lg z-30 overflow-hidden">
+                                                                                    <button type="button" @click="open = false; printReferralFormToHospital(record)"
+                                                                                            class="w-full text-left px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50 flex items-center gap-2">
+                                                                                        <svg class="w-3.5 h-3.5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h7l5 5v11a2 2 0 01-2 2z"></path>
+                                                                                        </svg>
+                                                                                        <span>Print Referral</span>
+                                                                                    </button>
+                                                                                    <button type="button" @click="open = false; printRecordCertificate(record)"
+                                                                                            class="w-full text-left px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50 flex items-center gap-2">
+                                                                                        <svg class="w-3.5 h-3.5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h10M7 11h10M7 15h6"></path>
+                                                                                        </svg>
+                                                                                        <span>Print Acknowledgement</span>
+                                                                                    </button>
+                                                                                </div>
+                                                                            </div>
+                                                                        </template>
+
+                                                                        <template x-if="!isMajorEndorsedRecord(record)">
+                                                                            <button @click="printRecordCertificate(record)" 
+                                                                                    class="inline-flex items-center gap-1 px-1.5 sm:px-2 md:px-3 py-1.5 bg-green-500 hover:bg-green-600 text-white text-xs font-medium rounded-lg transition-all duration-200 shadow-sm hover:shadow-md touch-target action-button" 
+                                                                                    title="Print Certificate">
+                                                                                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path>
+                                                                                </svg>
+                                                                                <span class="hidden xl:inline">Print</span>
+                                                                            </button>
+                                                                        </template>
                                                                         <button @click="deleteRecord(record)" 
                                                                                 class="inline-flex items-center gap-1 px-1.5 sm:px-2 md:px-3 py-1.5 bg-red-500 hover:bg-red-600 text-white text-xs font-medium rounded-lg transition-all duration-200 shadow-sm hover:shadow-md touch-target action-button" 
                                                                                 title="Delete Record">
                                                                             <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
                                                                             </svg>
-                                                                            <span class="hidden md:inline">Delete</span>
+                                                                            <span class="hidden xl:inline">Delete</span>
                                                                         </button>
                                                                     </div>
                                                                 </td>
@@ -3835,6 +5057,202 @@
                     </div>
                 </div>
                 
+                <!-- Add XRAY Review Modal -->
+                <div x-show="showAddXrayReviewModal"
+                     x-cloak
+                     class="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4"
+                     style="display: none;"
+                     x-transition:enter="transition ease-out duration-300"
+                     x-transition:enter-start="opacity-0"
+                     x-transition:enter-end="opacity-100"
+                     x-transition:leave="transition ease-in duration-200"
+                     x-transition:leave-start="opacity-100"
+                     x-transition:leave-end="opacity-0">
+                    <div class="fixed inset-0 bg-gray-900 bg-opacity-50 backdrop-blur-sm" @click="showAddXrayReviewModal = false"></div>
+                    <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-[95vw] sm:max-w-2xl p-4 sm:p-6 md:p-8 z-10 max-h-[90dvh] overflow-y-auto"
+                         @click.stop
+                         x-transition:enter="transition ease-out duration-300"
+                         x-transition:enter-start="opacity-0 transform scale-95"
+                         x-transition:enter-end="opacity-100 transform scale-100"
+                         x-transition:leave="transition ease-in duration-200"
+                         x-transition:leave-start="opacity-100 transform scale-100"
+                         x-transition:leave-end="opacity-0 transform scale-95">
+                        <div class="flex items-center gap-3 sm:gap-4 mb-4 sm:mb-6">
+                            <div class="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-br from-blue-400 to-blue-600 rounded-xl flex items-center justify-center shadow-lg flex-shrink-0">
+                                <i data-feather="aperture" class="w-5 h-5 sm:w-6 sm:h-6 text-white"></i>
+                            </div>
+                            <div class="min-w-0">
+                                <h3 class="text-lg sm:text-xl md:text-2xl font-bold text-gray-900">Add XRAY Review</h3>
+                                <p class="text-xs sm:text-sm text-gray-500">Log the XRAY review outcome for this patient</p>
+                            </div>
+                        </div>
+
+                        <form @submit.prevent="createXrayReview()" class="space-y-4">
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-700 mb-2">Result *</label>
+                                <div class="grid grid-cols-2 gap-2">
+                                    <button type="button"
+                                            @click="newXrayReview.result = 'normal'"
+                                            :class="(newXrayReview.result || 'normal') === 'normal' ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100'"
+                                            class="w-full px-3 sm:px-4 py-2.5 sm:py-3 border rounded-xl font-semibold transition-all text-base">
+                                        Normal
+                                    </button>
+                                    <button type="button"
+                                            @click="newXrayReview.result = 'abnormal'"
+                                            :class="newXrayReview.result === 'abnormal' ? 'bg-rose-600 text-white border-rose-600' : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100'"
+                                            class="w-full px-3 sm:px-4 py-2.5 sm:py-3 border rounded-xl font-semibold transition-all text-base">
+                                        Abnormal
+                                    </button>
+                                </div>
+                                <p class="mt-2 text-xs text-gray-500">
+                                    Tip: Use <span class="font-semibold">Quick Normal</span> for faster logging when everything is okay.
+                                </p>
+                            </div>
+
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-700 mb-2">Findings (optional)</label>
+                                <textarea x-model="newXrayReview.findings"
+                                          rows="3"
+                                          class="w-full px-3 sm:px-4 py-2.5 sm:py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent focus:bg-white transition-all text-base"
+                                          placeholder="Brief findings..."></textarea>
+                            </div>
+
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-700 mb-2">Recommendation (optional)</label>
+                                <textarea x-model="newXrayReview.recommendation"
+                                          rows="3"
+                                          class="w-full px-3 sm:px-4 py-2.5 sm:py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent focus:bg-white transition-all text-base"
+                                          placeholder="Recommended next steps..."></textarea>
+                            </div>
+
+                            <div class="flex flex-col sm:flex-row gap-3 pt-2">
+                                <button type="button" @click="showAddXrayReviewModal = false"
+                                        class="w-full sm:flex-1 px-4 sm:px-6 py-2.5 sm:py-3 border-2 border-gray-200 text-gray-700 rounded-xl hover:bg-gray-50 hover:border-gray-300 font-semibold transition-all text-base">
+                                    Cancel
+                                </button>
+                                <button type="submit"
+                                        :disabled="addingXrayReview"
+                                        :class="addingXrayReview ? 'bg-blue-300 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'"
+                                        class="w-full sm:flex-1 px-4 sm:px-6 py-2.5 sm:py-3 text-white rounded-xl font-semibold transition-all text-base shadow-lg">
+                                    <span x-show="!addingXrayReview">Save XRAY Review</span>
+                                    <span x-show="addingXrayReview">Saving...</span>
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- XRAY Guardian SMS Confirmation Modal -->
+                <div x-show="showXrayNotifyConfirmModal"
+                     x-cloak
+                     class="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4"
+                     style="display: none;"
+                     x-transition:enter="transition ease-out duration-300"
+                     x-transition:enter-start="opacity-0"
+                     x-transition:enter-end="opacity-100"
+                     x-transition:leave="transition ease-in duration-200"
+                     x-transition:leave-start="opacity-100"
+                     x-transition:leave-end="opacity-0">
+                    <div class="fixed inset-0 bg-gray-900 bg-opacity-50 backdrop-blur-sm" @click="cancelXrayNotifyConfirm()"></div>
+                    <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-[95vw] sm:max-w-lg p-4 sm:p-6 z-10"
+                         @click.stop
+                         x-transition:enter="transition ease-out duration-300"
+                         x-transition:enter-start="opacity-0 transform scale-95"
+                         x-transition:enter-end="opacity-100 transform scale-100"
+                         x-transition:leave="transition ease-in duration-200"
+                         x-transition:leave-start="opacity-100 transform scale-100"
+                         x-transition:leave-end="opacity-0 transform scale-95">
+                        <div class="flex items-center gap-3 mb-3">
+                            <div class="w-10 h-10 bg-gradient-to-br from-blue-400 to-blue-600 rounded-xl flex items-center justify-center shadow-lg flex-shrink-0">
+                                <i data-feather="message-square" class="w-5 h-5 text-white"></i>
+                            </div>
+                            <div>
+                                <h3 class="text-lg font-bold text-gray-900">Notify Guardian (SMS)</h3>
+                                <p class="text-sm text-gray-500">Confirmation required</p>
+                            </div>
+                        </div>
+
+                        <div class="text-sm text-gray-700 leading-relaxed">
+                            This will send an SMS to the emergency contact/guardian for an abnormal XRAY review. Continue?
+                        </div>
+
+                        <div class="flex flex-col sm:flex-row gap-3 mt-5">
+                            <button type="button" @click="cancelXrayNotifyConfirm()"
+                                    class="w-full sm:flex-1 px-4 py-2.5 border-2 border-gray-200 text-gray-700 rounded-xl hover:bg-gray-50 hover:border-gray-300 font-semibold transition-all">
+                                Cancel
+                            </button>
+                            <button type="button" @click="confirmXrayNotifyNow()"
+                                    :disabled="xrayNotifySending"
+                                    :class="xrayNotifySending ? 'bg-blue-300 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'"
+                                    class="w-full sm:flex-1 px-4 py-2.5 text-white rounded-xl font-semibold transition-all shadow-lg">
+                                <span x-show="!xrayNotifySending">Send SMS</span>
+                                <span x-show="xrayNotifySending">Sending...</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Bulk XRAY Normal Confirmation Modal -->
+                <div x-show="showBulkXrayNormalModal"
+                     x-cloak
+                     class="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4"
+                     style="display: none;"
+                     x-transition:enter="transition ease-out duration-300"
+                     x-transition:enter-start="opacity-0"
+                     x-transition:enter-end="opacity-100"
+                     x-transition:leave="transition ease-in duration-200"
+                     x-transition:leave-start="opacity-100"
+                     x-transition:leave-end="opacity-0">
+                    <div class="fixed inset-0 bg-gray-900 bg-opacity-50 backdrop-blur-sm" @click="closeBulkXrayNormalModal()"></div>
+                    <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-[95vw] sm:max-w-lg p-4 sm:p-6 z-10"
+                         @click.stop
+                         x-transition:enter="transition ease-out duration-300"
+                         x-transition:enter-start="opacity-0 transform scale-95"
+                         x-transition:enter-end="opacity-100 transform scale-100"
+                         x-transition:leave="transition ease-in duration-200"
+                         x-transition:leave-start="opacity-100 transform scale-100"
+                         x-transition:leave-end="opacity-0 transform scale-95">
+                        <div class="flex items-center gap-3 mb-3">
+                            <div class="w-10 h-10 bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-xl flex items-center justify-center shadow-lg flex-shrink-0">
+                                <i data-feather="check-circle" class="w-5 h-5 text-white"></i>
+                            </div>
+                            <div class="min-w-0">
+                                <h3 class="text-lg font-bold text-gray-900">Bulk: Mark X-ray Normal</h3>
+                                <p class="text-sm text-gray-500">Applies to the current filtered list</p>
+                            </div>
+                        </div>
+
+                        <div class="text-sm text-gray-700 leading-relaxed">
+                            This will create a <span class="font-semibold">Normal</span> X-ray review entry for
+                            <span class="font-semibold" x-text="getBulkXrayNormalTargets().length"></span> patients.
+                            <span class="text-gray-500">(Best for 1st year / OJT mass screening where most results are normal.)</span>
+                        </div>
+
+                        <label class="mt-4 flex items-start gap-3 p-3 rounded-xl border border-gray-200 bg-gray-50">
+                            <input type="checkbox" x-model="bulkXrayForceNewCycle" class="mt-1 w-4 h-4 text-emerald-600 rounded border-gray-300 focus:ring-emerald-500">
+                            <div class="min-w-0">
+                                <div class="text-sm font-semibold text-gray-800">Create new entry even if patient has past X-ray</div>
+                                <div class="text-xs text-gray-600">Use this for the 2nd cycle (e.g., OJT) when you need another record. If unchecked, patients with any existing X-ray record will be skipped.</div>
+                            </div>
+                        </label>
+
+                        <div class="flex flex-col sm:flex-row gap-3 mt-5">
+                            <button type="button" @click="closeBulkXrayNormalModal()"
+                                    :disabled="bulkXraySending"
+                                    class="w-full sm:flex-1 px-4 py-2.5 border-2 border-gray-200 text-gray-700 rounded-xl hover:bg-gray-50 hover:border-gray-300 font-semibold transition-all">
+                                Cancel
+                            </button>
+                            <button type="button" @click="confirmBulkXrayNormalNow()"
+                                    :disabled="bulkXraySending"
+                                    :class="bulkXraySending ? 'bg-emerald-300 cursor-not-allowed' : 'bg-emerald-600 hover:bg-emerald-700'"
+                                    class="w-full sm:flex-1 px-4 py-2.5 text-white rounded-xl font-semibold transition-all shadow-lg">
+                                <span x-show="!bulkXraySending">Confirm Bulk Normal</span>
+                                <span x-show="bulkXraySending">Processing...</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Add Visitor Modal -->
                 <div x-show="showAddVisitorModal" 
                      x-cloak
@@ -5160,7 +6578,7 @@
                             </div>
                             <h4 class="text-sm sm:text-base font-semibold text-gray-800">Vital Signs</h4>
                         </div>
-                        <div class="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-4">
+                        <div class="grid grid-cols-2 xl:grid-cols-4 gap-2 sm:gap-4">
                             <div x-show="viewingRecord && viewingRecord.blood_pressure && viewingRecord.blood_pressure.trim() !== ''" class="text-center p-2 sm:p-3 bg-gray-50 rounded-lg">
                                 <p class="text-xs text-gray-600 mb-0.5 sm:mb-1">Blood Pressure</p>
                                 <p class="text-xs sm:text-sm font-semibold text-gray-800" x-text="viewingRecord.blood_pressure"></p>
@@ -5998,15 +7416,15 @@
                 <div class="max-w-3xl mx-auto">
                     <!-- Letterhead -->
                     <div class="text-center mb-8">
-                        <div class="flex items-center justify-center gap-8 mb-4">
-                            <img src="../assets/img/iclinic-logo.png" alt="Norzagaray College" class="w-16 h-16">
+                        <div class="grid grid-cols-[64px_1fr_64px] items-center gap-8 mb-4">
+                            <img src="../../assets/img/norzagaray_college_seal.png" alt="Norzagaray College" class="w-16 h-16 object-contain">
                             <div class="text-center">
                                 <h1 class="text-lg font-bold text-black mb-1">NORZAGARAY COLLEGE</h1>
                                 <p class="text-sm text-black mb-1">Municipal Compound</p>
                                 <p class="text-sm text-black mb-1">Brgy. Poblacion, Norzagaray, Bulacan</p>
                                 <p class="text-sm text-black">Email: norzagaraycollege2007@gmail.com</p>
                             </div>
-                            <img src="../assets/img/iclinic-logo.png" alt="System Logo" class="w-16 h-16">
+                            <img src="../../assets/img/Bagong_Pilipinas_logo.png" alt="Bagong Pilipinas" class="w-16 h-16 object-contain">
                         </div>
                     </div>
 
@@ -6018,7 +7436,7 @@
                     <!-- Letter Content -->
                     <div class="space-y-4 text-black">
                         <p class="text-sm text-justify">
-                            This is to certify that <strong x-text="selectedPatient ? selectedPatient.name : '[Name patient]'"></strong> was present at the Norzagaray College Medical Clinic on <strong x-text="selectedRecordForPrint ? formatVisitDateTime(selectedRecordForPrint) : '[Visit Date] at [TIME]'"></strong> for medical consultation and healthcare services.
+                            This is to certify that <strong x-text="selectedPatient ? selectedPatient.name : '[Name patient]'"></strong> was present at the Norzagaray College Clinic on <strong x-text="selectedRecordForPrint ? formatVisitDateTime(selectedRecordForPrint) : '[Visit Date] at [TIME]'"></strong> for medical consultation and healthcare services.
                         </p>
 
                         <p class="text-sm text-justify">
@@ -6030,25 +7448,25 @@
                         </p>
 
                         <p class="text-sm text-justify mb-8">
-                            Issued this <strong x-text="getCurrentDate()"></strong> at the Norzagaray College Medical Clinic, Norzagaray, Bulacan, Philippines, for whatever legal purpose this certification may serve.
+                            Issued this <strong x-text="getCurrentDate()"></strong> at the Norzagaray College Clinic, Norzagaray, Bulacan, Philippines, for whatever legal purpose this certification may serve.
                         </p>
                     </div>
 
                     <!-- Signature Section -->
-                    <div class="mt-16">
+                    <div class="mt-16 ml-auto w-48 text-right">
                         <div class="mb-12"></div>
-                        <div class="w-64 border-b border-black mb-2"></div>
+                        <div class="w-48 border-b border-black mb-2 ml-auto"></div>
                         <p class="text-sm font-bold text-black">{{ user.first_name }} {{ user.last_name }}</p>
                         <p class="text-sm text-black">{{ user.position }}</p>
-                        <p class="text-sm text-black">Norzagaray College Medical Clinic</p>
+                        <p class="text-sm text-black">Norzagaray College Clinic</p>
                     </div>
 
                     <!-- Footer Note -->
-                    <div class="mt-8 text-center">
-                        <p class="text-xs text-black">
-                            This is an official document issued by Norzagaray College Medical Clinic
+                    <div class="mt-8 flex items-center justify-between gap-4 text-xs text-black">
+                        <p class="text-left">
+                            This is an official document issued by Norzagaray College Clinic
                         </p>
-                        <p class="text-xs text-black mt-2">
+                        <p class="text-right whitespace-nowrap">
                             Generated on <span x-text="getCurrentDate()"></span> | Document ID: NC-<span x-text="selectedRecordForPrint ? selectedRecordForPrint.id : '000'"></span>-<span x-text="new Date().getFullYear()"></span>
                         </p>
                     </div>

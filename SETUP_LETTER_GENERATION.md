@@ -28,19 +28,19 @@ Email: norzagaraycollege2007@gmail.com
 
 MEDICAL ACKNOWLEDGEMENT LETTER
 
-This is to certify that {{ name }} was present at the Norzagaray College Medical Clinic on {{ visit_date }} at {{ time }} for medical consultation and healthcare services.
+This is to certify that {{ name }} was present at the Norzagaray College Clinic on {{ visit_date }} at {{ time }} for medical consultation and healthcare services.
 
 During the aforementioned visit, the individual received proper medical attention from our licensed healthcare professionals in accordance with established medical protocols and institutional standards. The consultation was conducted within the official operating hours of the clinic facility.
 
 This certification is issued upon official request and may be used for academic, administrative, or other legitimate purposes as deemed necessary by the concerned parties. The information contained herein is true and accurate to the best of our knowledge and records.
 
-Issued this {{ issued_date }} at the Norzagaray College Medical Clinic, Norzagaray, Bulacan, Philippines, for whatever legal purpose this certification may serve.
+Issued this {{ issued_date }} at the Norzagaray College Clinic, Norzagaray, Bulacan, Philippines, for whatever legal purpose this certification may serve.
 
 
 ________________________
 Lloyd Lapig
 Clinic Nurse
-Norzagaray College Medical Clinic
+Norzagaray College Clinic
 ```
 
 ### 3. Start the Flask Server

@@ -20,6 +20,9 @@ from config.database import DatabaseConfig
 from config.sms_config import SMSConfig
 import requests as http_requests
 
+from itsdangerous import URLSafeTimedSerializer, BadSignature, SignatureExpired
+from markupsafe import escape
+
 try:
     from services.android_sms_gateway import AndroidSMSGateway
 except Exception:
@@ -136,6 +139,234 @@ def _send_email_html(to_email: str, subject: str, html_content: str) -> bool:
     except Exception as email_error:
         print(f"Failed to send email: {email_error}")
         return False
+
+
+def _get_public_base_url() -> str:
+    base = (os.environ.get('ICLINIC_PUBLIC_BASE_URL') or '').strip()
+    if base:
+        return base.rstrip('/')
+    return 'http://127.0.0.1:5000'
+
+
+def _get_qr_token_secret() -> str:
+    return (
+        (os.environ.get('ICLINIC_QR_TOKEN_SECRET') or '').strip()
+        or (os.environ.get('ICLINIC_SECRET_KEY') or '').strip()
+        or (app.secret_key or '').strip()
+    )
+
+
+def _appointment_qr_serializer() -> URLSafeTimedSerializer:
+    return URLSafeTimedSerializer(_get_qr_token_secret(), salt='iclinic-appointment-qr-v1')
+
+
+def _generate_appointment_qr_token(appointment_id: int, patient_name: str, appointment_date: str, appointment_time: str) -> str:
+    serializer = _appointment_qr_serializer()
+    payload = {
+        'aid': int(appointment_id),
+        'p': patient_name,
+        'd': appointment_date,
+        't': appointment_time,
+    }
+    return serializer.dumps(payload)
+
+
+@app.route('/verify/appointment/<token>', methods=['GET'])
+def verify_appointment_qr(token):
+    """QR verification page: confirms an appointment exists and shows its booked date/time."""
+    try:
+        serializer = _appointment_qr_serializer()
+        # Token is signed; we allow a long lifetime and rely on DB status for real-time validity.
+        data = serializer.loads(token, max_age=60 * 60 * 24 * 365 * 2)  # 2 years
+    except SignatureExpired:
+        return (
+            "<h2>QR Code Expired</h2><p>Please request a new appointment QR code.</p>",
+            400,
+        )
+    except BadSignature:
+        return ("<h2>Invalid QR Code</h2><p>This QR code is not recognized.</p>", 400)
+
+    appointment_id = data.get('aid')
+    token_patient = (data.get('p') or '').strip()
+    token_date = (data.get('d') or '').strip()
+    token_time = (data.get('t') or '').strip()
+
+    if not appointment_id:
+        return ("<h2>Invalid QR Code</h2><p>Missing appointment reference.</p>", 400)
+
+    conn = DatabaseConfig.get_connection()
+    if not conn:
+        return ("<h2>System Error</h2><p>Database connection failed.</p>", 500)
+
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute(
+            "SELECT id, patient, date, time, type, status FROM appointments WHERE id = %s",
+            (int(appointment_id),),
+        )
+        appt = cursor.fetchone()
+    finally:
+        try:
+            cursor.close()
+        except Exception:
+            pass
+        try:
+            conn.close()
+        except Exception:
+            pass
+
+    if not appt:
+        return ("<h2>Not Found</h2><p>This appointment no longer exists.</p>", 404)
+
+    appt_patient = (appt.get('patient') or '').strip()
+    appt_date = appt.get('date')
+    appt_time = appt.get('time')
+    appt_type = (appt.get('type') or '').strip()
+    appt_status = (appt.get('status') or '').strip()
+
+    appt_date_str = appt_date.strftime('%Y-%m-%d') if hasattr(appt_date, 'strftime') else str(appt_date or '')
+    appt_time_str = str(appt_time or '')
+
+    # Normalize TIME strings like 09:00:00 -> 09:00
+    if len(appt_time_str) >= 5 and appt_time_str[2] == ':':
+        appt_time_str = appt_time_str[:5]
+
+    formatted_date_human = appt_date_str
+    if hasattr(appt_date, 'strftime'):
+        formatted_date_human = appt_date.strftime('%B %d, %Y')
+    else:
+        try:
+            formatted_date_human = datetime.strptime(appt_date_str, '%Y-%m-%d').strftime('%B %d, %Y')
+        except Exception:
+            formatted_date_human = appt_date_str
+
+    formatted_time_human = appt_time_str
+    if hasattr(appt_time, 'strftime'):
+        formatted_time_human = appt_time.strftime('%I:%M %p')
+    else:
+        try:
+            formatted_time_human = datetime.strptime(appt_time_str, '%H:%M').strftime('%I:%M %p')
+        except Exception:
+            try:
+                formatted_time_human = datetime.strptime(appt_time_str, '%H:%M:%S').strftime('%I:%M %p')
+            except Exception:
+                formatted_time_human = appt_time_str
+
+    issued_on = datetime.now().strftime('%B %d, %Y %I:%M %p').replace(' 0', ' ')
+
+    is_match = True
+    if token_patient and token_patient.lower() != appt_patient.lower():
+        is_match = False
+    if token_date and token_date != appt_date_str:
+        is_match = False
+    if token_time and token_time[:5] != appt_time_str[:5]:
+        is_match = False
+
+    valid_status = appt_status.lower() not in ['cancelled', 'canceled']
+    is_valid = is_match and valid_status
+
+    title = 'Appointment Verification Letter'
+    badge_bg = '#16a34a' if is_valid else '#dc2626'
+    badge_text = 'VALID' if is_valid else 'NOT VALID'
+    validity_line = 'This appointment is confirmed and valid.' if is_valid else 'This appointment is not valid in the iClinic system.'
+
+    html = f"""<!doctype html>
+<html>
+<head>
+    <meta charset=\"utf-8\">
+    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">
+    <title>{escape(title)}</title>
+    <style>
+        body {{ margin: 0; background: #f3f4f6; color: #111827; font-family: "Times New Roman", Times, serif; }}
+        .page {{ max-width: 820px; margin: 24px auto; background: #ffffff; border: 1px solid #e5e7eb; box-shadow: 0 8px 20px rgba(0,0,0,0.06); padding: 32px 44px 36px 44px; }}
+        .header-table {{ width: 100%; border-collapse: collapse; }}
+        .header-table td {{ vertical-align: middle; }}
+        .logo {{ width: 70px; height: 70px; object-fit: contain; }}
+        .title-block {{ text-align: center; }}
+        .title-block .school {{ font-weight: 700; letter-spacing: 1px; font-size: 16px; }}
+        .title-block .sub {{ font-size: 12px; color: #6b7280; margin-top: 4px; }}
+        .title-block .letter {{ margin-top: 10px; font-weight: 700; font-size: 15px; text-transform: uppercase; letter-spacing: 0.6px; }}
+        .divider {{ margin: 14px 0 0 0; border-top: 1px solid #e5e7eb; }}
+        .meta {{ margin-top: 14px; display: flex; justify-content: space-between; font-size: 12px; color: #374151; }}
+        .badge {{ display: inline-block; padding: 6px 12px; border-radius: 999px; background: {badge_bg}; color: #ffffff; font-size: 11px; font-weight: 700; letter-spacing: 0.6px; border: 1px solid {badge_bg}; -webkit-print-color-adjust: exact; print-color-adjust: exact; }}
+        .lead {{ font-size: 14px; line-height: 1.6; margin: 18px 0 14px 0; }}
+        .details {{ width: 100%; border-collapse: collapse; font-size: 14px; margin-top: 8px; }}
+        .details td {{ padding: 8px 10px; border: 1px solid #e5e7eb; }}
+        .details td.label {{ width: 35%; background: #f9fafb; font-weight: 700; }}
+        .footer-note {{ margin-top: 18px; font-size: 12px; color: #6b7280; line-height: 1.5; font-style: italic; }}
+        .print-actions {{ margin-top: 18px; text-align: right; }}
+        .print-actions button {{ background: #111827; color: #ffffff; border: none; padding: 8px 14px; border-radius: 6px; cursor: pointer; font-size: 12px; }}
+        @media print {{
+            body {{ background: #ffffff; }}
+            .page {{ margin: 0; border: none; box-shadow: none; }}
+            .print-actions {{ display: none; }}
+            .footer-note {{ position: fixed; bottom: 18px; left: 44px; right: 44px; margin: 0; }}
+            .badge {{ background: {badge_bg} !important; color: #ffffff !important; border-color: {badge_bg} !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }}
+        }}
+    </style>
+</head>
+<body>
+    <div class=\"page\">
+        <table class=\"header-table\">
+            <tr>
+                <td style=\"width: 80px;\">
+                    <img src=\"/assets/img/iclinic-logo.png\" alt=\"Norzagaray College Logo\" class=\"logo\" />
+                </td>
+                <td class=\"title-block\">
+                    <div class=\"school\">NORZAGARAY COLLEGE</div>
+                    <div class=\"sub\">Municipal Compound, Brgy. Poblacion, Norzagaray, Bulacan</div>
+                    <div class=\"sub\">Norzagaray College Clinic</div>
+                    <div class=\"letter\">Appointment Verification Letter</div>
+                </td>
+                <td style=\"width: 80px; text-align: right;\">
+                    <img src=\"/assets/img/Bagong_Pilipinas_logo.png\" alt=\"Bagong Pilipinas Logo\" class=\"logo\" />
+                </td>
+            </tr>
+        </table>
+        <div class=\"divider\"></div>
+
+        <div class=\"meta\">
+            <div>Issued on: {escape(issued_on)}</div>
+            <div class=\"badge\">{escape(badge_text)}</div>
+        </div>
+
+        <div class=\"lead\">
+            This is to certify that <strong>{escape(appt_patient)}</strong> has a recorded appointment in the iClinic system.
+            {escape(validity_line)} The details are as follows:
+        </div>
+
+        <table class=\"details\">
+            <tr>
+                <td class=\"label\">Patient Name</td>
+                <td>{escape(appt_patient)}</td>
+            </tr>
+            <tr>
+                <td class=\"label\">Appointment Date</td>
+                <td>{escape(formatted_date_human)}</td>
+            </tr>
+            <tr>
+                <td class=\"label\">Appointment Time</td>
+                <td>{escape(formatted_time_human)}</td>
+            </tr>
+            <tr>
+                <td class=\"label\">Appointment Type</td>
+                <td>{escape(appt_type)}</td>
+            </tr>
+        </table>
+
+        <div class=\"footer-note\">
+            This document is system-generated and issued upon verification request. It is valid only at the time of verification.
+            For inquiries, please contact the Norzagaray College Clinic.
+        </div>
+
+        <div class=\"print-actions\">
+            <button type=\"button\" onclick=\"window.print()\">Print Letter</button>
+        </div>
+    </div>
+</body>
+</html>"""
+
+    return html
 
 
 def _get_all_patient_emails():
@@ -915,6 +1146,251 @@ def _resolve_major_case_guardian_contact(cursor, conn, role, record_id):
     }
 
 
+def _clean_phone_number(value: str) -> str:
+    v = (value or '').strip()
+    if not v:
+        return ''
+    lowered = v.lower()
+    if lowered in ['n/a', 'na', 'none', 'null', 'undefined']:
+        return ''
+    return v
+
+
+def _normalize_patient_role_label(role: str) -> str:
+    raw = (role or '').strip()
+    if not raw:
+        return ''
+    rl = raw.lower()
+    if rl in ['student', 'students']:
+        return 'Student'
+    if rl in ['visitor', 'visitors']:
+        return 'Visitor'
+    if rl in ['teaching staff', 'teaching', 'teaching_staff', 'teaching-staff', 'faculty']:
+        return 'Teaching Staff'
+    if rl in ['non-teaching staff', 'non teaching staff', 'non_teaching staff', 'non_teaching', 'non_teaching_staff', 'non-teaching']:
+        return 'Non-Teaching Staff'
+    if rl in ['dean', 'deans']:
+        return 'Dean'
+    return raw
+
+
+def _resolve_guardian_contact_for_patient(cursor, conn, patient_id, patient_role):
+    role_label = _normalize_patient_role_label(patient_role)
+
+    if patient_id is None or (isinstance(patient_id, str) and not patient_id.strip()):
+        return {'error': 'patient_id is required'}
+
+    try:
+        if isinstance(patient_id, str) and patient_id.strip().isdigit():
+            patient_id = int(patient_id.strip())
+    except Exception:
+        pass
+
+    contact_number = None
+    guardian_name = None
+    guardian_relationship = None
+    patient_name = None
+    source_id = None
+    identifier = None
+
+    base_cur = None
+    try:
+        # Use a buffered tuple-cursor for compatibility regardless of the caller cursor type
+        base_cur = conn.cursor(buffered=True)
+
+        # Prefer patients_unified (this is what Staff Patients uses)
+        unified_row = None
+        try:
+            base_cur.execute("SHOW TABLES LIKE 'patients_unified'")
+            if base_cur.fetchone():
+                ucur = conn.cursor(dictionary=True, buffered=True)
+                try:
+                    ucur.execute(
+                        '''
+                        SELECT patient_id, role, source_id, identifier,
+                               first_name, middle_name, last_name, suffix,
+                               contact_number,
+                               emergency_contact_name, emergency_contact_relationship,
+                               emergency_contact_number
+                        FROM patients_unified
+                        WHERE patient_id = %s
+                          AND role = %s
+                        LIMIT 1
+                        ''',
+                        (patient_id, role_label)
+                    )
+                    unified_row = ucur.fetchone()
+                finally:
+                    try:
+                        ucur.close()
+                    except Exception:
+                        pass
+        except Exception as e:
+            print(f"Note: Could not query patients_unified for XRAY guardian resolver: {e}")
+
+        if isinstance(unified_row, dict):
+            source_id = unified_row.get('source_id')
+            identifier = (unified_row.get('identifier') or '').strip() or None
+
+            contact_number = _clean_phone_number(unified_row.get('emergency_contact_number'))
+            guardian_name = (unified_row.get('emergency_contact_name') or '').strip() or None
+            guardian_relationship = (unified_row.get('emergency_contact_relationship') or '').strip() or None
+
+            # Patient name
+            first = (unified_row.get('first_name') or '').strip()
+            middle = (unified_row.get('middle_name') or '').strip()
+            last = (unified_row.get('last_name') or '').strip()
+            suffix = (unified_row.get('suffix') or '').strip()
+            patient_name = f"{first} {middle + ' ' if middle else ''}{last}{' ' + suffix if suffix else ''}".strip() or None
+
+        # Fallback to source tables (best-effort)
+        try:
+            if not _clean_phone_number(contact_number):
+                if role_label == 'Student' and identifier:
+                    try:
+                        base_cur.execute(
+                            '''
+                            SELECT emergency_contact_number, emergency_contact_name, emergency_contact_relationship,
+                                   first_name, last_name
+                            FROM students
+                            WHERE student_number = %s
+                            LIMIT 1
+                            ''',
+                            (identifier,)
+                        )
+                        s = base_cur.fetchone()
+                        if s:
+                            contact_number = _clean_phone_number(s[0])
+                            guardian_name = guardian_name or (s[1] or None)
+                            guardian_relationship = guardian_relationship or (s[2] or None)
+                            if not patient_name:
+                                patient_name = (f"{s[3] or ''} {s[4] or ''}").strip() or None
+                    except Exception:
+                        # Legacy student schema fallback
+                        try:
+                            base_cur.execute(
+                                '''
+                                SELECT emergency_contact_number, emergency_contact_name, emergency_contact_relationship,
+                                       std_Firstname, std_Surname
+                                FROM students
+                                WHERE student_number = %s
+                                LIMIT 1
+                                ''',
+                                (identifier,)
+                            )
+                            s = base_cur.fetchone()
+                            if s:
+                                contact_number = _clean_phone_number(s[0])
+                                guardian_name = guardian_name or (s[1] or None)
+                                guardian_relationship = guardian_relationship or (s[2] or None)
+                                if not patient_name:
+                                    patient_name = (f"{s[3] or ''} {s[4] or ''}").strip() or None
+                        except Exception:
+                            pass
+                elif role_label == 'Teaching Staff' and source_id is not None:
+                    try:
+                        base_cur.execute(
+                            '''
+                            SELECT emergency_contact_number, emergency_contact_name, emergency_contact_relationship,
+                                   first_name, last_name
+                            FROM teaching
+                            WHERE id = %s
+                            LIMIT 1
+                            ''',
+                            (source_id,)
+                        )
+                        t = base_cur.fetchone()
+                        if t:
+                            contact_number = _clean_phone_number(t[0])
+                            guardian_name = guardian_name or (t[1] or None)
+                            guardian_relationship = guardian_relationship or (t[2] or None)
+                            if not patient_name:
+                                patient_name = (f"{t[3] or ''} {t[4] or ''}").strip() or None
+                    except Exception:
+                        pass
+                elif role_label == 'Non-Teaching Staff' and source_id is not None:
+                    try:
+                        base_cur.execute(
+                            '''
+                            SELECT emergency_contact_number, emergency_contact_name, emergency_contact_relationship,
+                                   first_name, last_name
+                            FROM non_teaching_staff
+                            WHERE id = %s
+                            LIMIT 1
+                            ''',
+                            (source_id,)
+                        )
+                        nt = base_cur.fetchone()
+                        if nt:
+                            contact_number = _clean_phone_number(nt[0])
+                            guardian_name = guardian_name or (nt[1] or None)
+                            guardian_relationship = guardian_relationship or (nt[2] or None)
+                            if not patient_name:
+                                patient_name = (f"{nt[3] or ''} {nt[4] or ''}").strip() or None
+                    except Exception:
+                        pass
+                elif role_label == 'Dean' and source_id is not None:
+                    try:
+                        base_cur.execute(
+                            '''
+                            SELECT emergency_contact_number, emergency_contact_name, emergency_contact_relationship,
+                                   first_name, last_name
+                            FROM deans
+                            WHERE id = %s
+                            LIMIT 1
+                            ''',
+                            (source_id,)
+                        )
+                        d = base_cur.fetchone()
+                        if d:
+                            contact_number = _clean_phone_number(d[0])
+                            guardian_name = guardian_name or (d[1] or None)
+                            guardian_relationship = guardian_relationship or (d[2] or None)
+                            if not patient_name:
+                                patient_name = (f"{d[3] or ''} {d[4] or ''}").strip() or None
+                    except Exception:
+                        pass
+        except Exception as e:
+            print(f"Note: XRAY guardian resolver fallback failed: {e}")
+    finally:
+        try:
+            if base_cur is not None:
+                base_cur.close()
+        except Exception:
+            pass
+
+    return {
+        'contact_number': _clean_phone_number(contact_number),
+        'guardian_name': (guardian_name or '').strip() or None,
+        'guardian_relationship': (guardian_relationship or '').strip() or None,
+        'patient_name': (patient_name or '').strip() or None,
+        'role_label': role_label,
+        'patient_id': patient_id,
+        'patient_role': role_label,
+    }
+
+
+def _build_guardian_xray_abnormal_sms(patient_name, role_label, reviewed_dt, clinic_name='NORZAGARAY COLLEGE', guardian_name=None, guardian_relationship=None):
+    patient_name = (patient_name or '').strip().title() or 'Patient'
+    guardian_name = (guardian_name or '').strip().title()
+    role_label = (role_label or '').strip() or 'Patient'
+    reviewed_dt = (reviewed_dt or '').strip()
+
+    msg = f"{clinic_name}\niClinic Management System\n\n"
+    if guardian_name:
+        msg += f"Dear Mr./Ms. {guardian_name},\n"
+    else:
+        msg += "Dear Mr./Ms. Parent/Guardian,\n"
+
+    msg += f"This is to inform you that {patient_name} ({role_label}) has an XRAY review marked as ABNORMAL."
+    if reviewed_dt:
+        msg += f" ({reviewed_dt})"
+    msg += "\n"
+    msg += "Please contact/visit the school clinic as soon as possible for proper coordination and guidance.\n\n"
+    msg += "Sincerely,\niClinic Management System\nNorzagaray College"
+    return msg
+
+
 @app.route('/api/sms-gateway/status', methods=['GET'])
 def api_sms_gateway_status():
     if 'user_id' not in session:
@@ -1192,6 +1668,426 @@ def api_notify_guardian_major_case():
     except Exception as e:
         print(f"Error notifying guardian for major case: {str(e)}")
         return jsonify({'error': f'Database error: {str(e)}'}), 500
+
+
+@app.route('/api/xray-reviews', methods=['GET'])
+def api_list_xray_reviews():
+    if 'user_id' not in session:
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    patient_id = request.args.get('patient_id')
+    role = request.args.get('role')
+
+    if patient_id is None or (isinstance(patient_id, str) and not patient_id.strip()):
+        return jsonify({'error': 'patient_id is required'}), 400
+
+    try:
+        if isinstance(patient_id, str) and patient_id.strip().isdigit():
+            patient_id = int(patient_id.strip())
+    except Exception:
+        return jsonify({'error': 'patient_id must be an integer'}), 400
+
+    role_label = _normalize_patient_role_label(role)
+
+    conn = DatabaseConfig.get_connection()
+    if not conn:
+        return jsonify({'error': 'Database connection failed'}), 500
+
+    cursor = conn.cursor(dictionary=True)
+    try:
+        where = 'patient_id = %s'
+        params = [patient_id]
+        if role_label:
+            where += ' AND patient_role = %s'
+            params.append(role_label)
+
+        cursor.execute(
+            f"""
+            SELECT id, patient_id, patient_role, result, findings, recommendation,
+                   reviewed_at, reviewed_by, reviewed_by_name,
+                   sms_notified_at, sms_status, sms_error
+            FROM xray_reviews
+            WHERE {where}
+            ORDER BY reviewed_at DESC, id DESC
+            LIMIT 50
+            """,
+            tuple(params)
+        )
+
+        rows = cursor.fetchall() or []
+        for r in rows:
+            try:
+                if r.get('reviewed_at') is not None:
+                    r['reviewed_at'] = str(r.get('reviewed_at'))
+            except Exception:
+                pass
+            try:
+                if r.get('sms_notified_at') is not None:
+                    r['sms_notified_at'] = str(r.get('sms_notified_at'))
+            except Exception:
+                pass
+
+        return jsonify({'success': True, 'reviews': rows}), 200
+    except Exception as e:
+        print(f"Error listing XRAY reviews: {e}")
+        return jsonify({'error': f'Database error: {str(e)}'}), 500
+    finally:
+        try:
+            cursor.close()
+        except Exception:
+            pass
+        try:
+            conn.close()
+        except Exception:
+            pass
+
+
+@app.route('/api/xray-reviews', methods=['POST'])
+def api_create_xray_review():
+    if 'user_id' not in session:
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    data = request.get_json() or {}
+    patient_id = data.get('patient_id')
+    patient_role = data.get('role') or data.get('patient_role')
+    result = (data.get('result') or '').strip().lower()
+    findings = (data.get('findings') or '').strip()
+    recommendation = (data.get('recommendation') or '').strip()
+
+    if patient_id is None or (isinstance(patient_id, str) and not patient_id.strip()):
+        return jsonify({'error': 'patient_id is required'}), 400
+
+    try:
+        if isinstance(patient_id, str) and patient_id.strip().isdigit():
+            patient_id = int(patient_id.strip())
+    except Exception:
+        return jsonify({'error': 'patient_id must be an integer'}), 400
+
+    role_label = _normalize_patient_role_label(patient_role)
+    if not role_label:
+        return jsonify({'error': 'role is required'}), 400
+
+    if result not in ['normal', 'abnormal']:
+        return jsonify({'error': "result must be 'normal' or 'abnormal'"}), 400
+
+    reviewed_by = session.get('user_id')
+    reviewed_by_name = (f"{session.get('first_name') or ''} {session.get('last_name') or ''}").strip() or None
+
+    conn = DatabaseConfig.get_connection()
+    if not conn:
+        return jsonify({'error': 'Database connection failed'}), 500
+
+    cursor = conn.cursor(buffered=True)
+    try:
+        cursor.execute(
+            '''
+            INSERT INTO xray_reviews (
+                patient_id, patient_role, result,
+                findings, recommendation,
+                reviewed_at, reviewed_by, reviewed_by_name
+            ) VALUES (%s, %s, %s, %s, %s, NOW(), %s, %s)
+            ''',
+            (patient_id, role_label, result, findings or None, recommendation or None, reviewed_by, reviewed_by_name)
+        )
+        conn.commit()
+        review_id = cursor.lastrowid
+
+        return jsonify({
+            'success': True,
+            'review': {
+                'id': review_id,
+                'patient_id': patient_id,
+                'patient_role': role_label,
+                'result': result,
+                'findings': findings,
+                'recommendation': recommendation,
+                'reviewed_at': str(datetime.now()),
+                'reviewed_by': reviewed_by,
+                'reviewed_by_name': reviewed_by_name,
+                'sms_notified_at': None,
+                'sms_status': None,
+                'sms_error': None,
+            }
+        }), 201
+    except Exception as e:
+        print(f"Error creating XRAY review: {e}")
+        return jsonify({'error': f'Database error: {str(e)}'}), 500
+    finally:
+        try:
+            cursor.close()
+        except Exception:
+            pass
+        try:
+            conn.close()
+        except Exception:
+            pass
+
+
+@app.route('/api/xray-reviews/bulk-normal', methods=['POST'])
+def api_bulk_mark_xray_normal():
+    if 'user_id' not in session:
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    data = request.get_json() or {}
+    patients = data.get('patients')
+    force_new_cycle = bool(data.get('force_new_cycle'))
+
+    if not isinstance(patients, list) or not patients:
+        return jsonify({'error': 'patients must be a non-empty array'}), 400
+
+    # Basic safety limit (prevents accidental huge operations)
+    if len(patients) > 2000:
+        return jsonify({'error': 'Too many patients in one request (max 2000). Please narrow your filter/search and try again.'}), 400
+
+    reviewed_by = session.get('user_id')
+    reviewed_by_name = (f"{session.get('first_name') or ''} {session.get('last_name') or ''}").strip() or None
+
+    # Normalize + de-duplicate pairs
+    pairs = []
+    seen = set()
+    invalid_count = 0
+    for p in patients:
+        if not isinstance(p, dict):
+            invalid_count += 1
+            continue
+
+        pid = p.get('patient_id')
+        if pid is None:
+            pid = p.get('id')
+
+        role = p.get('role')
+        if not role:
+            role = p.get('patient_role')
+
+        if pid is None or (isinstance(pid, str) and not pid.strip()):
+            invalid_count += 1
+            continue
+
+        try:
+            if isinstance(pid, str) and pid.strip().isdigit():
+                pid = int(pid.strip())
+            elif isinstance(pid, int):
+                pid = pid
+            else:
+                pid = int(pid)
+        except Exception:
+            invalid_count += 1
+            continue
+
+        role_label = _normalize_patient_role_label(role)
+        if not role_label:
+            invalid_count += 1
+            continue
+
+        key = (pid, role_label)
+        if key in seen:
+            continue
+        seen.add(key)
+        pairs.append(key)
+
+    if not pairs:
+        return jsonify({'error': 'No valid patient entries provided'}), 400
+
+    conn = DatabaseConfig.get_connection()
+    if not conn:
+        return jsonify({'error': 'Database connection failed'}), 500
+
+    cursor = conn.cursor(buffered=True)
+    try:
+        patient_ids = sorted({pid for pid, _ in pairs})
+
+        skip_pairs = set()
+        skip_reason = 'existing_any'
+        if force_new_cycle:
+            # Idempotence: if already marked normal today, skip.
+            skip_reason = 'already_normal_today'
+
+        # Chunk IN() lists to avoid overly large queries.
+        chunk_size = 500
+        for i in range(0, len(patient_ids), chunk_size):
+            chunk = patient_ids[i:i + chunk_size]
+            placeholders = ','.join(['%s'] * len(chunk))
+
+            if force_new_cycle:
+                cursor.execute(
+                    f"""
+                    SELECT DISTINCT patient_id, patient_role
+                    FROM xray_reviews
+                    WHERE result = 'normal'
+                      AND DATE(reviewed_at) = CURDATE()
+                      AND patient_id IN ({placeholders})
+                    """,
+                    tuple(chunk)
+                )
+            else:
+                cursor.execute(
+                    f"""
+                    SELECT DISTINCT patient_id, patient_role
+                    FROM xray_reviews
+                    WHERE patient_id IN ({placeholders})
+                    """,
+                    tuple(chunk)
+                )
+
+            rows = cursor.fetchall() or []
+            for row in rows:
+                try:
+                    # buffered cursor returns tuples
+                    pid = row[0]
+                    prole = row[1]
+                    if pid is not None and prole is not None:
+                        skip_pairs.add((int(pid), str(prole)))
+                except Exception:
+                    pass
+
+        to_insert = [pair for pair in pairs if pair not in skip_pairs]
+
+        values = [
+            (pid, role_label, 'normal', None, None, reviewed_by, reviewed_by_name)
+            for (pid, role_label) in to_insert
+        ]
+
+        inserted = 0
+        if values:
+            cursor.executemany(
+                '''
+                INSERT INTO xray_reviews (
+                    patient_id, patient_role, result,
+                    findings, recommendation,
+                    reviewed_at, reviewed_by, reviewed_by_name
+                ) VALUES (%s, %s, %s, %s, %s, NOW(), %s, %s)
+                ''',
+                values
+            )
+            conn.commit()
+            inserted = cursor.rowcount or 0
+
+        skipped = len(pairs) - len(to_insert)
+
+        return jsonify({
+            'success': True,
+            'total_pairs': len(pairs),
+            'inserted': inserted,
+            'skipped': skipped,
+            'skip_reason': skip_reason,
+            'invalid_input': invalid_count,
+        }), 200
+    except Exception as e:
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+        print(f"Error bulk marking XRAY normal: {e}")
+        return jsonify({'error': f'Database error: {str(e)}'}), 500
+    finally:
+        try:
+            cursor.close()
+        except Exception:
+            pass
+        try:
+            conn.close()
+        except Exception:
+            pass
+
+
+@app.route('/api/xray-reviews/<int:review_id>/notify-guardian', methods=['POST'])
+def api_notify_guardian_xray_review(review_id: int):
+    if 'user_id' not in session:
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    conn = DatabaseConfig.get_connection()
+    if not conn:
+        return jsonify({'error': 'Database connection failed'}), 500
+
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute(
+            '''
+            SELECT id, patient_id, patient_role, result, findings, recommendation, reviewed_at,
+                   sms_notified_at, sms_status
+            FROM xray_reviews
+            WHERE id = %s
+            LIMIT 1
+            ''',
+            (review_id,)
+        )
+        review = cursor.fetchone()
+        if not review:
+            return jsonify({'error': 'XRAY review not found'}), 404
+
+        if (review.get('result') or '').lower() != 'abnormal':
+            return jsonify({'error': 'Guardian SMS can only be sent for ABNORMAL XRAY reviews'}), 400
+
+        patient_id = review.get('patient_id')
+        patient_role = review.get('patient_role')
+
+        ctx = _resolve_guardian_contact_for_patient(cursor, conn, patient_id, patient_role)
+        if ctx.get('error'):
+            return jsonify({'error': ctx.get('error')}), 400
+
+        contact_number = _clean_phone_number(ctx.get('contact_number'))
+        if not contact_number:
+            return jsonify({'error': 'No guardian contact number available for notification'}), 400
+
+        reviewed_dt = ''
+        try:
+            reviewed_at = review.get('reviewed_at')
+            reviewed_dt = str(reviewed_at) if reviewed_at else ''
+        except Exception:
+            reviewed_dt = ''
+
+        sms_message = _build_guardian_xray_abnormal_sms(
+            ctx.get('patient_name'),
+            ctx.get('role_label'),
+            reviewed_dt,
+            guardian_name=ctx.get('guardian_name'),
+            guardian_relationship=ctx.get('guardian_relationship')
+        )
+
+        sms_result = _send_major_case_notification_sms(contact_number, sms_message)
+        sms_sent = bool(sms_result.get('success'))
+        sms_error = None
+        if not sms_sent:
+            sms_error = sms_result.get('error') or 'SMS send failed'
+
+        cursor2 = conn.cursor(buffered=True)
+        try:
+            cursor2.execute(
+                '''
+                UPDATE xray_reviews
+                SET sms_notified_at = NOW(),
+                    sms_status = %s,
+                    sms_error = %s,
+                    sms_message = %s
+                WHERE id = %s
+                ''',
+                ('sent' if sms_sent else 'failed', sms_error, sms_message, review_id)
+            )
+            conn.commit()
+        finally:
+            try:
+                cursor2.close()
+            except Exception:
+                pass
+
+        return jsonify({
+            'success': sms_sent,
+            'message': 'SMS sent' if sms_sent else f"SMS not sent: {sms_error}",
+            'sms_sent': sms_sent,
+            'sms_error': sms_error,
+        }), 200
+    except Exception as e:
+        print(f"Error notifying guardian for XRAY review: {e}")
+        return jsonify({'error': f'Database error: {str(e)}'}), 500
+    finally:
+        try:
+            cursor.close()
+        except Exception:
+            pass
+        try:
+            conn.close()
+        except Exception:
+            pass
 
 def send_password_reset_email(to_email, reset_link, user_name):
     """Send password reset link"""
@@ -2291,6 +3187,30 @@ def init_db():
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             INDEX idx_status_priority (status, priority, arrival_time),
             INDEX idx_arrival_time (arrival_time)
+        )
+    ''')
+
+    # XRAY review logs (separate from medical records; can trigger guardian SMS)
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS xray_reviews (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            patient_id INT NOT NULL,
+            patient_role VARCHAR(30) NOT NULL,
+            result ENUM('normal', 'abnormal') NOT NULL,
+            findings TEXT,
+            recommendation TEXT,
+            reviewed_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            reviewed_by INT NULL,
+            reviewed_by_name VARCHAR(120),
+            sms_notified_at DATETIME NULL,
+            sms_status VARCHAR(20) NULL,
+            sms_error TEXT,
+            sms_message TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            INDEX idx_xray_reviews_patient (patient_id, patient_role, reviewed_at),
+            INDEX idx_xray_reviews_sms (sms_notified_at),
+            FOREIGN KEY (reviewed_by) REFERENCES users(id)
         )
     ''')
 
@@ -6616,8 +7536,21 @@ def ensure_patients_unified_priority_columns(conn) -> bool:
                 "ALTER TABLE patients_unified ADD COLUMN is_senior_citizen TINYINT(1) NOT NULL DEFAULT 0 AFTER is_pwd"
             )
 
+        cursor.execute("SHOW COLUMNS FROM patients_unified LIKE 'is_pregnant'")
+        if not cursor.fetchone():
+            cursor.execute(
+                "ALTER TABLE patients_unified ADD COLUMN is_pregnant TINYINT(1) NOT NULL DEFAULT 0 AFTER is_senior_citizen"
+            )
+
         try:
             cursor.execute("CREATE INDEX idx_patients_priority_flags ON patients_unified (is_pwd, is_senior_citizen)")
+        except Exception:
+            pass
+
+        try:
+            cursor.execute(
+                "CREATE INDEX idx_patients_priority_flags_v2 ON patients_unified (is_pwd, is_senior_citizen, is_pregnant)"
+            )
         except Exception:
             pass
 
@@ -6671,6 +7604,7 @@ def get_patient_priority_profile(conn, patient_type: str, patient_identifier: st
         'age': None,
         'is_pwd': False,
         'is_senior_citizen': False,
+        'is_pregnant': False,
         'source': 'default',
     }
 
@@ -6687,9 +7621,10 @@ def get_patient_priority_profile(conn, patient_type: str, patient_identifier: st
         if role:
             cursor.execute(
                 """
-                SELECT age, birthdate,
+                SELECT age, birthdate, gender,
                        COALESCE(is_pwd, 0) AS is_pwd,
-                       COALESCE(is_senior_citizen, 0) AS is_senior_citizen
+                       COALESCE(is_senior_citizen, 0) AS is_senior_citizen,
+                       COALESCE(is_pregnant, 0) AS is_pregnant
                 FROM patients_unified
                 WHERE role = %s AND identifier = %s
                 LIMIT 1
@@ -6701,9 +7636,10 @@ def get_patient_priority_profile(conn, patient_type: str, patient_identifier: st
         if not row:
             cursor.execute(
                 """
-                SELECT age, birthdate,
+                SELECT age, birthdate, gender,
                        COALESCE(is_pwd, 0) AS is_pwd,
-                       COALESCE(is_senior_citizen, 0) AS is_senior_citizen
+                       COALESCE(is_senior_citizen, 0) AS is_senior_citizen,
+                       COALESCE(is_pregnant, 0) AS is_pregnant
                 FROM patients_unified
                 WHERE identifier = %s
                 LIMIT 1
@@ -6720,6 +7656,9 @@ def get_patient_priority_profile(conn, patient_type: str, patient_identifier: st
             profile['age'] = age
             profile['is_pwd'] = _to_bool(row.get('is_pwd'))
             profile['is_senior_citizen'] = _to_bool(row.get('is_senior_citizen')) or (age is not None and age >= 60)
+            gender_text = (row.get('gender') or '').strip().lower()
+            is_female = gender_text in {'female', 'f'}
+            profile['is_pregnant'] = _to_bool(row.get('is_pregnant')) if is_female else False
             profile['source'] = 'patients_unified'
             return profile
 
@@ -6800,6 +7739,12 @@ def resolve_consultation_ticket_priority(
         reasons.append('Senior citizen priority lane')
         priority_source = 'patient_profile'
 
+    if profile.get('is_pregnant'):
+        if PRIORITY_RANK.get(priority, 99) > PRIORITY_RANK['P2']:
+            priority = 'P2'
+        reasons.append('Pregnant patient priority lane')
+        priority_source = 'patient_profile'
+
     requested = (requested_priority or '').strip().upper()
     if requested in PRIORITY_LEVELS and PRIORITY_RANK.get(requested, 99) < PRIORITY_RANK.get(priority, 99):
         priority = requested
@@ -6817,6 +7762,7 @@ def resolve_consultation_ticket_priority(
         'source': priority_source,
         'is_pwd': bool(profile.get('is_pwd')),
         'is_senior_citizen': bool(profile.get('is_senior_citizen')),
+        'is_pregnant': bool(profile.get('is_pregnant')),
     }
 
 
@@ -7708,16 +8654,20 @@ def api_all_patients():
 
         has_is_pwd_col = False
         has_is_senior_col = False
+        has_is_pregnant_col = False
         try:
             cursor.execute("SHOW COLUMNS FROM patients_unified LIKE 'is_pwd'")
             has_is_pwd_col = cursor.fetchone() is not None
             cursor.execute("SHOW COLUMNS FROM patients_unified LIKE 'is_senior_citizen'")
             has_is_senior_col = cursor.fetchone() is not None
+            cursor.execute("SHOW COLUMNS FROM patients_unified LIKE 'is_pregnant'")
+            has_is_pregnant_col = cursor.fetchone() is not None
         except Exception:
             pass
 
         is_pwd_expr = "COALESCE(is_pwd, 0)" if has_is_pwd_col else "0"
         is_senior_expr = "COALESCE(is_senior_citizen, 0)" if has_is_senior_col else "0"
+        is_pregnant_expr = "COALESCE(is_pregnant, 0)" if has_is_pregnant_col else "0"
 
         cursor.execute(f'''
             SELECT patient_id, role, source_id, identifier, first_name, middle_name, last_name, suffix,
@@ -7725,6 +8675,7 @@ def api_all_patients():
                    department, course, level, position,
                    {is_pwd_expr} AS is_pwd,
                    {is_senior_expr} AS is_senior_citizen,
+                                     {is_pregnant_expr} AS is_pregnant,
                    blood_type, allergies, medical_conditions,
                    emergency_contact_name, emergency_contact_relationship, emergency_contact_number, emergency_contact_email,
                    is_active
@@ -7934,6 +8885,9 @@ def api_all_patients():
             inferred_senior = age_value is not None and age_value >= 60
             is_pwd = _to_bool(r.get('is_pwd'))
             is_senior = _to_bool(r.get('is_senior_citizen')) or inferred_senior
+            gender_text = (r.get('gender') or '').strip().lower()
+            is_female = gender_text in {'female', 'f'}
+            is_pregnant = _to_bool(r.get('is_pregnant')) if is_female else False
 
             all_patients.append({
                 'id': legacy_id,
@@ -7965,6 +8919,7 @@ def api_all_patients():
                 'emergency_contact_email': r.get('emergency_contact_email') or 'N/A',
                 'is_pwd': is_pwd,
                 'is_senior_citizen': is_senior,
+                'is_pregnant': is_pregnant,
                 'role': role
             })
 
@@ -14108,6 +15063,84 @@ def api_print_history():
             conn.close()
         return jsonify({'error': f'Database error: {str(e)}'}), 500
 
+
+@app.route('/api/log-print-history', methods=['POST'])
+def api_log_print_history():
+    """Log a print event to the print_history table (no file generation)."""
+    if 'user_id' not in session:
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    data = request.get_json(silent=True) or {}
+
+    patient_name = (data.get('patient_name') or '').strip()
+    if not patient_name:
+        return jsonify({'error': 'patient_name is required'}), 400
+
+    patient_type = (data.get('patient_type') or 'Student').strip()
+    letter_type = (data.get('letter_type') or 'Medical Acknowledgment Letter').strip()
+    purpose = data.get('purpose') or 'Medical consultation and healthcare services'
+
+    file_format = (data.get('file_format') or 'PDF').strip().upper()
+    if file_format not in ('PDF', 'DOCX'):
+        file_format = 'PDF'
+
+    visit_date_obj = None
+    visit_time_obj = None
+
+    visit_date_raw = data.get('visit_date')
+    if visit_date_raw:
+        try:
+            visit_date_obj = datetime.strptime(str(visit_date_raw)[:10], '%Y-%m-%d').date()
+        except Exception:
+            visit_date_obj = None
+
+    visit_time_raw = data.get('visit_time')
+    if visit_time_raw:
+        try:
+            time_str = str(visit_time_raw).strip()
+            if len(time_str) == 5:
+                time_str = f"{time_str}:00"
+            visit_time_obj = datetime.strptime(time_str, '%H:%M:%S').time()
+        except Exception:
+            visit_time_obj = None
+
+    conn = DatabaseConfig.get_connection()
+    if not conn:
+        return jsonify({'error': 'Database connection failed'}), 500
+
+    try:
+        cursor = conn.cursor()
+        ticket_number = generate_unique_ticket_number(conn)
+        cursor.execute('''
+            INSERT INTO print_history
+            (patient_name, patient_type, visit_date, visit_time, letter_type, purpose, printed_by, file_format)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+        ''', (
+            patient_name,
+            patient_type or None,
+            visit_date_obj,
+            visit_time_obj,
+            letter_type,
+            purpose,
+            session.get('user_id'),
+            file_format
+        ))
+        conn.commit()
+        cursor.close()
+        conn.close()
+        return jsonify({'success': True})
+    except Exception as e:
+        print(f"Database error: {e}")
+        try:
+            if 'cursor' in locals():
+                cursor.close()
+        finally:
+            try:
+                conn.close()
+            except Exception:
+                pass
+        return jsonify({'error': f'Database error: {str(e)}'}), 500
+
 # Medical Letter Generation Endpoints
 @app.route('/generate-medical-letter', methods=['POST'])
 def generate_medical_letter():
@@ -14758,7 +15791,8 @@ def api_create_appointment_request():
                         patient_name=data['patient_name'],
                         appointment_date=data['preferred_date'],
                         appointment_time=data['preferred_time'],
-                        appointment_type=data.get('appointment_type', 'General Consultation')
+                        appointment_type=data.get('appointment_type', 'General Consultation'),
+                        appointment_id=appointment_id
                     )
                     
                     if confirmation_sent:
@@ -14781,6 +15815,7 @@ def api_create_appointment_request():
                     from services.appointment_lock_notification_service import send_appointment_lock_notification
                     
                     appointment_data = {
+                        'id': appointment_id,
                         'patient_name': data['patient_name'],
                         'date': data['preferred_date'],
                         'time': data['preferred_time'],
@@ -18811,7 +19846,7 @@ def update_patient_status(patient_id):
 
 @app.route('/api/patients/<int:patient_pk>/priority-flags', methods=['PUT'])
 def update_patient_priority_flags(patient_pk: int):
-    """Update priority lane flags (PWD / senior citizen) for a unified patient profile."""
+    """Update priority lane flags (PWD / senior citizen / pregnant) for a unified patient profile."""
     if 'user_id' not in session:
         return jsonify({'error': 'Authentication required'}), 401
 
@@ -18822,6 +19857,7 @@ def update_patient_priority_flags(patient_pk: int):
     data = request.get_json() or {}
     is_pwd = 1 if _to_bool(data.get('is_pwd')) else 0
     is_senior_citizen = 1 if _to_bool(data.get('is_senior_citizen')) else 0
+    is_pregnant = 1 if _to_bool(data.get('is_pregnant')) else 0
 
     conn = DatabaseConfig.get_connection()
     if not conn:
@@ -18836,7 +19872,7 @@ def update_patient_priority_flags(patient_pk: int):
         cursor = conn.cursor(dictionary=True)
         cursor.execute(
             """
-            SELECT patient_id, role, source_id, identifier
+            SELECT patient_id, role, source_id, identifier, gender
             FROM patients_unified
             WHERE patient_id = %s
             FOR UPDATE
@@ -18848,15 +19884,21 @@ def update_patient_priority_flags(patient_pk: int):
             conn.rollback()
             return jsonify({'error': 'Patient not found'}), 404
 
+        gender_text = (patient_row.get('gender') or '').strip().lower()
+        is_female = gender_text in {'female', 'f'}
+        if not is_female:
+            is_pregnant = 0
+
         cursor.execute(
             """
             UPDATE patients_unified
             SET is_pwd = %s,
                 is_senior_citizen = %s,
+                is_pregnant = %s,
                 updated_at = NOW()
             WHERE patient_id = %s
             """,
-            (is_pwd, is_senior_citizen, patient_pk),
+            (is_pwd, is_senior_citizen, is_pregnant, patient_pk),
         )
 
         # Keep legacy student flag in sync when available.
@@ -18889,6 +19931,7 @@ def update_patient_priority_flags(patient_pk: int):
                 'patient_id': patient_pk,
                 'is_pwd': bool(is_pwd),
                 'is_senior_citizen': bool(is_senior_citizen),
+                'is_pregnant': bool(is_pregnant),
                 'message': 'Priority lane flags updated successfully.',
             }
         ), 200

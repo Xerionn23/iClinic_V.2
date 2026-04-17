@@ -74,7 +74,7 @@
             backdrop-filter: blur(10px);
             -webkit-backdrop-filter: blur(10px);
             border: 1px solid rgba(255, 255, 255, 0.3);
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.06);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.06);   
         }
         
         .dark .glass {
@@ -887,9 +887,8 @@
                                                      x-text="appointment.status === 'Confirmed' ? 'Booked' : appointment.status"></span>
                                                 <!-- Lock indicator for appointments within 3 days -->
                                                 <template x-if="appointment.isLocked">
-                                                    <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800 border border-red-200" title="Non-cancellable & Non-reschedulable (within 3 days)">
-                                                        <span class="mr-1">🔒</span>
-                                                        Finalized
+                                                    <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800 border border-red-200" title="Changes are no longer available within 3 days. Please coordinate with the clinic for updates.">
+                                                        3-Day Window
                                                     </span>
                                                 </template>
                                                 <!-- Auto-confirmed: no manual actions needed -->

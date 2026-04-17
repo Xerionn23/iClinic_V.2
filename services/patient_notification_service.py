@@ -6,9 +6,14 @@ Sends email notifications to patients:
 """
 
 import smtplib
+import os
+import io
+import urllib.parse
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+from email.mime.image import MIMEImage
 from datetime import datetime, timedelta
+from itsdangerous import URLSafeTimedSerializer
 from config.database import DatabaseConfig
 
 # Email configuration
@@ -20,7 +25,69 @@ EMAIL_CONFIG = {
     'from_name': 'iClinic Management System'
 }
 
-def send_booking_confirmation(patient_email, patient_name, appointment_date, appointment_time, appointment_type):
+
+def _get_public_base_url() -> str:
+    base = (os.environ.get('ICLINIC_PUBLIC_BASE_URL') or '').strip()
+    if base:
+        return base.rstrip('/')
+    return 'http://127.0.0.1:5000'
+
+
+def _get_qr_token_secret() -> str:
+    return (
+        (os.environ.get('ICLINIC_QR_TOKEN_SECRET') or '').strip()
+        or (os.environ.get('ICLINIC_SECRET_KEY') or '').strip()
+        or 'your-secret-key-change-this-in-production'
+    )
+
+
+def _appointment_qr_serializer() -> URLSafeTimedSerializer:
+    return URLSafeTimedSerializer(_get_qr_token_secret(), salt='iclinic-appointment-qr-v1')
+
+
+def _build_appointment_verification_url(appointment_id: int | None, patient_name: str, appointment_date: str, appointment_time: str) -> str | None:
+    if not appointment_id:
+        return None
+
+    token = _appointment_qr_serializer().dumps({
+        'aid': int(appointment_id),
+        'p': patient_name,
+        'd': appointment_date,
+        't': appointment_time,
+    })
+    return f"{_get_public_base_url()}/verify/appointment/{token}"
+
+
+def _make_qr_png_bytes(data: str) -> bytes | None:
+    try:
+        import qrcode
+    except Exception:
+        return None
+
+
+def _qr_image_url(data: str) -> str:
+    encoded = urllib.parse.quote(data, safe='')
+    return f"https://api.qrserver.com/v1/create-qr-code/?size=220x220&data={encoded}"
+
+    try:
+        qr = qrcode.QRCode(
+            version=None,
+            error_correction=qrcode.constants.ERROR_CORRECT_M,
+            box_size=10,
+            border=2,
+        )
+        qr.add_data(data)
+        qr.make(fit=True)
+
+        img = qr.make_image(fill_color='black', back_color='white')
+        buf = io.BytesIO()
+        img.save(buf, format='PNG')
+        return buf.getvalue()
+    except Exception:
+        return None
+
+
+def send_booking_confirmation(patient_email, patient_name, appointment_date, appointment_time, appointment_type, appointment_id=None):
     """Send booking confirmation email to patient"""
     try:
         # Format appointment date and time
@@ -39,7 +106,47 @@ def send_booking_confirmation(patient_email, patient_name, appointment_date, app
         
         # Create email content
         subject = f"✅ Appointment Confirmed: {formatted_date} at {formatted_time}"
-        
+
+        home_url = _get_public_base_url()
+        verification_url = _build_appointment_verification_url(
+            appointment_id=appointment_id,
+            patient_name=patient_name,
+            appointment_date=appointment_date,
+            appointment_time=appointment_time,
+        )
+        qr_png = _make_qr_png_bytes(verification_url) if verification_url else None
+
+        if verification_url and qr_png:
+            qr_section_html = f"""
+            <!-- Appointment QR Code -->
+            <div style=\"background-color: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 18px; margin-bottom: 25px;\">
+                <p style=\"margin: 0 0 10px 0; color: #1e40af; font-size: 14px; font-weight: 700;\">Clinic QR Code</p>
+                <p style=\"margin: 0; color: #374151; font-size: 13px; line-height: 1.5;\">Show this QR code at the clinic for quick verification.</p>
+                <div style=\"text-align: center; margin-top: 14px;\">
+                    <img src=\"cid:appointment_qr\" alt=\"Appointment QR Code\" style=\"width: 220px; height: 220px; border: 1px solid #e5e7eb; border-radius: 8px;\" />
+                </div>
+                <p style=\"margin: 14px 0 0 0; color: #6b7280; font-size: 12px; word-break: break-all;\">
+                    Verification link: <a href=\"{verification_url}\" style=\"color:#2563eb;\">{verification_url}</a>
+                </p>
+            </div>
+            """
+        elif verification_url:
+            qr_section_html = f"""
+            <!-- Appointment QR Code (Hosted) -->
+            <div style=\"background-color: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 18px; margin-bottom: 25px;\">
+                <p style=\"margin: 0 0 10px 0; color: #1e40af; font-size: 14px; font-weight: 700;\">Clinic QR Code</p>
+                <p style=\"margin: 0; color: #374151; font-size: 13px; line-height: 1.5;\">Show this QR code at the clinic for quick verification.</p>
+                <div style=\"text-align: center; margin-top: 14px;\">
+                    <img src=\"{_qr_image_url(verification_url)}\" alt=\"Appointment QR Code\" style=\"width: 220px; height: 220px; border: 1px solid #e5e7eb; border-radius: 8px;\" />
+                </div>
+                <p style=\"margin: 14px 0 0 0; color: #6b7280; font-size: 12px; word-break: break-all;\">
+                    Verification link: <a href=\"{verification_url}\" style=\"color:#2563eb;\">{verification_url}</a>
+                </p>
+            </div>
+            """
+        else:
+            qr_section_html = ""
+
         html_content = f"""
 <!DOCTYPE html>
 <html>
@@ -84,6 +191,8 @@ def send_booking_confirmation(patient_email, patient_name, appointment_date, app
                 </p>
             </div>
             
+            {qr_section_html}
+            
             <!-- Important Notice -->
             <div style="background-color: #fef3c7; border-left: 4px solid #f59e0b; padding: 15px; margin-bottom: 25px;">
                 <p style="margin: 0; color: #92400e; font-size: 14px; line-height: 1.5;">
@@ -122,13 +231,22 @@ def send_booking_confirmation(patient_email, patient_name, appointment_date, app
         
         # Send email
         cfg = EMAIL_CONFIG
-        
-        msg = MIMEMultipart('alternative')
+
+        msg = MIMEMultipart('related')
         msg['Subject'] = subject
         msg['From'] = f"{cfg['from_name']} <{cfg['email']}>"
         msg['To'] = patient_email
-        msg.attach(MIMEText(html_content, 'html'))
-        
+
+        html_part = MIMEMultipart('alternative')
+        html_part.attach(MIMEText(html_content, 'html'))
+        msg.attach(html_part)
+
+        if qr_png:
+            qr_image = MIMEImage(qr_png, _subtype='png')
+            qr_image.add_header('Content-ID', '<appointment_qr>')
+            qr_image.add_header('Content-Disposition', 'inline', filename='appointment_qr.png')
+            msg.attach(qr_image)
+
         # Connect to SMTP server
         server = smtplib.SMTP(cfg['smtp_server'], cfg['smtp_port'])
         server.starttls()
@@ -143,15 +261,15 @@ def send_booking_confirmation(patient_email, patient_name, appointment_date, app
         print(f"Error sending booking confirmation: {e}")
         return False
 
-def send_three_day_reminder(patient_email, patient_name, appointment_date, appointment_time, appointment_type):
+def send_three_day_reminder(patient_email, patient_name, appointment_date, appointment_time, appointment_type, appointment_id=None):
     """Send 3-day reminder email to patient"""
     try:
         # Format appointment date and time
         try:
-            date_obj = datetime.strptime(appointment_date, '%Y-%m-%d')
+            date_obj = datetime.strptime(appointment_date, '%Y-%m-%d').date()
             formatted_date = date_obj.strftime('%B %d, %Y')
             days_until = (date_obj - datetime.now().date()).days
-        except:
+        except Exception:
             formatted_date = appointment_date
             days_until = 3
         
@@ -164,7 +282,47 @@ def send_three_day_reminder(patient_email, patient_name, appointment_date, appoi
         
         # Create email content
         subject = f"⏰ Reminder: Your appointment is in {days_until} days!"
-        
+
+        home_url = _get_public_base_url()
+        verification_url = _build_appointment_verification_url(
+            appointment_id=appointment_id,
+            patient_name=patient_name,
+            appointment_date=appointment_date,
+            appointment_time=appointment_time,
+        )
+        qr_png = _make_qr_png_bytes(verification_url) if verification_url else None
+
+        if verification_url and qr_png:
+            qr_section_html = f"""
+            <!-- Appointment QR Code -->
+            <div style=\"background-color: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 18px; margin-bottom: 25px;\">
+                <p style=\"margin: 0 0 10px 0; color: #1e40af; font-size: 14px; font-weight: 700;\">Clinic QR Code</p>
+                <p style=\"margin: 0; color: #374151; font-size: 13px; line-height: 1.5;\">Show this QR code at the clinic for quick verification.</p>
+                <div style=\"text-align: center; margin-top: 14px;\">
+                    <img src=\"cid:appointment_qr\" alt=\"Appointment QR Code\" style=\"width: 220px; height: 220px; border: 1px solid #e5e7eb; border-radius: 8px;\" />
+                </div>
+                <p style=\"margin: 14px 0 0 0; color: #6b7280; font-size: 12px; word-break: break-all;\">
+                    Verification link: <a href=\"{verification_url}\" style=\"color:#2563eb;\">{verification_url}</a>
+                </p>
+            </div>
+            """
+        elif verification_url:
+            qr_section_html = f"""
+            <!-- Appointment QR Code (Hosted) -->
+            <div style=\"background-color: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 18px; margin-bottom: 25px;\">
+                <p style=\"margin: 0 0 10px 0; color: #1e40af; font-size: 14px; font-weight: 700;\">Clinic QR Code</p>
+                <p style=\"margin: 0; color: #374151; font-size: 13px; line-height: 1.5;\">Show this QR code at the clinic for quick verification.</p>
+                <div style=\"text-align: center; margin-top: 14px;\">
+                    <img src=\"{_qr_image_url(verification_url)}\" alt=\"Appointment QR Code\" style=\"width: 220px; height: 220px; border: 1px solid #e5e7eb; border-radius: 8px;\" />
+                </div>
+                <p style=\"margin: 14px 0 0 0; color: #6b7280; font-size: 12px; word-break: break-all;\">
+                    Verification link: <a href=\"{verification_url}\" style=\"color:#2563eb;\">{verification_url}</a>
+                </p>
+            </div>
+            """
+        else:
+            qr_section_html = ""
+
         html_content = f"""
 <!DOCTYPE html>
 <html>
@@ -209,10 +367,12 @@ def send_three_day_reminder(patient_email, patient_name, appointment_date, appoi
                 </p>
             </div>
             
-            <!-- Important Notice - 3 Day Lock -->
+            {qr_section_html}
+            
+            <!-- Important Notice - 3-Day Change Window -->
             <div style="background-color: #fee2e2; border-left: 4px solid #dc2626; padding: 15px; margin-bottom: 25px;">
                 <p style="margin: 0; color: #991b1b; font-size: 14px; line-height: 1.5;">
-                    <strong>Important:</strong> Your appointment is now within the 3-day lock period. Cancellation and rescheduling are no longer permitted.
+                    <strong>Important:</strong> Your appointment is within the final 3-day change window. Cancellation and rescheduling are no longer available. Please contact the clinic if you need assistance.
                 </p>
             </div>
             
@@ -261,13 +421,22 @@ def send_three_day_reminder(patient_email, patient_name, appointment_date, appoi
         
         # Send email
         cfg = EMAIL_CONFIG
-        
-        msg = MIMEMultipart('alternative')
+
+        msg = MIMEMultipart('related')
         msg['Subject'] = subject
         msg['From'] = f"{cfg['from_name']} <{cfg['email']}>"
         msg['To'] = patient_email
-        msg.attach(MIMEText(html_content, 'html'))
-        
+
+        html_part = MIMEMultipart('alternative')
+        html_part.attach(MIMEText(html_content, 'html'))
+        msg.attach(html_part)
+
+        if qr_png:
+            qr_image = MIMEImage(qr_png, _subtype='png')
+            qr_image.add_header('Content-ID', '<appointment_qr>')
+            qr_image.add_header('Content-Disposition', 'inline', filename='appointment_qr.png')
+            msg.attach(qr_image)
+
         # Connect to SMTP server
         server = smtplib.SMTP(cfg['smtp_server'], cfg['smtp_port'])
         server.starttls()

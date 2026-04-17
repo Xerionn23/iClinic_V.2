@@ -844,12 +844,12 @@
                                                         Reschedule
                                                     </button>
                                                 </div>
-                                                <!-- Contact clinic info for appointments within 3 days -->
+                                                                                                <!-- Contact clinic info for appointments within 3 days -->
                                                 <div x-show="appointment.status === 'Confirmed' && !canCancelAppointment(appointment)"
                                                      class="flex gap-2">
                                                     <span class="px-3 py-1 text-xs text-yellow-600 bg-yellow-50 rounded-lg border border-yellow-200"
-                                                          title="Cannot cancel or reschedule - appointment is within 3 days. Contact clinic directly.">
-                                                        Contact Clinic
+                                                                                                                    title="This appointment is within 3 days, so cancellation or rescheduling must be handled by the clinic.">
+                                                                                                                Clinic Assistance Required
                                                     </span>
                                                 </div>
                                             </div>
@@ -1889,8 +1889,15 @@
                             this.showMessage('Success', 'Appointment confirmed successfully! Your appointment has been booked.', 'success');
                             this.resetNewAppointment();
                             this.showAddModal = false;
-                            await this.loadAppointments();
-                            await this.loadAllAppointments();
+
+                            const refreshPromise = Promise.all([
+                                this.loadAppointments({ silent: true }),
+                                this.loadAllAppointments(),
+                                this.loadAppointmentRequests()
+                            ]);
+                            refreshPromise.catch((refreshError) => {
+                                console.error('Error refreshing appointment data:', refreshError);
+                            });
                         } else {
                             const error = await response.json();
                             this.showMessage('Error', error.error || 'Failed to book appointment', 'error');

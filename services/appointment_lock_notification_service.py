@@ -4,9 +4,14 @@ Sends email alerts to clinic nurses when appointments become non-cancellable/non
 """
 
 import smtplib
+import os
+import io
+import urllib.parse
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+from email.mime.image import MIMEImage
 from datetime import datetime, timedelta
+from itsdangerous import URLSafeTimedSerializer
 from config.database import DatabaseConfig
 
 # Email configuration
@@ -17,6 +22,67 @@ EMAIL_CONFIG = {
     'password': 'xtsweijcxsntwhld',
     'from_name': 'iClinic Management System'
 }
+
+
+def _get_public_base_url() -> str:
+    base = (os.environ.get('ICLINIC_PUBLIC_BASE_URL') or '').strip()
+    if base:
+        return base.rstrip('/')
+    return 'http://127.0.0.1:5000'
+
+
+def _get_qr_token_secret() -> str:
+    return (
+        (os.environ.get('ICLINIC_QR_TOKEN_SECRET') or '').strip()
+        or (os.environ.get('ICLINIC_SECRET_KEY') or '').strip()
+        or 'your-secret-key-change-this-in-production'
+    )
+
+
+def _appointment_qr_serializer() -> URLSafeTimedSerializer:
+    return URLSafeTimedSerializer(_get_qr_token_secret(), salt='iclinic-appointment-qr-v1')
+
+
+def _build_appointment_verification_url(appointment_id, patient_name, appointment_date, appointment_time) -> str | None:
+    if not appointment_id:
+        return None
+
+    token = _appointment_qr_serializer().dumps({
+        'aid': int(appointment_id),
+        'p': patient_name,
+        'd': appointment_date,
+        't': appointment_time,
+    })
+    return f"{_get_public_base_url()}/verify/appointment/{token}"
+
+
+def _make_qr_png_bytes(data: str) -> bytes | None:
+    try:
+        import qrcode
+    except Exception:
+        return None
+
+
+def _qr_image_url(data: str) -> str:
+    encoded = urllib.parse.quote(data, safe='')
+    return f"https://api.qrserver.com/v1/create-qr-code/?size=220x220&data={encoded}"
+
+    try:
+        qr = qrcode.QRCode(
+            version=None,
+            error_correction=qrcode.constants.ERROR_CORRECT_M,
+            box_size=10,
+            border=2,
+        )
+        qr.add_data(data)
+        qr.make(fit=True)
+
+        img = qr.make_image(fill_color='black', back_color='white')
+        buf = io.BytesIO()
+        img.save(buf, format='PNG')
+        return buf.getvalue()
+    except Exception:
+        return None
 
 def get_nurse_emails():
     """Get all clinic nurse email addresses from database"""
@@ -72,23 +138,68 @@ def send_appointment_lock_notification(appointment_data):
         appointment_time = appointment_data.get('time', '')
         patient_name = appointment_data.get('patient_name', '')
         appointment_type = appointment_data.get('type', '')
+        appointment_id = appointment_data.get('id')
         
+        appointment_date_str = appointment_date.strftime('%Y-%m-%d') if hasattr(appointment_date, 'strftime') else str(appointment_date or '')
+        appointment_time_str = str(appointment_time or '')
+        if len(appointment_time_str) >= 5 and appointment_time_str[2] == ':':
+            appointment_time_str = appointment_time_str[:5]
+
         # Format date for display
         try:
-            date_obj = datetime.strptime(appointment_date, '%Y-%m-%d')
+            date_obj = datetime.strptime(appointment_date_str, '%Y-%m-%d')
             formatted_date = date_obj.strftime('%B %d, %Y')
         except:
-            formatted_date = appointment_date
+            formatted_date = appointment_date_str
         
         # Format time to 12-hour format
         try:
-            time_obj = datetime.strptime(appointment_time, '%H:%M')
+            time_obj = datetime.strptime(appointment_time_str, '%H:%M')
             formatted_time = time_obj.strftime('%I:%M %p')
         except:
-            formatted_time = appointment_time
+            formatted_time = appointment_time_str
         
         # Create email content
-        subject = f"🔒 APPOINTMENT LOCKED: {patient_name} - {formatted_date}"
+        subject = f"Appointment Within 3 Days: {patient_name} - {formatted_date}"
+
+        verification_url = _build_appointment_verification_url(
+            appointment_id=appointment_id,
+            patient_name=patient_name,
+            appointment_date=appointment_date_str,
+            appointment_time=appointment_time_str,
+        )
+        qr_png = _make_qr_png_bytes(verification_url) if verification_url else None
+
+        if verification_url and qr_png:
+            qr_section_html = f"""
+            <!-- Appointment QR Code -->
+            <div style=\"background-color: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 18px; margin-bottom: 25px;\">
+                <p style=\"margin: 0 0 10px 0; color: #1e40af; font-size: 14px; font-weight: 700;\">Appointment QR Code</p>
+                <p style=\"margin: 0; color: #374151; font-size: 13px; line-height: 1.5;\">Scan to open the appointment verification page.</p>
+                <div style=\"text-align: center; margin-top: 14px;\">
+                    <img src=\"cid:appointment_qr\" alt=\"Appointment QR Code\" style=\"width: 220px; height: 220px; border: 1px solid #e5e7eb; border-radius: 8px;\" />
+                </div>
+                <p style=\"margin: 14px 0 0 0; color: #6b7280; font-size: 12px; word-break: break-all;\">
+                    Verification link: <a href=\"{verification_url}\" style=\"color:#2563eb;\">{verification_url}</a>
+                </p>
+            </div>
+            """
+        elif verification_url:
+            qr_section_html = f"""
+            <!-- Appointment QR Code (Hosted) -->
+            <div style=\"background-color: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 18px; margin-bottom: 25px;\">
+                <p style=\"margin: 0 0 10px 0; color: #1e40af; font-size: 14px; font-weight: 700;\">Appointment QR Code</p>
+                <p style=\"margin: 0; color: #374151; font-size: 13px; line-height: 1.5;\">Scan to open the appointment verification page.</p>
+                <div style=\"text-align: center; margin-top: 14px;\">
+                    <img src=\"{_qr_image_url(verification_url)}\" alt=\"Appointment QR Code\" style=\"width: 220px; height: 220px; border: 1px solid #e5e7eb; border-radius: 8px;\" />
+                </div>
+                <p style=\"margin: 14px 0 0 0; color: #6b7280; font-size: 12px; word-break: break-all;\">
+                    Verification link: <a href=\"{verification_url}\" style=\"color:#2563eb;\">{verification_url}</a>
+                </p>
+            </div>
+            """
+        else:
+            qr_section_html = ""
         
         html_content = f"""
 <!DOCTYPE html>
@@ -96,7 +207,7 @@ def send_appointment_lock_notification(appointment_data):
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Appointment Lock Notification</title>
+    <title>Appointment Within 3 Days Notice</title>
 </head>
 <body style="margin: 0; padding: 0; background-color: #f3f4f6; font-family: 'Inter', Arial, sans-serif;">
     <div style="max-width: 600px; margin: 20px auto; background-color: white; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); overflow: hidden;">
@@ -108,14 +219,14 @@ def send_appointment_lock_notification(appointment_data):
         
         <!-- Content -->
         <div style="padding: 40px 30px;">
-            <h2 style="color: #dc2626; margin: 0 0 20px 0; font-size: 22px;">⚠️ Appointment Locked</h2>
+            <h2 style="color: #dc2626; margin: 0 0 20px 0; font-size: 22px;">Appointment Within 3 Days</h2>
             
             <p style="color: #374151; margin: 0 0 20px 0; line-height: 1.6;">
                 Hello,
             </p>
             
             <p style="color: #374151; margin: 0 0 25px 0; line-height: 1.6;">
-                This appointment is now within 3 days and cannot be cancelled or rescheduled according to clinic policy.
+                This appointment is within 3 days and changes must be coordinated with the clinic per policy.
             </p>
             
             <!-- Appointment Details Box -->
@@ -137,9 +248,11 @@ def send_appointment_lock_notification(appointment_data):
             <!-- Important Notice -->
             <div style="background-color: #fee2e2; border-left: 4px solid #dc2626; padding: 15px; margin-bottom: 25px;">
                 <p style="margin: 0; color: #991b1b; font-size: 14px; line-height: 1.5;">
-                    <strong>Important:</strong> This appointment is within the 3-day lock period. Cancellation and rescheduling are no longer permitted. Please ensure the patient attends the scheduled appointment.
+                    <strong>Important:</strong> This appointment is in the final 3-day change window. Cancellation or rescheduling is no longer available. Please ensure the patient attends the scheduled appointment.
                 </p>
             </div>
+
+            {qr_section_html}
             
             <!-- Button -->
             <div style="text-align: center; margin-bottom: 25px;">
@@ -176,11 +289,20 @@ def send_appointment_lock_notification(appointment_data):
         
         for nurse_email in nurse_emails:
             try:
-                msg = MIMEMultipart('alternative')
+                msg = MIMEMultipart('related')
                 msg['Subject'] = subject
                 msg['From'] = f"{cfg['from_name']} <{cfg['email']}>"
                 msg['To'] = nurse_email
-                msg.attach(MIMEText(html_content, 'html'))
+
+                html_part = MIMEMultipart('alternative')
+                html_part.attach(MIMEText(html_content, 'html'))
+                msg.attach(html_part)
+
+                if qr_png:
+                    qr_image = MIMEImage(qr_png, _subtype='png')
+                    qr_image.add_header('Content-ID', '<appointment_qr>')
+                    qr_image.add_header('Content-Disposition', 'inline', filename='appointment_qr.png')
+                    msg.attach(qr_image)
                 
                 # Connect to SMTP server
                 server = smtplib.SMTP(cfg['smtp_server'], cfg['smtp_port'])

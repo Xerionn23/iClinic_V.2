@@ -54,7 +54,8 @@ def check_and_send_reminders():
                     patient_name=appointment['patient'],
                     appointment_date=appointment['date'].strftime('%Y-%m-%d'),
                     appointment_time=str(appointment['time']),
-                    appointment_type=appointment['type']
+                    appointment_type=appointment['type'],
+                    appointment_id=appointment['id']
                 )
                 
                 if reminder_sent:
