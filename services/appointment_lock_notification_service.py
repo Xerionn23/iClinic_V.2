@@ -201,6 +201,8 @@ def send_appointment_lock_notification(appointment_data):
         else:
             qr_section_html = ""
         
+        base_url = _get_public_base_url()
+
         html_content = f"""
 <!DOCTYPE html>
 <html>
@@ -256,7 +258,7 @@ def send_appointment_lock_notification(appointment_data):
             
             <!-- Button -->
             <div style="text-align: center; margin-bottom: 25px;">
-                <a href="http://127.0.0.1:5000" 
+                <a href="{base_url}" 
                    style="display: inline-block; background-color: #2563eb; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; font-weight: 500;">
                     View Appointment
                 </a>
@@ -266,7 +268,7 @@ def send_appointment_lock_notification(appointment_data):
                 If the button doesn't work, copy and paste this link into your browser:
             </p>
             <p style="margin: 0;">
-                <a href="http://127.0.0.1:5000" style="color: #2563eb; font-size: 13px; word-break: break-all;">http://127.0.0.1:5000</a>
+                <a href="{base_url}" style="color: #2563eb; font-size: 13px; word-break: break-all;">{base_url}</a>
             </p>
         </div>
         

@@ -1445,7 +1445,8 @@ def send_verification_email(to_email, verification_token, user_name):
     """Send email verification link"""
     try:
         # Create verification link
-        verification_link = f"http://127.0.0.1:5000/verify-email?token={verification_token}"
+        base_url = _get_public_base_url()
+        verification_link = f"{base_url}/verify-email?token={verification_token}"
         
         # Create email content
         subject = "iClinic - Email Verification Required"
@@ -5781,6 +5782,8 @@ def send_verification_email(email, verification_link, role, id_number):
         msg['From'] = sender_email
         msg['To'] = email
         
+        base_url = _get_public_base_url()
+
         # HTML email template
         html_content = f"""
         <!DOCTYPE html>
@@ -5966,7 +5969,7 @@ def send_appointment_notification(patient_email, patient_name, appointment_date,
             
             <!-- Button -->
             <div style="text-align: center; margin-bottom: 25px;">
-                <a href="http://127.0.0.1:5000" 
+                <a href="{base_url}" 
                    style="display: inline-block; background-color: #2563eb; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; font-weight: 500;">
                     View Your Appointment
                 </a>
@@ -5976,7 +5979,7 @@ def send_appointment_notification(patient_email, patient_name, appointment_date,
                 If the button doesn't work, copy and paste this link into your browser:
             </p>
             <p style="margin: 0;">
-                <a href="http://127.0.0.1:5000" style="color: #2563eb; font-size: 13px; word-break: break-all;">http://127.0.0.1:5000</a>
+                <a href="{base_url}" style="color: #2563eb; font-size: 13px; word-break: break-all;">{base_url}</a>
             </p>
         </div>
         
@@ -19210,7 +19213,8 @@ def forgot_user_password(user_id):
         conn.commit()
         
         # Create reset link
-        reset_link = f"http://127.0.0.1:5000/reset-password?token={reset_token}"
+        base_url = _get_public_base_url()
+        reset_link = f"{base_url}/reset-password?token={reset_token}"
         
         # Send email (HTML template)
         try:
