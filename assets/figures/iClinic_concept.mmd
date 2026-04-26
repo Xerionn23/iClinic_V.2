@@ -1,0 +1,55 @@
+flowchart LR
+  subgraph Inputs["Input Phase"]
+    PR["Patient Registration"]
+    MR["Medical Records"]
+    AR["Appointment Requests"]
+    QT["Queue Tickets"]
+    IU["Inventory Updates"]
+    SA["Staff Actions"]
+  end
+
+  DB["MySQL - iClinic DB (schema: iclinic_main)"]
+
+  subgraph App["Main Application Modules"]
+    PM["Patient Management"]
+    EM["Encounters & Medical Records"]
+    Q["Queue & Ticketing"]
+    AS["Appointment Scheduling"]
+    IM["Inventory Monitoring"]
+    AN["Announcements & Notifications"]
+    AI["AI Insights Engine"]
+  end
+
+  subgraph Analytics["Analytics & Decision Support"]
+    D["Descriptive Analytics"]
+    P["Predictive Analytics"]
+    R["Prescriptive Analytics"]
+  end
+
+  subgraph Integrations["External Integrations"]
+    EMAIL["SMTP Email"]
+    SMS["Android SMS Gateway"]
+    CLOUD["AWS RDS / Cloud Storage"]
+  end
+
+  subgraph Stakeholders["Stakeholders"]
+    ST["Patient"]
+    STAFF["Clinic Staff"]
+    ADM["Administrator"]
+  end
+
+  Inputs --> DB
+  DB --> App
+  App --> Analytics
+  Analytics --> App
+  App --> Integrations
+  CLOUD --> DB
+  App --> Stakeholders
+  EMAIL --> Stakeholders
+  SMS --> Stakeholders
+  ST --> App
+  STAFF --> App
+  ADM --> App
+
+  classDef box fill:#f9f,stroke:#333,stroke-width:1px;
+  class DB,App,Analytics,Integrations,Stakeholders box;

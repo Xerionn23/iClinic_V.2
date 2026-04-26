@@ -1,0 +1,44 @@
+%% Figure 3 — Modular System Architecture and External Integration
+flowchart LR
+  subgraph Roles["External User Roles"]
+    PT["Patient"]
+    NUR["Nurse"]
+    DOC["Doctor"]
+    REG["Registrar / Admin"]
+    IT["MIS / IT Personnel"]
+  end
+
+  Auth["Authentication & RBAC"]
+  Roles --> Auth
+
+  subgraph Core["Core & Support Modules"]
+    REGMOD["Patient Registration"]
+    RECORDS["Medical Records"]
+    QUEUE["Queue Management"]
+    SCHED["Appointment Scheduling"]
+    INV["Inventory Control"]
+    REPORTS["Reporting Module"]
+    AUDIT["Audit & Tracking"]
+    UM["User Management"]
+  end
+
+  Auth --> Core
+
+  DB["MySQL - iClinic DB (schema: iclinic_main)"]
+  Core --> DB
+
+  Web["iClinic Web Application\n(Admin Interface)"]
+  Web --> Core
+  Roles --> Web
+
+  subgraph Ext["External Integrations"]
+    CLOUD["AWS RDS / Cloud Storage"]
+    SMTP["SMTP Email Service"]
+    SMSG["Android SMS Gateway"]
+  end
+
+  Ext --> DB
+  Web --> Ext
+
+  classDef box fill:#eef,stroke:#333,stroke-width:1px;
+  class Roles,Auth,Core,DB,Web,Ext box;

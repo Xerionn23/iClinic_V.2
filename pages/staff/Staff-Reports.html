@@ -805,7 +805,7 @@
                     <!-- Main Content -->
                     <div x-show="!loading && !error">
                     <!-- Enhanced Filter Section -->
-                    <div class="mb-6 bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl shadow-md border border-gray-200 p-6">
+                    <div x-show="viewMode === 'charts'" x-cloak class="mb-6 bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl shadow-md border border-gray-200 p-6">
                         <div class="space-y-4">
                             <!-- First Row: Chart Search -->
                             <div class="flex flex-col lg:flex-row lg:items-center gap-4">
@@ -816,11 +816,13 @@
                                     </label>
                                     <select x-model="selectedChartFilter" @change="scrollToChart()" class="w-full px-4 py-3 border-2 border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-900 font-medium shadow-sm">
                                         <option value="all">📊 Show All Charts</option>
-                                        <optgroup label="📈 Patient Analytics">
+                                        <optgroup label="📊 Activity Analytics">
                                             <option value="revenueChart">💊 Medicine Usage Chart</option>
                                             <option value="monthlyVisitsChart">📅 Monthly Patient Visits</option>
-                                            <option value="patientDemographicsChart">👥 Patient Demographics</option>
-                                            <option value="medicalRecordsChart">🏥 Medical Records by Chief Complaint</option>
+                                        </optgroup>
+                                        <optgroup label="📅 Appointments">
+                                            <option value="bookingTrendsChart">📈 Booking Trends</option>
+                                            <option value="appointmentTypesChart">📋 Appointment Types</option>
                                         </optgroup>
                                         <optgroup label="💊 Inventory">
                                             <option value="stockLevelsChart">📦 Stock Levels</option>
@@ -909,7 +911,7 @@
                     </div>
                     
                     <!-- Quick Stats Overview -->
-                    <div class="mb-16">
+                    <div x-show="viewMode === 'charts'" class="mb-16">
                         <div class="max-w-6xl mx-auto">
                             
                             <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -980,13 +982,109 @@
                     <!-- Analytics & Charts Section -->
                     <div class="mb-8">
                         <div class="mb-6">
-                            <h2 class="text-2xl font-bold text-gray-900 section-header">Analytics & Trends</h2>
-                            <p class="text-gray-600 mt-2">Visual insights into clinic performance and patient care</p>
-                        </div>
+                                <h2 class="text-2xl font-bold text-gray-900 section-header">Analytics & Trends</h2>
+                                <p class="text-gray-600 mt-2">Visual insights into clinic performance and patient care</p>
+                            </div>
 
-                        
+                            <!-- View Tabs: Charts / Table -->
+                            <div class="mb-4 flex items-center justify-between">
+                                <div class="flex items-center space-x-2">
+                                    <button @click="setViewMode('charts')" :class="viewMode === 'charts' ? 'tab-button-active px-4 py-2 rounded-lg bg-white text-gray-900' : 'px-4 py-2 rounded-lg bg-white/60 text-gray-700'" class="text-sm font-semibold">Charts</button>
+                                    <button @click="setViewMode('table')" :class="viewMode === 'table' ? 'tab-button-active px-4 py-2 rounded-lg bg-white text-gray-900' : 'px-4 py-2 rounded-lg bg-white/60 text-gray-700'" class="text-sm font-semibold">Table</button>
+                                </div>
 
-                        <div class="grid grid-cols-1 xl:grid-cols-2 gap-8">
+                                <div class="flex items-center space-x-2">
+                                    <div x-show="viewMode === 'table'" class="flex items-center gap-2">
+                                        <label class="text-sm text-gray-600">Dataset:</label>
+                                        <select x-model="tableDataset" @change="tablePage = 1; fetchTableData()" class="px-3 py-2 border rounded-lg text-sm bg-white">
+                                            <option value="visits">Visits</option>
+                                            <option value="medicines">Medicines</option>
+                                            <option value="appointments">Appointments</option>
+                                        </select>
+                                        <button @click="openTableExportDialog()" class="px-3 py-2 bg-gray-50 text-gray-700 rounded-lg border text-sm">PDF</button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Table view -->
+                            <div x-show="viewMode === 'table'" x-cloak class="mb-6">
+                                <div class="bg-white rounded-2xl shadow-lg border p-6">
+                                    <div class="flex items-center justify-between mb-4">
+                                        <div>
+                                            <h3 class="text-xl font-bold text-gray-900">Data Table</h3>
+                                            <p class="text-sm text-gray-600" x-text="`Showing: ${tableDataset}`"></p>
+                                        </div>
+                                    </div>
+
+                                    <div x-show="tableLoading" class="py-12 text-center text-gray-600">
+                                        Loading table data...
+                                    </div>
+
+                                    <div x-show="!tableLoading" class="overflow-x-auto">
+                                        <table class="min-w-full divide-y divide-gray-200" id="reportsDataTable">
+                                            <thead class="bg-gray-50">
+                                                <tr>
+                                                    <template x-for="col in tableColumns" :key="col">
+                                                        <th class="px-4 py-2 text-left text-xs font-medium text-gray-700 uppercase tracking-wider" x-text="col"></th>
+                                                    </template>
+                                                </tr>
+                                            </thead>
+                                            <tbody class="bg-white divide-y divide-gray-200">
+                                                <template x-for="(row, idx) in paginatedData" :key="idx">
+                                                    <tr class="hover:bg-gray-50">
+                                                        <template x-for="col in tableColumns" :key="col">
+                                                            <td class="px-4 py-2 text-sm text-gray-700" x-text="formatTableCell(row[col])"></td>
+                                                        </template>
+                                                    </tr>
+                                                </template>
+                                                <tr x-show="tableData.length === 0">
+                                                    <td :colspan="tableColumns.length || 1" class="px-4 py-8 text-center text-gray-500">
+                                                        No data found for this dataset.
+                                                    </td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+
+                                    <!-- Pagination Controls -->
+                                    <div x-show="!tableLoading && tableData.length > 0" class="mt-6 flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t border-gray-100">
+                                        <div class="flex items-center gap-4">
+                                            <div class="flex items-center gap-2">
+                                                <span class="text-sm text-gray-600">Rows per page:</span>
+                                                <select x-model="tablePerPage" @change="tablePage = 1" class="px-2 py-1 border rounded text-sm bg-white focus:ring-2 focus:ring-blue-500">
+                                                    <option value="5">5</option>
+                                                    <option value="10">10</option>
+                                                    <option value="25">25</option>
+                                                    <option value="50">50</option>
+                                                </select>
+                                            </div>
+                                            <div class="text-sm text-gray-600">
+                                                Total Rows: <span class="font-semibold text-gray-900" x-text="tableData.length"></span>
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="flex items-center gap-2">
+                                            <button @click="tablePage = Math.max(1, tablePage - 1)" 
+                                                    :disabled="tablePage === 1"
+                                                    class="p-2 rounded-lg border hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+                                                <i data-lucide="chevron-left" class="w-4 h-4"></i>
+                                            </button>
+                                            
+                                            <div class="flex items-center gap-1 px-3 py-1 bg-gray-50 rounded-lg border">
+                                                <span class="text-sm font-medium text-gray-700" x-text="`Page ${tablePage} of ${totalTablePages}`"></span>
+                                            </div>
+                                            
+                                            <button @click="tablePage = Math.min(totalTablePages, tablePage + 1)" 
+                                                    :disabled="tablePage === totalTablePages"
+                                                    class="p-2 rounded-lg border hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+                                                <i data-lucide="chevron-right" class="w-4 h-4"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div x-show="viewMode === 'charts'" class="grid grid-cols-1 xl:grid-cols-2 gap-8">
                             <!-- Medicine Usage Chart -->
                             <div class="bg-white rounded-2xl shadow-lg border border-gray-100 p-8 hover:shadow-xl transition-shadow duration-300" data-chart-container>
                                 <div class="flex items-center justify-between mb-6">
@@ -1106,7 +1204,7 @@
                     </div>
 
                     <!-- Additional Analytics Charts -->
-                    <div class="mb-8">
+                    <div x-show="viewMode === 'charts'" x-cloak class="mb-8">
                         
                         <!-- Unified Grid Layout for All Charts -->
                                 <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -1269,974 +1367,32 @@
         </div>
     </div>
 
-    <!-- Alpine.js Reports Module -->
-    <script>
-        function reportsModule() {
-            return {
-                // UI State
-                sidebarCollapsed: false,
-                navigationChartsInitialized: false,
-                mobileMenuOpen: false,
-                userDropdown: false,
-                showSettingsModal: false,
-                showLogoutConfirm: false,
-                showCustomReportModal: false,
-                notificationDropdown: false,
-                selectedPeriod: 'month',
-                selectedDepartment: 'all',
-                startDate: '',
-                endDate: '',
-                lastUpdated: '',
-                
-                // Custom Report Data
-                customReport: {
-                    name: 'Monthly Student Health Summary',
-                    startDate: '2025-01-01',
-                    endDate: '2025-10-17',
-                    department: 'all',
-                    metrics: {
-                        patientStats: true,
-                        visitTrends: true,
-                        medicineUsage: true,
-                        consultations: false,
-                        demographics: false,
-                        emergencyCases: false
-                    },
-                    chartTypes: {
-                        patientStats: 'bar',
-                        visitTrends: 'line',
-                        medicineUsage: 'doughnut'
-                    },
-                    format: 'pdf'
-                },
-                
-                // Charts
-                revenueChart: null,
-                monthlyVisitsChart: null,
-                monthlyAppointmentsChart: null,
-                monthlyMedicineChart: null,
-                monthlyConsultationsChart: null,
-                monthlyNewPatientsChart: null,
-                monthlyOverviewChart: null,
-                chartsInitializing: false,
-                updateChartsTimeout: null,
-                
-                // Chart Types (for customization)
-                monthlyVisitsChartType: 'line',
-                monthlyVisitsPeriod: 'month',
-                monthlyVisitsDepartment: 'all',
-                revenueChartType: 'doughnut',
-                patientDemographicsChartType: 'pie',
-                medicalRecordsChartType: 'bar',
-                appointmentStatusChartType: 'doughnut',
-                bookingTrendsChartType: 'line',
-                appointmentTypesChartType: 'pie',
-                consultationMetricsChartType: 'bar',
-                consultationPatientTypesChartType: 'pie',
-                stockLevelsChartType: 'bar',
-                suppliesStatusChartType: 'doughnut',
-                announcementCategoriesChartType: 'pie',
-                priorityAnalysisChartType: 'bar',
-                chartDataCache: {}, // Store chart data for type switching
-
-                // Shared filters and AI planning state (keep in sync with advanced module)
-                selectedChartFilter: 'all',
-                reportPeriod: '2024-2025',
-                selectedChartTitle: '',
-                illnessPlan: null,
-                selectedIllnessMonthIndex: 0,
-                
-                // Data
-                stats: {
-                    totalPatients: 0,
-                    patientsGrowth: '0%',
-                    totalVisits: 0,
-                    totalConsultations: 0,
-                    consultationsGrowth: '0%',
-                    totalMedicines: 0
-                },
-                
-                loading: false,
-                error: null,
-                rawData: null,
-                
-                departmentStats: [],
-                topMedicines: [],
-                recentReports: [],
-
-                // Initialize function
-                init() {
-                    this.setDefaultDates();
-                    this.loadDashboardData();
-                    this.updateLastRefreshTime();
-                    
-                    // Initialize Lucide icons after data loads
-                    this.$nextTick(() => {
-                        setTimeout(() => {
-                            if (typeof lucide !== 'undefined' && lucide.createIcons) {
-                                try {
-                                    lucide.createIcons();
-                                } catch (error) {
-                                    console.warn('Lucide icon initialization failed:', error);
-                                }
-                            }
-                        }, 200);
-                    });
-                },
-                
-                setDefaultDates() {
-                    const today = new Date();
-                    const lastMonth = new Date(today.getFullYear(), today.getMonth() - 1, today.getDate());
-                    this.endDate = today.toISOString().split('T')[0];
-                    this.startDate = lastMonth.toISOString().split('T')[0];
-                },
-                
-                showMessage(title, text, type = 'info') {
-                    this.messageTitle = title;
-                    this.messageText = text;
-                    this.messageType = type;
-                    this.showMessageModal = true;
-                },
-                
-                updateLastRefreshTime() {
-                    this.lastUpdated = new Date().toLocaleString();
-                },
-                
-                toggleAutoRefresh() {
-                    this.autoRefresh = !this.autoRefresh;
-                    if (this.autoRefresh) {
-                        this.startAutoRefresh();
-                    } else {
-                        this.stopAutoRefresh();
-                    }
-                },
-                
-                startAutoRefresh() {
-                    this.refreshCountdown = 30;
-                    this.refreshInterval = setInterval(() => {
-                        this.refreshCountdown--;
-                        if (this.refreshCountdown <= 0) {
-                            this.refreshData();
-                            this.refreshCountdown = 30;
-                        }
-                    }, 1000);
-                },
-                
-                stopAutoRefresh() {
-                    if (this.refreshInterval) {
-                        clearInterval(this.refreshInterval);
-                        this.refreshInterval = null;
-                    }
-                },
-                
-                async refreshData() {
-                    console.log('🔄 Refreshing data...');
-                    await this.loadDashboardData();
-                    this.updateLastRefreshTime();
-                },
-                
-                applyDateFilter() {
-                    if (this.startDate && this.endDate) {
-                        console.log('📅 Applying date filter:', this.startDate, 'to', this.endDate);
-                        this.loadDashboardData();
-                        this.showDatePicker = false;
-                    }
-                },
-                
-                resetDateFilter() {
-                    this.setDefaultDates();
-                    this.loadDashboardData();
-                    this.showDatePicker = false;
-                },
-                
-                exportReport(format) {
-                    console.log('📄 Exporting report as:', format);
-                    
-                    if (format === 'pdf') {
-                        this.exportToPDF();
-                    } else if (format === 'excel') {
-                        this.exportToExcel();
-                    } else if (format === 'csv') {
-                        this.exportToCSV();
-                    }
-                    
-                    this.showExportModal = false;
-                },
-                
-                async exportToPDF() {
-                    try {
-                        const { jsPDF } = window.jspdf;
-                        const pdf = new jsPDF();
-                        
-                        // Add title
-                        pdf.setFontSize(20);
-                        pdf.text('iClinic Reports', 20, 20);
-                        
-                        // Add date range
-                        pdf.setFontSize(12);
-                        pdf.text(`Period: ${this.startDate} to ${this.endDate}`, 20, 35);
-                        pdf.text(`Generated: ${new Date().toLocaleString()}`, 20, 45);
-                        
-                        // Add statistics
-                        let yPos = 60;
-                        pdf.setFontSize(14);
-                        pdf.text('Statistics:', 20, yPos);
-                        yPos += 15;
-                        
-                        pdf.setFontSize(12);
-                        pdf.text(`Total Patients: ${this.stats.totalPatients}`, 25, yPos);
-                        yPos += 10;
-                        pdf.text(`Total Visits: ${this.stats.totalVisits}`, 25, yPos);
-                        yPos += 10;
-                        pdf.text(`Total Consultations: ${this.stats.totalConsultations}`, 25, yPos);
-                        yPos += 10;
-                        pdf.text(`Medicine Stock: ${this.stats.totalMedicines}`, 25, yPos);
-                        
-                        pdf.save('iClinic-Report.pdf');
-                        
-                        // Show success message
-                        this.showNotification('Report exported successfully!', 'success');
-                    } catch (error) {
-                        console.error('Error exporting PDF:', error);
-                        this.showNotification('Failed to export PDF', 'error');
-                    }
-                },
-                
-                exportToExcel() {
-                    // Create CSV data
-                    const csvData = this.generateCSVData();
-                    const blob = new Blob([csvData], { type: 'text/csv' });
-                    const url = window.URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = 'iClinic-Report.csv';
-                    a.click();
-                    window.URL.revokeObjectURL(url);
-                    
-                    this.showNotification('Report exported successfully!', 'success');
-                },
-                
-                exportToCSV() {
-                    const csvData = this.generateCSVData();
-                    const blob = new Blob([csvData], { type: 'text/csv' });
-                    const url = window.URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = 'iClinic-Report.csv';
-                    a.click();
-                    window.URL.revokeObjectURL(url);
-                    
-                    this.showNotification('Report exported successfully!', 'success');
-                },
-                
-                generateCSVData() {
-                    let csv = 'Metric,Value\n';
-                    csv += `Total Patients,${this.stats.totalPatients}\n`;
-                    csv += `Total Visits,${this.stats.totalVisits}\n`;
-                    csv += `Total Consultations,${this.stats.totalConsultations}\n`;
-                    csv += `Medicine Stock,${this.stats.totalMedicines}\n`;
-                    csv += `Report Period,${this.startDate} to ${this.endDate}\n`;
-                    csv += `Generated,${new Date().toLocaleString()}\n`;
-                    return csv;
-                },
-                
-                showNotification(message, type = 'info') {
-                    // Create notification element
-                    const notification = document.createElement('div');
-                    notification.className = `fixed top-4 right-4 z-50 p-4 rounded-lg shadow-lg transition-all duration-300 ${
-                        type === 'success' ? 'bg-green-500 text-white' :
-                        type === 'error' ? 'bg-red-500 text-white' :
-                        'bg-blue-500 text-white'
-                    }`;
-                    notification.textContent = message;
-                    
-                    document.body.appendChild(notification);
-                    
-                    // Remove after 3 seconds
-                    setTimeout(() => {
-                        notification.remove();
-                    }, 3000);
-                },
-                
-                updateChartFilter(filterType, value) {
-                    this.chartFilters[filterType] = value;
-                    console.log('📊 Updating chart filter:', filterType, '=', value);
-                    // Trigger chart update here
-                    this.updateCharts();
-                },
-                
-                updateCharts() {
-                    // Clear existing timeout
-                    if (this.updateChartsTimeout) {
-                        clearTimeout(this.updateChartsTimeout);
-                    }
-                    
-                    // Debounce chart updates
-                    this.updateChartsTimeout = setTimeout(() => {
-                        console.log('🔄 Updating charts with new filters...');
-                        console.log('📊 Selected Department:', this.selectedDepartment);
-                        console.log('📅 Selected Period:', this.selectedPeriod);
-                        
-                        if (!this.rawData) {
-                            console.warn('⚠️ No raw data available for filtering');
-                            return;
-                        }
-                        
-                        // Apply filters to data
-                        let filteredData = this.filterDataByPeriod(this.rawData);
-                        filteredData = this.filterDataByDepartment(filteredData);
-                        
-                        console.log('📊 Filtered data:', {
-                            patients: filteredData.patients.length,
-                            visits: filteredData.visits.length,
-                            consultations: filteredData.consultations.length,
-                            medicines: filteredData.medicines.length
-                        });
-                        
-                        // Recalculate statistics with filtered data
-                        this.calculateStatistics(filteredData.patients, filteredData.visits, filteredData.consultations, filteredData.medicines);
-                        
-                        // Update all charts with filtered data
-                        this.updateAllChartsWithFilteredData(filteredData);
-                        
-                        // Show visual feedback that filter was applied
-                        this.showFilterAppliedFeedback();
-                    }, 300);
-                },
-                
-                formatNumber(num) {
-                    if (num >= 1000000) {
-                        return (num / 1000000).toFixed(1) + 'M';
-                    } else if (num >= 1000) {
-                        return (num / 1000).toFixed(1) + 'K';
-                    }
-                    return num.toString();
-                },
-                
-                getGrowthColor(growth) {
-                    if (growth.startsWith('+')) {
-                        return 'text-green-600';
-                    } else if (growth.startsWith('-')) {
-                        return 'text-red-600';
-                    }
-                    return 'text-gray-600';
-                },
-                
-                getGrowthIcon(growth) {
-                    if (growth.startsWith('+')) {
-                        return 'trending-up';
-                    } else if (growth.startsWith('-')) {
-                        return 'trending-down';
-                    }
-                    return 'minus';
-                },
-
-                async loadDashboardData() {
-                    this.loading = true;
-                    this.error = null;
-                    
-                    try {
-                        // Load all data in parallel with proper error handling
-                        console.log('📡 Loading dashboard data from APIs...');
-                        
-                        // Use existing working API endpoints from memory
-                        // Based on memory: /api/all-patients, /api/online-consultations, /api/medicine work
-                        // /api/patients, /api/visits, /api/consultations don't exist
-                        
-                        let patients = [];
-                        let visits = [];
-                        let consultations = [];
-                        let medicines = [];
-                        
-                        // Try to load from working endpoints
-                        try {
-                            const medicineResponse = await fetch('/api/medicine');
-                            if (medicineResponse.ok) {
-                                medicines = await medicineResponse.json();
-                                console.log('✅ Medicine API loaded:', medicines.length, 'records');
-                            }
-                        } catch (error) {
-                            console.warn('⚠️ Medicine API not available');
-                        }
-                        
-                        // Try alternative patient endpoint from memory
-                        try {
-                            const patientsResponse = await fetch('/api/all-patients');
-                            if (patientsResponse.ok) {
-                                patients = await patientsResponse.json();
-                                console.log('✅ Patients API loaded:', patients.length, 'records');
-                            }
-                        } catch (error) {
-                            console.warn('⚠️ Patients API not available (using empty data)');
-                        }
-                        
-                        // Try online consultations endpoint from memory
-                        try {
-                            const consultationsResponse = await fetch('/api/online-consultations');
-                            if (consultationsResponse.ok) {
-                                consultations = await consultationsResponse.json();
-                                console.log('✅ Consultations API loaded:', consultations.length, 'records');
-                            }
-                        } catch (error) {
-                            console.warn('⚠️ Consultations API not available (using empty data)');
-                        }
-                        
-                        // Try visits API
-                        try {
-                            const visitsResponse = await fetch('/api/visits');
-                            if (visitsResponse.ok) {
-                                visits = await visitsResponse.json();
-                                console.log('✅ Visits API loaded:', visits.length, 'records');
-                            }
-                        } catch (error) {
-                            console.warn('⚠️ Visits API not available (using empty data)');
-                        }
-                        
-                        // Store raw data for filtering
-                        this.rawData = { patients, visits, consultations, medicines };
-                        
-                        // Calculate statistics with current filter
-                        this.calculateStatistics(patients, visits, consultations, medicines);
-                        
-                        // Initialize charts with real data after ensuring DOM and visibility
-                        this.scheduleChartInitialization();
-                        
-                        // Initialize Lucide icons after data loads
-                        this.$nextTick(() => {
-                            setTimeout(() => {
-                                if (typeof lucide !== 'undefined' && lucide.createIcons) {
-                                    try {
-                                        lucide.createIcons();
-                                    } catch (error) {
-                                        console.warn('Lucide icon initialization failed:', error);
-                                    }
-                                }
-                            }, 300);
-                        });
-                        
-                        // Summary of loaded data
-                        const totalRecords = patients.length + visits.length + consultations.length + medicines.length;
-                        console.log('📊 Dashboard data loaded successfully:', totalRecords, 'total records');
-                        
-                    } catch (error) {
-                        console.error('❌ Error loading dashboard data:', error);
-                        this.error = 'Failed to load dashboard data. Please try again.';
-                    } finally {
-                        this.loading = false;
-                    }
-                },
-
-                calculateStatistics(patients, visits, consultations, medicines) {
-                    // Calculate basic statistics
-                    this.stats.totalPatients = patients.length;
-                    this.stats.totalVisits = visits.length;
-                    this.stats.totalConsultations = consultations.length;
-                    this.stats.totalMedicines = medicines.length;
-                    
-                    // Calculate growth rates with more realistic logic
-                    const currentMonth = new Date().getMonth();
-                    const lastMonth = currentMonth - 1;
-                    
-                    // Simulate growth calculation (in real app, this would compare actual date ranges)
-                    const growthFactors = {
-                        patients: Math.random() * 20 - 5, // -5% to +15%
-                        consultations: Math.random() * 15 - 3 // -3% to +12%
-                    };
-                    
-                    this.stats.patientsGrowth = (growthFactors.patients >= 0 ? '+' : '') + growthFactors.patients.toFixed(1) + '%';
-                    this.stats.consultationsGrowth = (growthFactors.consultations >= 0 ? '+' : '') + growthFactors.consultations.toFixed(1) + '%';
-                    
-                    // Update department stats
-                    this.updateDepartmentStats(consultations);
-                    this.updateTopMedicines(medicines);
-                },
-                
-                updateDepartmentStats(consultations) {
-                    this.departmentStats = [
-                        { name: 'General Medicine', visits: Math.floor(consultations.length * 0.4), growth: '+12%' },
-                        { name: 'Emergency Care', visits: Math.floor(consultations.length * 0.3), growth: '+8%' },
-                        { name: 'Preventive Care', visits: Math.floor(consultations.length * 0.2), growth: '+15%' },
-                        { name: 'Mental Health', visits: Math.floor(consultations.length * 0.1), growth: '+5%' }
-                    ];
-                },
-                
-                updateTopMedicines(medicines) {
-                    // Sort medicines by quantity and take top 5
-                    this.topMedicines = medicines
-                        .sort((a, b) => (b.quantity || 0) - (a.quantity || 0))
-                        .slice(0, 5)
-                        .map(med => ({
-                            name: med.medicine_name || med.name || 'Unknown Medicine',
-                            stock: med.quantity || 0,
-                            // Use actual stock quantity for chart display
-                            prescriptions: med.quantity || 0
-                        }));
-                },
-
-                scheduleChartInitialization() {
-                    // Initialize charts when DOM is ready and visible
-                    this.$nextTick(() => {
-                        setTimeout(() => {
-                            this.initWhenReady();
-                        }, 100);
-                    });
-                },
-
-                initWhenReady() {
-                    // Check if container is visible
-                    const container = document.querySelector('[x-data*="reportsModule"]');
-                    if (!container || container.offsetParent === null) {
-                        setTimeout(() => this.initWhenReady(), 100);
-                        return;
-                    }
-                    this.initCharts();
-                },
-                
-                initChartsOld() {
-                    // OLD FUNCTION - NOT USED ANYMORE
-                    console.log('⚠️ OLD initCharts() called - redirecting to new one');
-                    this.initCharts();
-                },
-                
-                initNavigationChartsOld() {
-                    // OLD EMPTY FUNCTION - REDIRECTS TO REAL ONE
-                    console.log('⚠️ OLD initNavigationCharts() called');
-                    if (this.navigationChartsInitialized) {
-                        console.log('⚠️ Navigation charts already initialized, skipping...');
-                        return;
-                    }
-                    
-                    try {
-                        console.log('🚀 Initializing Navigation-Based Charts...');
-                        console.log('📊 Raw data available:', !!this.rawData);
-                        console.log('👥 Patients data:', this.rawData?.patients?.length || 0);
-                        console.log('🏥 Visits data:', this.rawData?.visits?.length || 0);
-                        console.log('💊 Medicines data:', this.rawData?.medicines?.length || 0);
-                        
-                        // Charts initialization - simplified for now
-                        console.log('📊 Charts would be initialized here');
-                        // Note: Chart functions are not implemented yet
-                        
-                        console.log('✅ Navigation charts initialization completed');
-                    } catch (error) {
-                        console.error('❌ Error initializing navigation charts:', error);
-                    }
-                    
-                    this.navigationChartsInitialized = true;
-                },
-                
-                // Preview Charts
-                previewPatientChart: null,
-                previewVisitChart: null,
-                previewMedicineChart: null,
-                
-                // Initialize Preview Charts
-                initPreviewCharts() {
-                    console.log('📊 Initializing preview charts...');
-                    
-                    // Wait for modal to be visible
-                    setTimeout(() => {
-                        this.createPreviewPatientChart();
-                        this.createPreviewVisitChart();
-                        this.createPreviewMedicineChart();
-                        
-                        // Re-initialize feather icons
-                        if (typeof feather !== 'undefined') {
-                            feather.replace();
-                        }
-                    }, 100);
-                },
-                
-                async createPreviewPatientChart() {
-                    const canvas = document.getElementById('previewPatientChart');
-                    if (!canvas) return;
-                    
-                    const ctx = canvas.getContext('2d');
-                    if (this.previewPatientChart) {
-                        this.previewPatientChart.destroy();
-                    }
-                    
-                    // Fetch real data from database
-                    const dbData = await this.fetchPreviewChartData();
-                    const stats = this.getPatientStatsByDepartment(dbData?.patients, this.customReport.department);
-                    
-                    const chartType = this.customReport.chartTypes.patientStats;
-                    
-                    this.previewPatientChart = new Chart(ctx, {
-                        type: chartType,
-                        data: {
-                            labels: stats.labels.length > 0 ? stats.labels : ['No Data'],
-                            datasets: [{
-                                label: 'Patient Count',
-                                data: stats.data.length > 0 ? stats.data : [0],
-                                backgroundColor: [
-                                    'rgba(59, 130, 246, 0.8)',
-                                    'rgba(16, 185, 129, 0.8)',
-                                    'rgba(251, 146, 60, 0.8)',
-                                    'rgba(139, 92, 246, 0.8)'
-                                ],
-                                borderRadius: 6
-                            }]
-                        },
-                        options: {
-                            responsive: true,
-                            maintainAspectRatio: false,
-                            plugins: {
-                                legend: { display: false }
-                            },
-                            scales: {
-                                y: { beginAtZero: true }
-                            }
-                        }
-                    });
-                },
-                
-                async createPreviewVisitChart() {
-                    const canvas = document.getElementById('previewVisitChart');
-                    if (!canvas) return;
-                    
-                    const ctx = canvas.getContext('2d');
-                    if (this.previewVisitChart) {
-                        this.previewVisitChart.destroy();
-                    }
-                    
-                    // Fetch real data from database
-                    const dbData = await this.fetchPreviewChartData();
-                    const trends = this.getVisitTrendsByMonth(dbData?.visits, this.customReport.startDate, this.customReport.endDate);
-                    
-                    const chartType = this.customReport.chartTypes.visitTrends;
-                    const isArea = chartType === 'area';
-                    
-                    this.previewVisitChart = new Chart(ctx, {
-                        type: isArea ? 'line' : chartType,
-                        data: {
-                            labels: trends.labels.length > 0 ? trends.labels : ['No Data'],
-                            datasets: [{
-                                label: 'Visits',
-                                data: trends.data.length > 0 ? trends.data : [0],
-                                borderColor: 'rgb(34, 197, 94)',
-                                backgroundColor: 'rgba(34, 197, 94, 0.1)',
-                                tension: 0.4,
-                                fill: isArea
-                            }]
-                        },
-                        options: {
-                            responsive: true,
-                            maintainAspectRatio: false,
-                            plugins: {
-                                legend: { display: false }
-                            },
-                            scales: {
-                                y: { beginAtZero: true }
-                            }
-                        }
-                    });
-                },
-                
-                async createPreviewMedicineChart() {
-                    const canvas = document.getElementById('previewMedicineChart');
-                    if (!canvas) return;
-                    
-                    const ctx = canvas.getContext('2d');
-                    if (this.previewMedicineChart) {
-                        this.previewMedicineChart.destroy();
-                    }
-                    
-                    // Fetch real data from database
-                    const dbData = await this.fetchPreviewChartData();
-                    const medicines = this.getTopMedicines(dbData?.medicines);
-                    
-                    const chartType = this.customReport.chartTypes.medicineUsage;
-                    
-                    this.previewMedicineChart = new Chart(ctx, {
-                        type: chartType,
-                        data: {
-                            labels: medicines.labels.length > 0 ? medicines.labels : ['No Data'],
-                            datasets: [{
-                                data: medicines.data.length > 0 ? medicines.data : [0],
-                                backgroundColor: [
-                                    'rgba(147, 51, 234, 0.8)',
-                                    'rgba(236, 72, 153, 0.8)',
-                                    'rgba(59, 130, 246, 0.8)',
-                                    'rgba(156, 163, 175, 0.8)'
-                                ]
-                            }]
-                        },
-                        options: {
-                            responsive: true,
-                            maintainAspectRatio: false,
-                            plugins: {
-                                legend: {
-                                    position: 'bottom',
-                                    labels: { boxWidth: 12, font: { size: 10 } }
-                                }
-                            }
-                        }
-                    });
-                },
-                
-                // Helper Functions for Live Preview
-                getPreviewDateRange() {
-                    const start = this.customReport.startDate ? new Date(this.customReport.startDate).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : 'Start';
-                    const end = this.customReport.endDate ? new Date(this.customReport.endDate).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : 'End';
-                    const dept = this.getDepartmentName(this.customReport.department);
-                    return `${start} - ${end} • ${dept}`;
-                },
-                
-                // Generate monthly labels based on date range
-                getMonthlyLabels() {
-                    if (!this.customReport.startDate || !this.customReport.endDate) {
-                        return ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'];
-                    }
-                    
-                    const start = new Date(this.customReport.startDate);
-                    const end = new Date(this.customReport.endDate);
-                    const labels = [];
-                    
-                    let current = new Date(start.getFullYear(), start.getMonth(), 1);
-                    const endDate = new Date(end.getFullYear(), end.getMonth(), 1);
-                    
-                    while (current <= endDate) {
-                        labels.push(current.toLocaleDateString('en-US', { month: 'short', year: 'numeric' }));
-                        current.setMonth(current.getMonth() + 1);
-                    }
-                    
-                    return labels.length > 0 ? labels : ['Current Month'];
-                },
-                
-                // Generate sample data for charts
-                generateSampleData(length) {
-                    const data = [];
-                    for (let i = 0; i < length; i++) {
-                        data.push(Math.floor(Math.random() * 30) + 10);
-                    }
-                    return data;
-                },
-                
-                // Fetch filtered data from database for preview charts
-                async fetchPreviewChartData() {
-                    try {
-                        console.log('📊 Fetching preview chart data from database...');
-                        
-                        // Fetch patients data
-                        const patientsResponse = await fetch('/api/all-patients');
-                        const patientsData = await patientsResponse.json();
-                        
-                        // Fetch visits/medical records
-                        const visitsResponse = await fetch('/api/visits');
-                        const visitsData = await visitsResponse.json();
-                        
-                        // Fetch medicine data
-                        const medicineResponse = await fetch('/api/medicine');
-                        const medicineData = await medicineResponse.json();
-                        
-                        return {
-                            patients: patientsData,
-                            visits: visitsData,
-                            medicines: medicineData
-                        };
-                    } catch (error) {
-                        console.error('❌ Error fetching preview data:', error);
-                        return null;
-                    }
-                },
-                
-                // Process patient statistics by department
-                getPatientStatsByDepartment(patients, department) {
-                    if (!patients) return { labels: [], data: [] };
-                    
-                    let filteredPatients = patients;
-                    
-                    // Filter by department if not 'all'
-                    if (department !== 'all') {
-                        filteredPatients = patients.filter(p => {
-                            if (department === 'students') return p.role === 'Student';
-                            if (department === 'teaching_staff') return p.role === 'Teaching Staff';
-                            if (department === 'non_teaching_staff') return p.role === 'Non-Teaching Staff';
-                            if (department === 'visitors') return p.role === 'Visitor';
-                            if (department === 'bsit') return p.course === 'BSIT';
-                            if (department === 'bsed') return p.course === 'BSED';
-                            if (department === 'bsba') return p.course === 'BSBA';
-                            if (department === 'bshm') return p.course === 'BSHM';
-                            return true;
-                        });
-                    }
-                    
-                    // Count by role
-                    const roleCounts = {};
-                    filteredPatients.forEach(p => {
-                        const role = p.role || 'Unknown';
-                        roleCounts[role] = (roleCounts[role] || 0) + 1;
-                    });
-                    
-                    return {
-                        labels: Object.keys(roleCounts),
-                        data: Object.values(roleCounts)
-                    };
-                },
-                
-                // Process visit trends by month
-                getVisitTrendsByMonth(visits, startDate, endDate) {
-                    if (!visits) return { labels: [], data: [] };
-                    
-                    const start = new Date(startDate);
-                    const end = new Date(endDate);
-                    
-                    // Generate month labels
-                    const monthLabels = [];
-                    const monthCounts = {};
-                    
-                    let current = new Date(start.getFullYear(), start.getMonth(), 1);
-                    const endMonth = new Date(end.getFullYear(), end.getMonth(), 1);
-                    
-                    while (current <= endMonth) {
-                        const key = current.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
-                        monthLabels.push(key);
-                        monthCounts[key] = 0;
-                        current.setMonth(current.getMonth() + 1);
-                    }
-                    
-                    // Count visits per month
-                    visits.forEach(visit => {
-                        const visitDate = new Date(visit.visit_date);
-                        if (visitDate >= start && visitDate <= end) {
-                            const key = visitDate.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
-                            if (monthCounts.hasOwnProperty(key)) {
-                                monthCounts[key]++;
-                            }
-                        }
-                    });
-                    
-                    return {
-                        labels: monthLabels,
-                        data: monthLabels.map(label => monthCounts[label])
-                    };
-                },
-                
-                // Process top medicines
-                getTopMedicines(medicines) {
-                    if (!medicines) return { labels: [], data: [] };
-                    
-                    // Sort by quantity (most used = lowest quantity remaining)
-                    const sorted = medicines
-                        .sort((a, b) => a.quantity - b.quantity)
-                        .slice(0, 5);
-                    
-                    return {
-                        labels: sorted.map(m => m.medicine_name),
-                        data: sorted.map(m => 100 - m.quantity) // Invert to show usage
-                    };
-                },
-                
-                getDepartmentName(dept) {
-                    const names = {
-                        'all': 'All Departments',
-                        'students': 'Students',
-                        'teaching_staff': 'Teaching Staff',
-                        'non_teaching_staff': 'Non-Teaching Staff',
-                        'visitors': 'Visitors',
-                        'bsit': 'BSIT Students',
-                        'bsed': 'BSED Students',
-                        'bsba': 'BSBA Students',
-                        'bshm': 'BSHM Students'
-                    };
-                    return names[dept] || 'All Departments';
-                },
-                
-                scrollToChart() {
-                    if (this.selectedChartFilter === 'all') {
-                        this.showAllCharts();
-                        return;
-                    }
-                    document.querySelectorAll('[data-chart-container]').forEach(container => {
-                        container.style.display = 'none';
-                    });
-                    const chartElement = document.getElementById(this.selectedChartFilter);
-                    if (chartElement) {
-                        const container = chartElement.closest('[data-chart-container]');
-                        if (container) {
-                            container.style.display = 'block';
-                            container.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                            container.classList.add('ring-4', 'ring-blue-400', 'ring-opacity-50');
-                            setTimeout(() => {
-                                container.classList.remove('ring-4', 'ring-blue-400', 'ring-opacity-50');
-                            }, 2000);
-                        }
-                    }
-                },
-                
-                showAllCharts() {
-                    document.querySelectorAll('[data-chart-container]').forEach(container => {
-                        container.style.display = 'block';
-                    });
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                },
-                
-                resetFilters() {
-                    this.selectedChartFilter = 'all';
-                    this.selectedPeriod = 'month';
-                    this.selectedDepartment = 'all';
-                    this.showAllCharts();
-                    this.updateCharts();
-                },
-                
-                updatePreviewHeader() {
-                    // Header updates automatically via x-text bindings
-                    console.log('📝 Preview header updated');
-                },
-                
-                updatePreviewCharts() {
-                    console.log('📊 Updating preview charts based on filters...');
-                    // Re-initialize charts with updated data
-                    setTimeout(() => {
-                        if (this.customReport.metrics.patientStats) {
-                            this.createPreviewPatientChart();
-                        }
-                        if (this.customReport.metrics.visitTrends) {
-                            this.createPreviewVisitChart();
-                        }
-                        if (this.customReport.metrics.medicineUsage) {
-                            this.createPreviewMedicineChart();
-                        }
-                        
-                        // Re-initialize feather icons
-                        if (typeof feather !== 'undefined') {
-                            feather.replace();
-                        }
-                    }, 100);
-                },
-                
-                // Generate Custom Report
-                generateCustomReport() {
-                    console.log('📊 Generating custom report...');
-                    
-                    // Show success notification
-                    alert('Custom report generation feature is coming soon!\n\nThis will allow you to:\n• Create personalized reports\n• Export in PDF, Excel, or CSV format\n• Filter by date range and department\n• Select specific metrics to include');
-                    
-                    // Close the modal
-                    this.showCustomReportModal = false;
-                    
-                    // TODO: Implement actual report generation logic
-                    // This would typically:
-                    // 1. Collect form data
-                    // 2. Send request to backend API
-                    // 3. Generate report file
-                    // 4. Download the file
-                },
-                
-                // Cleanup on destroy
-                destroy() {
-                    this.stopAutoRefresh();
-                    if (this.updateChartsTimeout) {
-                        clearTimeout(this.updateChartsTimeout);
-                    }
-                }
-            }
-        }
-    </script>
-
-</body>
-</html>
+    <!-- Table Export Modal (PDF Only) -->
+    <div x-show="showTableExportModal" x-cloak
+         x-transition:enter="transition ease-out duration-300"
+         x-transition:enter-start="opacity-0"
+         x-transition:enter-end="opacity-100"
+         x-transition:leave="transition ease-in duration-200"
+         x-transition:leave-start="opacity-100"
+         x-transition:leave-end="opacity-0"
+         class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60]"
+         @click.self="showTableExportModal = false">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-md mx-4 overflow-hidden"
+             @keydown.escape.window="showTableExportModal = false">
+            <div class="px-6 py-4 border-b border-gray-200 bg-gray-50">
+                <h3 class="text-lg font-semibold text-gray-900">Export Table as PDF</h3>
+            </div>
+            <div class="px-6 py-4">
+                <p class="text-gray-700">This will export the current table dataset as a PDF file.</p>
+                <p class="text-sm text-gray-600 mt-2" x-text="`Dataset: ${tableDataset}`"></p>
+            </div>
+            <div class="px-6 py-4 border-t border-gray-200 flex justify-end gap-2">
+                <button @click="showTableExportModal = false" class="px-4 py-2 rounded-lg font-medium bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors">Cancel</button>
+                <button @click="confirmTableExportPDF()" :disabled="tableExporting" class="px-4 py-2 rounded-lg font-medium bg-gray-800 text-white hover:bg-gray-900 transition-colors disabled:opacity-60 disabled:cursor-not-allowed">
+                    <span x-text="tableExporting ? 'Exporting…' : 'Export PDF'"></span>
+                </button>
+            </div>
+        </div>
 
     <!-- Alpine.js Reports Module -->
     <script>
@@ -2251,6 +1407,13 @@
                 showLogoutConfirm: false,
                 showCustomReportModal: false,
                 notificationDropdown: false,
+                showMessageModal: false,
+                messageTitle: '',
+                messageText: '',
+                messageType: 'info',
+                showTableExportModal: false,
+                tableExporting: false,
+                printMode: 'chart', // 'chart' or 'table'
                 selectedPeriod: 'month',
                 selectedDepartment: 'all',
                 startDate: '',
@@ -2311,6 +1474,24 @@
                 
                 // Chart filter
                 selectedChartFilter: 'all',
+                // View mode for Analytics area: 'charts' or 'table'
+                viewMode: 'charts',
+                // Table state
+                tableDataset: 'visits',
+                tableData: [],
+                tableColumns: [],
+                tableLoading: false,
+                tablePage: 1,
+                tablePerPage: 10,
+                
+                get paginatedData() {
+                    const start = (this.tablePage - 1) * parseInt(this.tablePerPage);
+                    return this.tableData.slice(start, start + parseInt(this.tablePerPage));
+                },
+
+                get totalTablePages() {
+                    return Math.max(1, Math.ceil(this.tableData.length / parseInt(this.tablePerPage)));
+                },
                 
                 // Data
                 stats: {
@@ -2457,6 +1638,165 @@
                     });
                 },
 
+                setViewMode(mode) {
+                    this.viewMode = mode;
+                    if (mode === 'table') {
+                        this.fetchTableData();
+                        this.destroyCharts();
+                    } else {
+                        // Re-init charts if needed
+                        this.scheduleChartInitialization();
+                    }
+                },
+
+                destroyCharts() {
+                    const chartRefs = [
+                        'revenueChart', 'monthlyVisitsChart', 'monthlyAppointmentsChart', 
+                        'monthlyMedicineChart', 'monthlyConsultationsChart', 
+                        'monthlyNewPatientsChart', 'monthlyOverviewChart',
+                        'illnessForecastChart', 'patientDemographicsChart', 'medicalRecordsChart'
+                    ];
+                    chartRefs.forEach(ref => {
+                        if (this[ref] && typeof this[ref].destroy === 'function') {
+                            try {
+                                this[ref].destroy();
+                            } catch(e) {}
+                            this[ref] = null;
+                        }
+                    });
+                },
+
+                showMessage(title, text, type = 'info') {
+                    this.messageTitle = title;
+                    this.messageText = text;
+                    this.messageType = type;
+                    this.showMessageModal = true;
+                },
+                
+                showNotification(message, type = 'info') {
+                    const notification = document.createElement('div');
+                    notification.className = `fixed top-4 right-4 z-50 p-4 rounded-lg shadow-lg transition-all duration-300 ${
+                        type === 'success' ? 'bg-green-500 text-white' :
+                        type === 'error' ? 'bg-red-500 text-white' :
+                        'bg-blue-500 text-white'
+                    }`;
+                    notification.style.zIndex = '9999';
+                    notification.textContent = message;
+                    document.body.appendChild(notification);
+                    setTimeout(() => {
+                        notification.style.opacity = '0';
+                        setTimeout(() => notification.remove(), 300);
+                    }, 3000);
+                },
+
+                // Table helpers and exports
+                formatTableCell(value) {
+                    if (value === null || value === undefined) return '';
+                    if (typeof value === 'object') return JSON.stringify(value);
+                    return String(value);
+                },
+
+                async fetchTableData() {
+                    this.tableLoading = true;
+                    this.tableData = [];
+                    this.tableColumns = [];
+                    try {
+                        let url = '/api/visits';
+                        if (this.tableDataset === 'patients') url = '/api/all-patients';
+                        else if (this.tableDataset === 'medicines') url = '/api/medicine';
+                        else if (this.tableDataset === 'appointments') url = '/api/appointments/availability';
+
+                        const res = await fetch(url);
+                        if (!res.ok) {
+                            this.showMessage('Error', 'Failed to fetch table data', 'error');
+                            return;
+                        }
+
+                        const payload = await res.json();
+                        const arr = Array.isArray(payload) ? payload : (payload.data || payload.items || payload.appointments || []);
+
+                        this.tableData = arr;
+
+                        const cols = new Set();
+                        arr.slice(0, 200).forEach(item => {
+                            if (item && typeof item === 'object') {
+                                Object.keys(item).forEach(k => cols.add(k));
+                            }
+                        });
+
+                        this.tableColumns = Array.from(cols);
+                    } catch (error) {
+                        console.error('Failed to fetch table data', error);
+                        this.showMessage('Error', 'Failed to fetch table data', 'error');
+                    } finally {
+                        this.tableLoading = false;
+                    }
+                },
+
+                exportTableCSV() {
+                    if (!this.tableData || !this.tableData.length) { this.showMessage('No data', 'No table data to export', 'warning'); return; }
+                    const rows = [this.tableColumns, ...this.tableData.map(row => this.tableColumns.map(c => row[c] ?? ''))];
+                    const csv = rows.map(r => r.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(',')).join('\n');
+                    const blob = new Blob([csv], { type: 'text/csv' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `${this.tableDataset}-report-${new Date().toISOString().split('T')[0]}.csv`;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                    this.showNotification('Table exported as CSV', 'success');
+                },
+
+                exportTableExcel() {
+                    if (!this.tableData || !this.tableData.length) { this.showMessage('No data','No table data to export','warning'); return; }
+                    const rows = [this.tableColumns, ...this.tableData.map(row => this.tableColumns.map(c => row[c] ?? ''))];
+                    const csv = rows.map(r => r.map(cell => String(cell)).join('\t')).join('\n');
+                    const blob = new Blob([csv], { type: 'application/vnd.ms-excel' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `${this.tableDataset}-report-${new Date().toISOString().split('T')[0]}.xls`;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                    this.showNotification('Table exported as Excel', 'success');
+                },
+
+                async exportTablePDF() {
+                    if (!this.tableData || !this.tableData.length) { this.showMessage('No data','No table data to export','warning'); return; }
+                    
+                    this.printMode = 'table';
+                    this.selectedChartTitle = this.tableDataset.toUpperCase() + ' DATA';
+                    
+                    // Small delay to ensure Alpine renders the print view
+                    setTimeout(() => {
+                        window.print();
+                        this.showNotification('Report sent to print', 'success');
+                    }, 500);
+                },
+
+                openTableExportDialog() {
+                    if (!this.tableData || !this.tableData.length) {
+                        this.showMessage('No data','No table data to export','warning');
+                        return;
+                    }
+                    this.showTableExportModal = true;
+                },
+
+                async confirmTableExportPDF() {
+                    if (this.tableExporting) return;
+                    this.tableExporting = true;
+                    try {
+                        await this.exportTablePDF();
+                    } finally {
+                        this.tableExporting = false;
+                        this.showTableExportModal = false;
+                    }
+                },
+
                 cleanup() {
                     // Clear any pending timeouts
                     if (this.updateChartsTimeout) {
@@ -2469,8 +1809,10 @@
                 },
 
                 scheduleChartInitialization() {
+                    if (this.viewMode !== 'charts') return;
                     // Wait for DOM to be fully ready and page to be visible
                     const initWhenReady = () => {
+                        if (this.viewMode !== 'charts') return;
                         if (document.readyState === 'complete' && !document.hidden) {
                             // Additional check to ensure chart containers are visible
                             const medicineContainer = document.getElementById('revenueChart');
@@ -6378,6 +5720,7 @@
                 },
                 
                 exportChart(chartId, filename) {
+                    this.printMode = 'chart';
                     // Store which chart to print
                     this.selectedChartForPrint = chartId;
                     this.selectedChartTitle = filename;
@@ -7324,55 +6667,88 @@ this would contain the actual report data and formatting.
 
             <div style="border-top: 1px solid #111827; margin: 10px 0;"></div>
 
-            <!-- TABLE 1 -->
-            <div style="font-family: Arial, Helvetica, sans-serif; page-break-inside: avoid;">
-                <div style="font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #374151; margin-bottom: 6px;">TABLE 1: Distribution Summary</div>
-                <table style="width: 100%; border-collapse: collapse; border: 1px solid #111827;">
-                    <thead>
-                        <tr style="background: #f3f4f6;">
-                            <th style="border: 1px solid #111827; padding: 6px 8px; font-size: 11px; text-align: left; width: 60px;">Rank</th>
-                            <th style="border: 1px solid #111827; padding: 6px 8px; font-size: 11px; text-align: left;">Item</th>
-                            <th style="border: 1px solid #111827; padding: 6px 8px; font-size: 11px; text-align: right; width: 140px;">Total</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <template x-for="(item, index) in chartSummaryData" :key="index">
-                            <tr>
-                                <td style="border: 1px solid #111827; padding: 6px 8px; font-size: 11px;" x-text="index + 1"></td>
-                                <td style="border: 1px solid #111827; padding: 6px 8px; font-size: 11px;" x-text="item.label"></td>
-                                <td style="border: 1px solid #111827; padding: 6px 8px; font-size: 11px; text-align: right;" x-text="item.value"></td>
-                            </tr>
-                        </template>
-                        <template x-if="chartSummaryData.length === 0">
-                            <tr>
-                                <td colspan="3" style="border: 1px solid #111827; padding: 10px 8px; font-size: 11px; text-align: center; color: #6b7280;">No data available</td>
-                            </tr>
-                        </template>
-                    </tbody>
-                </table>
-            </div>
+            <!-- Chart-Specific Content -->
+            <template x-if="printMode === 'chart'">
+                <div>
+                    <!-- TABLE 1 -->
+                    <div style="font-family: Arial, Helvetica, sans-serif; page-break-inside: avoid;">
+                        <div style="font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #374151; margin-bottom: 6px;">TABLE 1: Distribution Summary</div>
+                        <table style="width: 100%; border-collapse: collapse; border: 1px solid #111827;">
+                            <thead>
+                                <tr style="background: #f3f4f6;">
+                                    <th style="border: 1px solid #111827; padding: 6px 8px; font-size: 11px; text-align: left; width: 60px;">Rank</th>
+                                    <th style="border: 1px solid #111827; padding: 6px 8px; font-size: 11px; text-align: left;">Item</th>
+                                    <th style="border: 1px solid #111827; padding: 6px 8px; font-size: 11px; text-align: right; width: 140px;">Total</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <template x-for="(item, index) in chartSummaryData" :key="index">
+                                    <tr>
+                                        <td style="border: 1px solid #111827; padding: 6px 8px; font-size: 11px;" x-text="index + 1"></td>
+                                        <td style="border: 1px solid #111827; padding: 6px 8px; font-size: 11px;" x-text="item.label"></td>
+                                        <td style="border: 1px solid #111827; padding: 6px 8px; font-size: 11px; text-align: right;" x-text="item.value"></td>
+                                    </tr>
+                                </template>
+                                <template x-if="chartSummaryData.length === 0">
+                                    <tr>
+                                        <td colspan="3" style="border: 1px solid #111827; padding: 10px 8px; font-size: 11px; text-align: center; color: #6b7280;">No data available</td>
+                                    </tr>
+                                </template>
+                            </tbody>
+                        </table>
+                    </div>
 
-            <div style="border-top: 1px solid #111827; margin: 10px 0;"></div>
+                    <div style="border-top: 1px solid #111827; margin: 10px 0;"></div>
 
-            <!-- FIGURE 1 -->
-            <div style="font-family: Arial, Helvetica, sans-serif; page-break-inside: avoid;">
-                <div style="font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #374151; margin-bottom: 6px;">FIGURE 1: Distribution Chart</div>
-                <div style="border: 1px solid #111827; padding: 10px;">
-                    <div style="height: 200px; overflow: hidden;">
-                        <canvas id="printDynamicChart" style="display: block; width: 100%; height: 100%; max-width: 100%;"></canvas>
+                    <!-- FIGURE 1 -->
+                    <div style="font-family: Arial, Helvetica, sans-serif; page-break-inside: avoid;">
+                        <div style="font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #374151; margin-bottom: 6px;">FIGURE 1: Distribution Chart</div>
+                        <div style="border: 1px solid #111827; padding: 10px;">
+                            <div style="height: 200px; overflow: hidden;">
+                                <canvas id="printDynamicChart" style="display: block; width: 100%; height: 100%; max-width: 100%;"></canvas>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div style="border-top: 1px solid #111827; margin: 12px 0;"></div>
+
+                    <!-- AI INTERPRETATION -->
+                    <div class="print-ai-interpretation" style="font-family: Arial, Helvetica, sans-serif;">
+                        <div style="font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #374151; margin-bottom: 6px;">AI INTERPRETATION</div>
+                        <div style="border: 1px solid #111827; padding: 10px; background: #f9fafb;">
+                            <div style="font-size: 11px; line-height: 1.5; white-space: pre-line;" x-text="printAiInterpretation || (selectedChartForPrint && chartInsights ? chartInsights[selectedChartForPrint] : '') || 'No AI interpretation available.'"></div>
+                        </div>
                     </div>
                 </div>
-            </div>
+            </template>
 
-            <div style="border-top: 1px solid #111827; margin: 12px 0;"></div>
-
-            <!-- AI INTERPRETATION (included in export/print) -->
-            <div class="print-ai-interpretation" style="font-family: Arial, Helvetica, sans-serif;">
-                <div style="font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #374151; margin-bottom: 6px;">AI INTERPRETATION</div>
-                <div style="border: 1px solid #111827; padding: 10px; background: #f9fafb;">
-                    <div style="font-size: 11px; line-height: 1.5; white-space: pre-line;" x-text="printAiInterpretation || (selectedChartForPrint && chartInsights ? chartInsights[selectedChartForPrint] : '') || 'No AI interpretation available.'"></div>
+            <!-- Table-Specific Content -->
+            <template x-if="printMode === 'table'">
+                <div style="font-family: Arial, Helvetica, sans-serif;">
+                    <div style="font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #1e3a5f; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center;">
+                        <span x-text="`Full ${tableDataset} Dataset Report` "></span>
+                        <span style="font-size: 10px; color: #6b7280; font-weight: normal;" x-text="`Total Records: ${tableData.length}`"></span>
+                    </div>
+                    <table style="width: 100%; border-collapse: collapse; border: 1.5px solid #111827;">
+                        <thead>
+                            <tr style="background: #1e3a5f; color: white;">
+                                <template x-for="col in tableColumns" :key="col">
+                                    <th style="border: 1px solid #111827; padding: 8px 10px; font-size: 10px; text-align: left; text-transform: uppercase; letter-spacing: 0.3px;" x-text="col"></th>
+                                </template>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <template x-for="(row, idx) in tableData" :key="idx">
+                                <tr :style="idx % 2 === 1 ? 'background: #f9fafb;' : 'background: white;'">
+                                    <template x-for="col in tableColumns" :key="col">
+                                        <td style="border: 1px solid #111827; padding: 6px 10px; font-size: 9.5px; color: #1f2937;" x-text="formatTableCell(row[col])"></td>
+                                    </template>
+                                </tr>
+                            </template>
+                        </tbody>
+                    </table>
                 </div>
-            </div>
+            </template>
 
             <div style="border-top: 1px solid #111827; margin: 12px 0;"></div>
 

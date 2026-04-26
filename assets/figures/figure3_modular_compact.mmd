@@ -1,0 +1,45 @@
+%%{init: {"theme":"base","themeVariables":{"fontSize":"10px"},"flowchart":{"nodeSpacing":12,"rankSpacing":18}}}%%
+%% Figure 3 — Modular System Architecture (compact)
+flowchart TD
+  subgraph Roles["User Roles"]
+    PT["Patient"]
+    NUR["Nurse"]
+    DOC["Doctor"]
+    REG["Registrar"]
+    IT["IT"]
+  end
+
+  Auth["Auth & RBAC"]
+  Roles --> Auth
+
+  subgraph Core["Core Modules"]
+    REGMOD["Registration"]
+    RECORDS["Records"]
+    QUEUE["Queue"]
+    SCHED["Scheduling"]
+    INV["Inventory"]
+    REPORTS["Reports"]
+    AUDIT["Audit"]
+    UM["User Mgmt"]
+  end
+
+  Auth --> Core
+
+  DB["MySQL (iclinic_main)"]
+  Core --> DB
+
+  Web["Web App (Admin)"]
+  Web --> Core
+  Roles --> Web
+
+  subgraph Ext["Integrations"]
+    CLOUD["Cloud (RDS)"]
+    SMTP["Email"]
+    SMSG["SMS Gateway"]
+  end
+
+  Ext --> DB
+  Web --> Ext
+
+  classDef box fill:#eef,stroke:#333,stroke-width:1px,font-size:10px;
+  class Roles,Auth,Core,DB,Web,Ext box;

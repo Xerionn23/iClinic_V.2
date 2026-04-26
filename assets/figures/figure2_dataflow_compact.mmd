@@ -1,0 +1,43 @@
+%%{init: {"theme":"base","themeVariables":{"fontSize":"10px"},"flowchart":{"nodeSpacing":12,"rankSpacing":18}}}%%
+%% Figure 2 — Data Flow (compact)
+flowchart TD
+  EndUser["End Users (Patients, Staff, Admin)"]
+  Network["Secure Network"]
+  EndUser --> Network
+
+  Auth["Auth (RBAC)"]
+  Network --> Auth
+
+  subgraph Inputs2["Data Input"]
+    PR2["Pt Records"]
+    ED["Encounters"]
+    AP2["Appts & Queue"]
+    INV2["Inventory"]
+  end
+
+  Auth --> Inputs2
+  Inputs2 --> Ingest["Ingest & Validate"]
+  Ingest --> Engine["Analytics Engine (Classify→Process→Visualize)"]
+
+  subgraph EngineLayers["Engine Layers"]
+    D2["Desc"]
+    P2["Pred"]
+    R2["Presc"]
+  end
+
+  Engine --> D2
+  Engine --> P2
+  Engine --> R2
+
+  D2 --> DataViz["Dashboards & Reports"]
+  D2 --> Alerts["Alerts (Email/SMS)"]
+  R2 --> Decision["Decision Support"]
+
+  DataViz --> Reports["Reports Module"]
+  Alerts --> Reports
+  Decision --> Reports
+
+  Reports --> Admin["Admins / Coordinators"]
+
+  classDef box fill:#eef,stroke:#333,stroke-width:1px,font-size:10px;
+  class Engine,DataViz,Alerts,Decision,Reports box;

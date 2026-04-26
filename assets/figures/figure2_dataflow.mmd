@@ -1,0 +1,39 @@
+%% Figure 2 — Data Flow Architecture of the iClinic Analytics Engine
+flowchart TD
+  EndUser["End Users\n(Patients, Staff, Admin)"]
+  Network["Secure Network / HTTPS"]
+  EndUser --> Network
+
+  Auth["User Management\n(RBAC, Login)"]
+  Network --> Auth
+
+  subgraph Inputs2["Data Input Modules"]
+    PR2["Patient Records"]
+    ED["Encounter / Visit Data"]
+    AP2["Appointments & Queue Data"]
+    INV2["Inventory Logs"]
+  end
+
+  Auth --> Inputs2
+  Inputs2 --> Ingest["Ingest & Validation"]
+  Ingest --> Engine["iClinic Analytics Engine\n(Classify → Process → Visualize)"]
+
+  subgraph EngineLayers["Analytics Engine Layers"]
+    D2["Descriptive Analytics"]
+    P2["Predictive Analytics"]
+    R2["Prescriptive Analytics"]
+  end
+
+  Engine --> D2
+  Engine --> P2
+  Engine --> R2
+
+  D2 --> DataViz["Data Visualization\n(Dashboards, Departmental Stats, Reports)"]
+  D2 --> Alerts["Notifications & Alerts\n(Email, SMS, Reminders, Queue Updates)"]
+  R2 --> Decision["Decision Support\n(Interventions, Recommendations)"]
+
+  DataViz --> Reports["Reports Module\n(Filter, Export)"]
+  Alerts --> Reports
+  Decision --> Reports
+
+  Reports --> Admin["Administrators / Coordinators"]
