@@ -3236,6 +3236,10 @@ def init_db():
 
     try:
         ensure_patients_unified_priority_columns(conn)
+        try:
+            ensure_patients_unified_address_column(conn)
+        except Exception as e:
+            print(f"Note: Could not ensure patients_unified address column for /api/all-patients: {e}")
     except Exception as e:
         print(f"Note: Could not ensure patients_unified priority columns during init: {e}")
     
@@ -7574,6 +7578,59 @@ def ensure_patients_unified_priority_columns(conn) -> bool:
             pass
 
 
+def ensure_patients_unified_address_column(conn) -> bool:
+    cursor = conn.cursor()
+    try:
+        cursor.execute("SHOW TABLES LIKE 'patients_unified'")
+        if not cursor.fetchone():
+            return False
+
+        cursor.execute("SHOW COLUMNS FROM patients_unified LIKE 'address'")
+        if not cursor.fetchone():
+            cursor.execute(
+                "ALTER TABLE patients_unified ADD COLUMN address VARCHAR(255) NULL AFTER contact_number"
+            )
+
+        dummy_addresses = [
+            'Poblacion, San Nazario, Leyte',
+            'Brgy. San Roque, San Nazario, Leyte',
+            'Brgy. Tinago, San Nazario, Leyte',
+            'Brgy. Dagsa, San Nazario, Leyte',
+            'Brgy. Matlang, San Nazario, Leyte',
+            'Brgy. Mabini, San Nazario, Leyte',
+            'Brgy. Rizal, San Nazario, Leyte',
+            'Brgy. Sta. Cruz, San Nazario, Leyte',
+            'Brgy. San Isidro, San Nazario, Leyte',
+            'Brgy. Victory, San Nazario, Leyte',
+        ]
+
+        # Backfill missing/blank/N/A addresses with randomized dummy addresses
+        placeholders = ','.join(['%s'] * len(dummy_addresses))
+        cursor.execute(
+            f"""
+            UPDATE patients_unified
+            SET address = ELT(FLOOR(1 + RAND() * {len(dummy_addresses)}), {placeholders})
+            WHERE address IS NULL OR TRIM(address) = '' OR address = 'N/A'
+            """,
+            tuple(dummy_addresses)
+        )
+
+        conn.commit()
+        return True
+    except Exception as e:
+        print(f"Note: Could not ensure patients_unified address column: {e}")
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+        return False
+    finally:
+        try:
+            cursor.close()
+        except Exception:
+            pass
+
+
 def ensure_consultation_ticket_priority_columns(conn):
     cursor = conn.cursor()
     try:
@@ -8655,6 +8712,10 @@ def api_all_patients():
 
     try:
         ensure_patients_unified_priority_columns(conn)
+        try:
+            ensure_patients_unified_address_column(conn)
+        except Exception as e:
+            print(f"Note: Could not ensure patients_unified address column for /api/all-patients: {e}")
 
         has_is_pwd_col = False
         has_is_senior_col = False
@@ -8676,6 +8737,7 @@ def api_all_patients():
         cursor.execute(f'''
             SELECT patient_id, role, source_id, identifier, first_name, middle_name, last_name, suffix,
                    gender, age, birthdate, email, contact_number,
+                   address,
                    department, course, level, position,
                    {is_pwd_expr} AS is_pwd,
                    {is_senior_expr} AS is_senior_citizen,
@@ -8907,6 +8969,7 @@ def api_all_patients():
                 'email': r.get('email') or 'N/A',
                 'contact_num': r.get('contact_number') or 'N/A',
                 'contact': r.get('contact_number') or 'N/A',
+                'address': r.get('address') or '',
                 'course': r.get('course') or 'N/A',
                 'level': r.get('level') or 'N/A',
                 'department': r.get('department') or (r.get('course') or 'N/A'),

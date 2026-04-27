@@ -549,6 +549,8 @@
             .print-only {
                 position: relative !important;
                 left: auto !important;
+                opacity: 1 !important;
+                visibility: visible !important;
                 display: block !important;
                 max-width: 210mm;
                 margin: 0 auto !important;
@@ -557,6 +559,7 @@
                 padding: 8mm 15mm 12mm 15mm !important;
                 box-sizing: border-box !important;
                 overflow: visible !important;
+                pointer-events: auto !important;
             }
 
             .print-content {
@@ -1016,50 +1019,155 @@
                                         </div>
                                     </div>
 
+                                    <div x-show="!tableLoading" class="mb-4">
+                                        <div class="grid grid-cols-1 lg:grid-cols-12 gap-3 items-end">
+                                            <div class="lg:col-span-6">
+                                                <label class="text-[11px] sm:text-xs md:text-sm font-semibold text-gray-600">Search</label>
+                                                <div class="relative">
+                                                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                                        <i data-lucide="search" class="w-4 h-4 text-gray-400"></i>
+                                                    </div>
+                                                    <input x-model="tableSearch" @input="tablePage = 1" type="text" placeholder="Search anything in the table..." class="w-full pl-10 pr-10 py-2 rounded-xl border border-gray-200 bg-white text-[12px] sm:text-sm md:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                                                    <button x-show="tableSearch" @click="tableSearch=''; tablePage=1" type="button" class="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-700">
+                                                        <i data-lucide="x" class="w-4 h-4"></i>
+                                                    </button>
+                                                </div>
+                                            </div>
+
+                                            <div class="lg:col-span-3" x-show="tableDateColumn">
+                                                <label class="text-[11px] sm:text-xs md:text-sm font-semibold text-gray-600" x-text="`From (${tableDateColumn})`"></label>
+                                                <input x-model="tableDateFrom" @change="tablePage = 1" type="date" class="w-full px-3 py-2 rounded-xl border border-gray-200 bg-white text-[12px] sm:text-sm md:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                                            </div>
+                                            <div class="lg:col-span-3" x-show="tableDateColumn">
+                                                <label class="text-[11px] sm:text-xs md:text-sm font-semibold text-gray-600" x-text="`To (${tableDateColumn})`"></label>
+                                                <input x-model="tableDateTo" @change="tablePage = 1" type="date" class="w-full px-3 py-2 rounded-xl border border-gray-200 bg-white text-[12px] sm:text-sm md:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                                            </div>
+                                        </div>
+
+                                        <div class="mt-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                                            <div class="text-[11px] sm:text-xs md:text-sm text-gray-500">
+                                                <span class="font-semibold text-gray-700" x-text="processedTableData.length"></span>
+                                                results
+                                                <span x-show="processedTableData.length !== tableData.length">
+                                                    <span class="text-gray-400">(filtered from </span>
+                                                    <span class="text-gray-400" x-text="tableData.length"></span>
+                                                    <span class="text-gray-400">)</span>
+                                                </span>
+                                            </div>
+
+                                            <div class="flex items-center gap-2">
+                                                <button @click="tableSearch=''; tableDateFrom=''; tableDateTo=''; tableSortCol=''; tableSortDir='asc'; tablePage=1" type="button" class="px-3 py-2 rounded-xl border border-gray-200 bg-white text-gray-700 text-[11px] sm:text-xs md:text-sm font-semibold hover:bg-gray-50">
+                                                    Reset filters
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+
                                     <div x-show="tableLoading" class="py-12 text-center text-gray-600">
                                         Loading table data...
                                     </div>
 
-                                    <div x-show="!tableLoading" class="overflow-x-auto">
-                                        <table class="min-w-full divide-y divide-gray-200" id="reportsDataTable">
-                                            <thead class="bg-gray-50">
+                                    <div x-show="!tableLoading" class="md:hidden">
+                                        <div class="max-h-[60vh] overflow-y-auto overscroll-contain pr-1 space-y-3">
+                                            <template x-for="(row, idx) in paginatedData" :key="idx">
+                                                <div class="border border-gray-200 rounded-2xl bg-white shadow-sm overflow-hidden">
+                                                    <button type="button" class="w-full px-4 py-3 flex items-start justify-between gap-3" @click="toggleTableRow(idx)">
+                                                        <div class="text-left min-w-0">
+                                                            <div class="text-[13px] sm:text-sm font-bold text-gray-900 truncate" x-text="formatTableCell(row[tableColumns[0]]) || 'Record'"></div>
+                                                            <div class="mt-1 text-xs text-gray-500" x-show="tableColumns.length > 1">
+                                                                <span class="font-semibold" x-text="tableColumns[1]"></span>
+                                                                <span>: </span>
+                                                                <span x-text="formatTableCell(row[tableColumns[1]])"></span>
+                                                            </div>
+                                                            <div class="mt-0.5 text-xs text-gray-500" x-show="tableColumns.length > 2">
+                                                                <span class="font-semibold" x-text="tableColumns[2]"></span>
+                                                                <span>: </span>
+                                                                <span x-text="formatTableCell(row[tableColumns[2]])"></span>
+                                                            </div>
+                                                        </div>
+                                                        <div class="shrink-0 mt-0.5 text-gray-400">
+                                                            <i x-show="tableExpandedRow !== idx" data-lucide="chevron-down" class="w-5 h-5"></i>
+                                                            <i x-show="tableExpandedRow === idx" data-lucide="chevron-up" class="w-5 h-5"></i>
+                                                        </div>
+                                                    </button>
+
+                                                    <div x-show="tableExpandedRow === idx" x-transition class="px-4 pb-4">
+                                                        <div class="mt-1 grid grid-cols-1 gap-2">
+                                                            <template x-for="col in tableColumns.slice(3)" :key="col">
+                                                                <div class="flex items-start justify-between gap-3">
+                                                                    <div class="text-[10px] sm:text-[11px] font-bold text-gray-600" x-text="col"></div>
+                                                                    <div class="text-[10px] sm:text-[11px] text-gray-800 text-right break-words max-w-[70%]" x-text="formatTableCell(row[col])"></div>
+                                                                </div>
+                                                            </template>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </template>
+
+                                            <div x-show="processedTableData.length === 0" class="py-8 text-center text-gray-500 border border-dashed border-gray-200 rounded-2xl">
+                                                No results found.
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div x-show="!tableLoading" class="hidden md:block max-h-[60vh] overflow-y-auto overscroll-contain rounded-xl border border-gray-100 w-fit mx-auto">
+                                        <div class="max-w-[1000px] overflow-x-scroll touch-pan-x mx-auto" style="scrollbar-gutter: stable both-edges;">
+                                            <table class="divide-y divide-gray-200 w-max" id="reportsDataTable">
+                                            <thead class="bg-gray-50 sticky top-0 z-10">
                                                 <tr>
                                                     <template x-for="col in tableColumns" :key="col">
-                                                        <th class="px-4 py-2 text-left text-xs font-medium text-gray-700 uppercase tracking-wider" x-text="col"></th>
+                                                        <th class="px-4 py-3 text-left text-[10px] sm:text-xs md:text-xs font-bold text-gray-700 uppercase tracking-wider select-none w-[200px] min-w-[200px]">
+                                                            <button type="button" class="w-full flex items-center justify-between gap-2" @click="setTableSort(col)">
+                                                                <span class="truncate" x-text="col"></span>
+                                                                <span class="flex items-center" x-show="tableSortCol === col">
+                                                                    <i x-show="tableSortDir === 'asc'" data-lucide="arrow-up" class="w-3.5 h-3.5 text-gray-500"></i>
+                                                                    <i x-show="tableSortDir === 'desc'" data-lucide="arrow-down" class="w-3.5 h-3.5 text-gray-500"></i>
+                                                                </span>
+                                                                <span class="flex items-center" x-show="tableSortCol !== col">
+                                                                    <i data-lucide="chevrons-up-down" class="w-3.5 h-3.5 text-gray-300"></i>
+                                                                </span>
+                                                            </button>
+                                                        </th>
                                                     </template>
                                                 </tr>
                                             </thead>
                                             <tbody class="bg-white divide-y divide-gray-200">
                                                 <template x-for="(row, idx) in paginatedData" :key="idx">
-                                                    <tr class="hover:bg-gray-50">
+                                                    <tr class="hover:bg-blue-50/40 transition-colors">
                                                         <template x-for="col in tableColumns" :key="col">
-                                                            <td class="px-4 py-2 text-sm text-gray-700" x-text="formatTableCell(row[col])"></td>
+                                                            <td class="px-4 py-3 text-[11px] sm:text-sm md:text-sm text-gray-700 whitespace-normal break-words max-w-[360px] w-[200px] min-w-[200px]" x-text="formatTableCell(row[col])"></td>
                                                         </template>
                                                     </tr>
                                                 </template>
-                                                <tr x-show="tableData.length === 0">
+                                                <tr x-show="processedTableData.length === 0">
                                                     <td :colspan="tableColumns.length || 1" class="px-4 py-8 text-center text-gray-500">
-                                                        No data found for this dataset.
+                                                        No results found.
                                                     </td>
                                                 </tr>
                                             </tbody>
-                                        </table>
+                                            </table>
+                                        </div>
                                     </div>
 
                                     <!-- Pagination Controls -->
-                                    <div x-show="!tableLoading && tableData.length > 0" class="mt-6 flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t border-gray-100">
+                                    <div x-show="!tableLoading && processedTableData.length > 0" class="mt-6 flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t border-gray-100">
                                         <div class="flex items-center gap-4">
                                             <div class="flex items-center gap-2">
-                                                <span class="text-sm text-gray-600">Rows per page:</span>
-                                                <select x-model="tablePerPage" @change="tablePage = 1" class="px-2 py-1 border rounded text-sm bg-white focus:ring-2 focus:ring-blue-500">
+                                                <span class="text-[11px] sm:text-sm md:text-sm text-gray-600">Rows per page:</span>
+                                                <select x-model="tablePerPage" @change="tablePage = 1" class="px-2 py-1 border rounded text-[11px] sm:text-sm md:text-sm bg-white focus:ring-2 focus:ring-blue-500">
                                                     <option value="5">5</option>
                                                     <option value="10">10</option>
                                                     <option value="25">25</option>
                                                     <option value="50">50</option>
                                                 </select>
                                             </div>
-                                            <div class="text-sm text-gray-600">
-                                                Total Rows: <span class="font-semibold text-gray-900" x-text="tableData.length"></span>
+                                            <div class="text-[11px] sm:text-sm md:text-sm text-gray-600">
+                                                Showing:
+                                                <span class="font-semibold text-gray-900" x-text="tableShowingFrom"></span>
+                                                -
+                                                <span class="font-semibold text-gray-900" x-text="tableShowingTo"></span>
+                                                of
+                                                <span class="font-semibold text-gray-900" x-text="processedTableData.length"></span>
                                             </div>
                                         </div>
                                         
@@ -1483,14 +1591,87 @@
                 tableLoading: false,
                 tablePage: 1,
                 tablePerPage: 10,
+                tableSearch: '',
+                tableSortCol: '',
+                tableSortDir: 'asc',
+                tableDateFrom: '',
+                tableDateTo: '',
+                tableExpandedRow: null,
+
+                get tableDateColumn() {
+                    const cols = Array.isArray(this.tableColumns) ? this.tableColumns : [];
+                    return cols.find(c => typeof c === 'string' && c.toLowerCase().includes('date')) || '';
+                },
+
+                get processedTableData() {
+                    const q = String(this.tableSearch || '').trim().toLowerCase();
+                    const dateCol = this.tableDateColumn;
+                    const from = this.tableDateFrom ? new Date(this.tableDateFrom) : null;
+                    const to = this.tableDateTo ? new Date(this.tableDateTo) : null;
+
+                    let data = Array.isArray(this.tableData) ? this.tableData : [];
+
+                    if (q) {
+                        data = data.filter(row => {
+                            if (!row || typeof row !== 'object') return false;
+                            return (this.tableColumns || []).some(col => {
+                                const v = this.formatTableCell(row[col]);
+                                return String(v || '').toLowerCase().includes(q);
+                            });
+                        });
+                    }
+
+                    if (dateCol && (from || to)) {
+                        data = data.filter(row => {
+                            const raw = row ? row[dateCol] : '';
+                            const d = new Date(raw);
+                            if (isNaN(d.getTime())) return false;
+                            if (from && d < from) return false;
+                            if (to) {
+                                const end = new Date(to);
+                                end.setHours(23, 59, 59, 999);
+                                if (d > end) return false;
+                            }
+                            return true;
+                        });
+                    }
+
+                    const sortCol = this.tableSortCol;
+                    if (sortCol) {
+                        const dir = this.tableSortDir === 'desc' ? -1 : 1;
+                        data = data.slice().sort((a, b) => {
+                            const av = a ? a[sortCol] : '';
+                            const bv = b ? b[sortCol] : '';
+
+                            const an = typeof av === 'number' ? av : Number(av);
+                            const bn = typeof bv === 'number' ? bv : Number(bv);
+                            const bothNumeric = !isNaN(an) && !isNaN(bn) && String(av).trim() !== '' && String(bv).trim() !== '';
+                            if (bothNumeric) return (an - bn) * dir;
+
+                            return String(this.formatTableCell(av)).localeCompare(String(this.formatTableCell(bv)), undefined, { numeric: true, sensitivity: 'base' }) * dir;
+                        });
+                    }
+
+                    return data;
+                },
                 
                 get paginatedData() {
                     const start = (this.tablePage - 1) * parseInt(this.tablePerPage);
-                    return this.tableData.slice(start, start + parseInt(this.tablePerPage));
+                    return this.processedTableData.slice(start, start + parseInt(this.tablePerPage));
                 },
 
                 get totalTablePages() {
-                    return Math.max(1, Math.ceil(this.tableData.length / parseInt(this.tablePerPage)));
+                    return Math.max(1, Math.ceil(this.processedTableData.length / parseInt(this.tablePerPage)));
+                },
+
+                get tableShowingFrom() {
+                    if (!this.processedTableData.length) return 0;
+                    return (this.tablePage - 1) * parseInt(this.tablePerPage) + 1;
+                },
+
+                get tableShowingTo() {
+                    const end = this.tablePage * parseInt(this.tablePerPage);
+                    return Math.min(end, this.processedTableData.length);
                 },
                 
                 // Data
@@ -1649,6 +1830,24 @@
                     }
                 },
 
+                setTableSort(col) {
+                    if (this.tableSortCol === col) {
+                        this.tableSortDir = this.tableSortDir === 'asc' ? 'desc' : 'asc';
+                    } else {
+                        this.tableSortCol = col;
+                        this.tableSortDir = 'asc';
+                    }
+                    this.tablePage = 1;
+                },
+
+                toggleTableRow(idx) {
+                    this.tableExpandedRow = this.tableExpandedRow === idx ? null : idx;
+
+                    setTimeout(() => {
+                        try { if (window.lucide) window.lucide.createIcons(); } catch(e) {}
+                    }, 0);
+                },
+
                 destroyCharts() {
                     const chartRefs = [
                         'revenueChart', 'monthlyVisitsChart', 'monthlyAppointmentsChart', 
@@ -1692,8 +1891,23 @@
                 // Table helpers and exports
                 formatTableCell(value) {
                     if (value === null || value === undefined) return '';
-                    if (typeof value === 'object') return JSON.stringify(value);
-                    return String(value);
+                    if (Array.isArray(value)) {
+                        if (value.length === 0) return '';
+                        const first = value[0];
+                        if (first && typeof first === 'object') return `${value.length} item(s)`;
+                        const parts = value.slice(0, 3).map(v => String(v));
+                        return value.length > 3 ? `${parts.join(', ')}… (+${value.length - 3})` : parts.join(', ');
+                    }
+                    if (typeof value === 'object') {
+                        try {
+                            const s = JSON.stringify(value);
+                            return s.length > 90 ? `${s.slice(0, 90)}…` : s;
+                        } catch (e) {
+                            return String(value);
+                        }
+                    }
+                    const s = String(value);
+                    return s.length > 180 ? `${s.slice(0, 180)}…` : s;
                 },
 
                 async fetchTableData() {
@@ -1701,6 +1915,13 @@
                     this.tableData = [];
                     this.tableColumns = [];
                     try {
+                        this.tableSearch = '';
+                        this.tableSortCol = '';
+                        this.tableSortDir = 'asc';
+                        this.tableDateFrom = '';
+                        this.tableDateTo = '';
+                        this.tablePage = 1;
+
                         let url = '/api/visits';
                         if (this.tableDataset === 'patients') url = '/api/all-patients';
                         else if (this.tableDataset === 'medicines') url = '/api/medicine';
@@ -1730,6 +1951,10 @@
                         this.showMessage('Error', 'Failed to fetch table data', 'error');
                     } finally {
                         this.tableLoading = false;
+
+                        setTimeout(() => {
+                            try { if (window.lucide) window.lucide.createIcons(); } catch(e) {}
+                        }, 0);
                     }
                 },
 
@@ -1770,12 +1995,117 @@
                     
                     this.printMode = 'table';
                     this.selectedChartTitle = this.tableDataset.toUpperCase() + ' DATA';
-                    
-                    // Small delay to ensure Alpine renders the print view
+
+                    const datasetTitle = (String(this.tableDataset || 'DATA').replace(/_/g, ' ').trim() || 'DATA').toUpperCase();
+                    const reportTitle = `${datasetTitle} DATA`;
+
+                    const cols = Array.isArray(this.tableColumns) ? this.tableColumns : [];
+                    const rows = Array.isArray(this.processedTableData) ? this.processedTableData : [];
+
+                    const headerCells = cols.map(col => {
+                        const safeCol = String(col ?? '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                        return `<th style="border: 1px solid #111827; padding: 8px 10px; font-size: 10px; text-align: left; text-transform: uppercase; letter-spacing: 0.3px;">${safeCol}</th>`;
+                    }).join('');
+
+                    const bodyRows = rows.map((row, idx) => {
+                        const bg = idx % 2 === 1 ? '#f9fafb' : 'white';
+                        const tds = cols.map(col => {
+                            const raw = row ? row[col] : '';
+                            const formatted = typeof this.formatTableCell === 'function' ? this.formatTableCell(raw) : raw;
+                            const safe = String(formatted ?? '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                            return `<td style="border: 1px solid #111827; padding: 6px 10px; font-size: 9.5px; color: #1f2937;">${safe}</td>`;
+                        }).join('');
+                        return `<tr style="background:${bg};">${tds}</tr>`;
+                    }).join('');
+
+                    const printHtml = `
+                        <!doctype html>
+                        <html>
+                        <head>
+                            <meta charset="utf-8" />
+                            <title>${reportTitle}</title>
+                            <style>
+                                @page { margin: 12mm 15mm; size: A4; }
+                                body { margin: 0; font-family: Arial, Helvetica, sans-serif; color: #111827; background: #fff; }
+                                .wrap { max-width: 210mm; margin: 0 auto; padding: 8mm 0 12mm 0; }
+                                .rule { border-top: 1px solid #111827; margin: 10px 0; }
+                                .header-grid { display: grid; grid-template-columns: 85px 1fr 85px; align-items: center; gap: 12px; }
+                                .header-mid { text-align: center; }
+                                .header-school { font-size: 18px; font-weight: 700; letter-spacing: 1px; }
+                                .header-addr { font-size: 11px; margin-top: 3px; }
+                                .header-sub { font-size: 12px; font-weight: 700; margin-top: 8px; text-transform: uppercase; color: #374151; }
+                                .logo { width: 70px; height: 70px; object-fit: contain; }
+                                .title { text-align: center; font-size: 16px; font-weight: 700; letter-spacing: 1px; color: #374151; }
+                                .meta { margin-top: 6px; display: flex; justify-content: space-between; font-size: 11px; }
+                                table { width: 100%; border-collapse: collapse; border: 1.5px solid #111827; }
+                                thead tr { background: #1e3a5f; color: white; }
+                                .muted { font-size: 10px; color: #6b7280; text-align: center; margin-top: 10px; }
+                            </style>
+                        </head>
+                        <body>
+                            <div class="wrap">
+                                <div class="header-grid">
+                                    <div style="display:flex; justify-content:center;">
+                                        <img src="/assets/img/iclinic-logo.png" alt="College Logo" class="logo" />
+                                    </div>
+                                    <div class="header-mid">
+                                        <div class="header-school">NORZAGARAY COLLEGE</div>
+                                        <div class="header-addr">Municipal Compound, Brgy. Poblacion, Norzagaray, Bulacan</div>
+                                        <div class="header-sub">iClinic</div>
+                                    </div>
+                                    <div style="display:flex; justify-content:center;">
+                                        <img src="/assets/img/Bagong_Pilipinas_logo.png" alt="Bagong Pilipinas Logo" class="logo" />
+                                    </div>
+                                </div>
+
+                                <div class="rule"></div>
+                                <div class="title">${reportTitle} REPORT</div>
+                                <div class="meta">
+                                    <div>Dataset: ${datasetTitle}</div>
+                                    <div>Total Records: ${rows.length}</div>
+                                </div>
+                                <div class="rule"></div>
+
+                                <table>
+                                    <thead>
+                                        <tr>${headerCells || '<th style="border: 1px solid #111827; padding: 8px 10px; font-size: 10px; text-align: left;">NO COLUMNS</th>'}</tr>
+                                    </thead>
+                                    <tbody>
+                                        ${bodyRows || `<tr><td style="border: 1px solid #111827; padding: 10px 8px; font-size: 11px; text-align: center; color: #6b7280;" colspan="${Math.max(cols.length, 1)}">No data available</td></tr>`}
+                                    </tbody>
+                                </table>
+
+                                <div class="muted">Generated from iClinic System</div>
+                            </div>
+                        </body>
+                        </html>
+                    `;
+
+                    let iframe = document.getElementById('chartPrintFrame');
+                    if (!iframe) {
+                        iframe = document.createElement('iframe');
+                        iframe.id = 'chartPrintFrame';
+                        iframe.style.position = 'fixed';
+                        iframe.style.right = '0';
+                        iframe.style.bottom = '0';
+                        iframe.style.width = '0';
+                        iframe.style.height = '0';
+                        iframe.style.border = '0';
+                        iframe.style.opacity = '0';
+                        iframe.style.pointerEvents = 'none';
+                        document.body.appendChild(iframe);
+                    }
+
+                    const doc = iframe.contentWindow.document;
+                    doc.open();
+                    doc.write(printHtml);
+                    doc.close();
+
                     setTimeout(() => {
-                        window.print();
+                        iframe.contentWindow.focus();
+                        iframe.contentWindow.print();
                         this.showNotification('Report sent to print', 'success');
-                    }, 500);
+                    }, 250);
                 },
 
                 openTableExportDialog() {
@@ -5721,14 +6051,11 @@
                 
                 exportChart(chartId, filename) {
                     this.printMode = 'chart';
-                    // Store which chart to print
                     this.selectedChartForPrint = chartId;
                     this.selectedChartTitle = filename;
 
-                    // Capture AI interpretation for export/print (include whatever is already shown)
                     this.printAiInterpretation = (this.chartInsights && this.chartInsights[chartId]) ? this.chartInsights[chartId] : '';
 
-                    // If AI Interpretation hasn't been generated yet, create a local one so exports still include it.
                     if (!this.printAiInterpretation) {
                         const sourceChart = this[chartId];
                         const chartData = sourceChart?.data;
@@ -5741,16 +6068,140 @@
                         this.printAiInterpretation = this.buildChartInterpretation(chartId, printableTitle, labels, datasets, '');
                     }
                     
-                    // Generate summary data for this specific chart
                     this.generateChartSummary(chartId);
-                    
-                    // Initialize print charts before printing
-                    this.initializePrintCharts(chartId);
-                    
-                    // Small delay to ensure charts render
-                    setTimeout(() => {
-                        window.print();
-                    }, 500);
+
+                    const sourceChart = this[chartId];
+                    const chartImage = sourceChart && typeof sourceChart.toBase64Image === 'function'
+                        ? sourceChart.toBase64Image()
+                        : '';
+
+                    const reportTitle = (String(filename || '').replace(/_/g, ' ').trim() || 'CLINIC REPORT').toUpperCase();
+                    const summaryRows = (this.chartSummaryData || []).map((item, index) => {
+                        const safeLabel = String(item.label ?? '');
+                        const safeValue = String(item.value ?? '');
+                        return `
+                            <tr>
+                                <td style="border: 1px solid #111827; padding: 6px 8px; font-size: 11px;">${index + 1}</td>
+                                <td style="border: 1px solid #111827; padding: 6px 8px; font-size: 11px;">${safeLabel}</td>
+                                <td style="border: 1px solid #111827; padding: 6px 8px; font-size: 11px; text-align: right;">${safeValue}</td>
+                            </tr>
+                        `;
+                    }).join('');
+
+                    const interpretationText = String(this.printAiInterpretation || (this.selectedChartForPrint && this.chartInsights ? this.chartInsights[this.selectedChartForPrint] : '') || 'No AI interpretation available.');
+
+                    const printHtml = `
+                        <!doctype html>
+                        <html>
+                        <head>
+                            <meta charset="utf-8" />
+                            <title>${reportTitle}</title>
+                            <style>
+                                @page { margin: 12mm 15mm; size: A4; }
+                                body { margin: 0; font-family: Arial, Helvetica, sans-serif; color: #111827; background: #fff; }
+                                .wrap { max-width: 210mm; margin: 0 auto; padding: 8mm 0 12mm 0; }
+                                .title { text-align: center; font-size: 16px; font-weight: 700; letter-spacing: 1px; color: #374151; }
+                                .rule { border-top: 1px solid #111827; margin: 10px 0; }
+                                .header-grid { display: grid; grid-template-columns: 85px 1fr 85px; align-items: center; gap: 12px; }
+                                .header-mid { text-align: center; }
+                                .header-school { font-size: 18px; font-weight: 700; letter-spacing: 1px; }
+                                .header-addr { font-size: 11px; margin-top: 3px; }
+                                .header-sub { font-size: 12px; font-weight: 700; margin-top: 8px; text-transform: uppercase; color: #374151; }
+                                .logo { width: 70px; height: 70px; object-fit: contain; }
+                                table { width: 100%; border-collapse: collapse; border: 1px solid #111827; }
+                                th { background: #f3f4f6; border: 1px solid #111827; padding: 6px 8px; font-size: 11px; text-align: left; }
+                                .section-title { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #374151; margin: 0 0 6px 0; }
+                                .box { border: 1px solid #111827; padding: 10px; }
+                                .ai { white-space: pre-line; font-size: 11px; line-height: 1.5; }
+                                img { display: block; width: 100%; height: auto; }
+                                .muted { font-size: 10px; color: #6b7280; text-align: center; margin-top: 10px; }
+                            </style>
+                        </head>
+                        <body>
+                            <div class="wrap">
+                                <div class="header-grid">
+                                    <div style="display:flex; justify-content:center;">
+                                        <img src="/assets/img/iclinic-logo.png" alt="College Logo" class="logo" />
+                                    </div>
+                                    <div class="header-mid">
+                                        <div class="header-school">NORZAGARAY COLLEGE</div>
+                                        <div class="header-addr">Municipal Compound, Brgy. Poblacion, Norzagaray, Bulacan</div>
+                                        <div class="header-sub">iClinic</div>
+                                    </div>
+                                    <div style="display:flex; justify-content:center;">
+                                        <img src="/assets/img/Bagong_Pilipinas_logo.png" alt="Bagong Pilipinas Logo" class="logo" />
+                                    </div>
+                                </div>
+
+                                <div class="rule"></div>
+
+                                <div class="title">${reportTitle} REPORT</div>
+                                <div class="rule"></div>
+
+                                <div style="page-break-inside: avoid;">
+                                    <div class="section-title">TABLE 1: Distribution Summary</div>
+                                    <table>
+                                        <thead>
+                                            <tr>
+                                                <th style="width:60px;">Rank</th>
+                                                <th>Item</th>
+                                                <th style="width:140px; text-align:right;">Total</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            ${summaryRows || `<tr><td colspan="3" style="border: 1px solid #111827; padding: 10px 8px; font-size: 11px; text-align: center; color: #6b7280;">No data available</td></tr>`}
+                                        </tbody>
+                                    </table>
+                                </div>
+
+                                <div class="rule"></div>
+
+                                <div style="page-break-inside: avoid;">
+                                    <div class="section-title">FIGURE 1: Distribution Chart</div>
+                                    <div class="box">
+                                        ${chartImage ? `<img src="${chartImage}" alt="Chart" />` : `<div style="font-size: 11px; color:#6b7280;">Chart image not available.</div>`}
+                                    </div>
+                                </div>
+
+                                <div class="rule"></div>
+
+                                <div style="page-break-inside: auto;">
+                                    <div class="section-title">SUMMARY</div>
+                                    <div class="box" style="background:#f9fafb;">
+                                        <div class="ai">${interpretationText.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</div>
+                                    </div>
+                                </div>
+
+                                <div class="muted">Generated from iClinic System</div>
+                            </div>
+                        </body>
+                        </html>
+                    `;
+
+                    let iframe = document.getElementById('chartPrintFrame');
+                    if (!iframe) {
+                        iframe = document.createElement('iframe');
+                        iframe.id = 'chartPrintFrame';
+                        iframe.style.position = 'fixed';
+                        iframe.style.right = '0';
+                        iframe.style.bottom = '0';
+                        iframe.style.width = '0';
+                        iframe.style.height = '0';
+                        iframe.style.border = '0';
+                        iframe.style.opacity = '0';
+                        iframe.style.pointerEvents = 'none';
+                        document.body.appendChild(iframe);
+                    }
+
+                    const doc = iframe.contentWindow.document;
+                    doc.open();
+                    doc.write(printHtml);
+                    doc.close();
+
+                    iframe.onload = () => {
+                        iframe.contentWindow.focus();
+                        iframe.contentWindow.print();
+                    };
                 },
                 
                 generateChartSummary(chartId) {
@@ -6625,7 +7076,7 @@ this would contain the actual report data and formatting.
 
 
     <!-- HIDDEN PRINT SECTION - Formal Institutional Report Layout -->
-    <div class="print-only" style="position: absolute; left: -9999px; width: 210mm; height: 297mm; background: white; padding: 8mm 15mm 12mm 15mm; color: #111827; font-family: 'Times New Roman', Cambria, Georgia, serif; box-sizing: border-box; overflow: hidden;">
+    <div class="print-only" style="position: absolute; opacity: 0; width: 210mm; height: 297mm; background: white; padding: 8mm 15mm 12mm 15mm; color: #111827; font-family: 'Times New Roman', Cambria, Georgia, serif; box-sizing: border-box; overflow: hidden; pointer-events: none;">
         
         <!-- Optional Watermark -->
         <div style="position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; pointer-events: none; z-index: 0;">
